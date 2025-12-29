@@ -5,15 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Unit E Ward Rounds</title>
 
-  <!-- React + Babel -->
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
-  <!-- XLSX -->
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 
-  <!-- Firebase compat -->
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -39,6 +36,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: var(--bg);
       color:#111827;
+      padding-bottom: 40px;
     }
 
     .wrap{
@@ -53,8 +51,10 @@
       box-shadow: var(--shadow);
       overflow:hidden;
       border: 1px solid rgba(0,0,0,.04);
+      min-height: 80vh;
     }
 
+    /* Topbar */
     .topbar{
       background: linear-gradient(135deg, var(--green) 0%, var(--green2) 100%);
       color:white;
@@ -84,6 +84,8 @@
       font-size: 12px;
       opacity:.95;
     }
+    
+    /* Status Dot */
     .dot{
       width:10px; height:10px; border-radius:999px;
       background:#ffb300;
@@ -100,10 +102,11 @@
       flex-wrap:wrap;
     }
 
+    /* Buttons */
     .btn{
       border: none;
       border-radius: 12px;
-      padding: 10px 12px;
+      padding: 10px 16px;
       font-weight: 600;
       font-size: 13px;
       cursor: pointer;
@@ -122,20 +125,10 @@
       border: 1px solid rgba(255,255,255,.18);
     }
     .btn-ghost:hover{ background: rgba(255,255,255,.2); }
-    .btn-danger{
-      background:#ef4444;
-      color:white;
-    }
+    .btn-danger{ background:#ef4444; color:white; }
     .btn-small{ padding: 8px 10px; border-radius: 10px; font-size:12px; font-weight:700; }
-    .btn-link{
-      background:transparent;
-      color: #0b5bd3;
-      border:none;
-      padding:0;
-      cursor:pointer;
-      font-weight:700;
-    }
-
+    
+    /* Controls Area */
     .controls{
       padding: 12px 14px;
       background: #fafafa;
@@ -152,6 +145,16 @@
       align-items:center;
     }
 
+    .search-box {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      font-size: 14px;
+      min-width: 200px;
+    }
+
+    /* Pills */
     .pillRow{
       display:flex;
       gap:8px;
@@ -160,4 +163,331 @@
     .pill{
       border: 1px solid var(--border);
       background:white;
-      padding: 9
+      padding: 6px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--muted);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .pill:hover { border-color: var(--green); color: var(--green); }
+    .pill.active { background: var(--green); color: white; border-color: var(--green); }
+
+    /* Table/List Area */
+    .content-area {
+      padding: 0;
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 14px;
+    }
+    th {
+      text-align: left;
+      padding: 12px 16px;
+      background: #f9fafb;
+      border-bottom: 2px solid var(--border);
+      color: var(--muted);
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+    td {
+      padding: 14px 16px;
+      border-bottom: 1px solid var(--border);
+      vertical-align: top;
+    }
+    tr:last-child td { border-bottom: none; }
+    tr:hover td { background: #fdfdfd; }
+
+    /* Inputs within table */
+    .table-input {
+      width: 100%;
+      border: 1px solid transparent;
+      padding: 4px;
+      border-radius: 4px;
+      background: transparent;
+      font-family: inherit;
+      font-size: inherit;
+      resize: none;
+    }
+    .table-input:focus {
+      border-color: var(--blue);
+      background: white;
+      outline: none;
+    }
+    .badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      font-weight: 700;
+      background: #e0f2f1;
+      color: #00695c;
+    }
+
+    /* Loading / Empty States */
+    .empty-state {
+      padding: 40px;
+      text-align: center;
+      color: var(--muted);
+    }
+  </style>
+</head>
+<body>
+
+  <div id="root"></div>
+
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
+
+    // --- FIREBASE CONFIGURATION ---
+    // Master Shifu: PASTE YOUR FIREBASE CONFIG HERE
+    const firebaseConfig = {
+       // apiKey: "YOUR_API_KEY",
+       // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+       // databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
+       // projectId: "YOUR_PROJECT_ID",
+       // storageBucket: "YOUR_PROJECT_ID.appspot.com",
+       // messagingSenderId: "SENDER_ID",
+       // appId: "APP_ID"
+    };
+
+    // Initialize Firebase safely
+    let db = null;
+    try {
+      if (firebase.apps.length === 0 && firebaseConfig.apiKey) {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+      }
+    } catch (e) {
+      console.error("Firebase init error:", e);
+    }
+
+    const App = () => {
+      const [patients, setPatients] = useState([]);
+      const [loading, setLoading] = useState(true);
+      const [isOnline, setIsOnline] = useState(navigator.onLine);
+      const [searchTerm, setSearchTerm] = useState("");
+      const [filter, setFilter] = useState("All");
+
+      // --- MOCK DATA (DELETE THIS IF USING REAL FIREBASE) ---
+      // This ensures you see data even if Firebase isn't set up yet
+      useEffect(() => {
+        if (!db) {
+          setPatients([
+            { id: 1, name: "John Doe", mrn: "12345", bed: "A1", diagnosis: "Pneumonia", plan: "Continue antibiotics" },
+            { id: 2, name: "Jane Smith", mrn: "67890", bed: "A2", diagnosis: "DKA", plan: "Insulin sliding scale" },
+          ]);
+          setLoading(false);
+        }
+      }, []);
+      // ----------------------------------------------------
+
+      // Firebase Listener
+      useEffect(() => {
+        if (!db) return;
+
+        const patientsRef = db.ref('patients');
+        patientsRef.on('value', (snapshot) => {
+          const data = snapshot.val();
+          const loadedPatients = [];
+          for (let id in data) {
+            loadedPatients.push({ id, ...data[id] });
+          }
+          setPatients(loadedPatients);
+          setLoading(false);
+        });
+
+        const handleStatusChange = () => setIsOnline(navigator.onLine);
+        window.addEventListener('online', handleStatusChange);
+        window.addEventListener('offline', handleStatusChange);
+
+        return () => {
+          patientsRef.off();
+          window.removeEventListener('online', handleStatusChange);
+          window.removeEventListener('offline', handleStatusChange);
+        };
+      }, []);
+
+      const handleAddPatient = () => {
+        const newPatient = {
+          name: "New Patient",
+          mrn: "",
+          bed: "",
+          diagnosis: "",
+          plan: "",
+          timestamp: Date.now()
+        };
+        
+        if(db) {
+          db.ref('patients').push(newPatient);
+        } else {
+          // Local mock update
+          setPatients([...patients, { ...newPatient, id: Date.now() }]);
+        }
+      };
+
+      const handleUpdate = (id, field, value) => {
+        if(db) {
+          db.ref(`patients/${id}`).update({ [field]: value });
+        } else {
+           // Local mock update
+           setPatients(patients.map(p => p.id === id ? { ...p, [field]: value } : p));
+        }
+      };
+
+      const handleDelete = (id) => {
+        if (confirm("Are you sure you want to discharge/delete this patient?")) {
+          if(db) {
+            db.ref(`patients/${id}`).remove();
+          } else {
+            setPatients(patients.filter(p => p.id !== id));
+          }
+        }
+      };
+
+      const handleExport = () => {
+        const ws = XLSX.utils.json_to_sheet(patients);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Ward Rounds");
+        XLSX.writeFile(wb, "Unit_E_Rounds.xlsx");
+      };
+
+      const filteredPatients = patients.filter(p => 
+        (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (p.mrn && p.mrn.includes(searchTerm))
+      );
+
+      return (
+        <div className="wrap">
+          <div className="app">
+            
+            {/* Header */}
+            <div className="topbar">
+              <div className="title">
+                <h1>Unit E Ward Rounds</h1>
+                <div className="subtitle">
+                  <div className={`dot ${isOnline ? 'online' : 'offline'}`}></div>
+                  <span>{isOnline ? "System Online" : "Offline Mode"}</span>
+                  { !db && <span style={{opacity:0.6}}>(Demo Data)</span> }
+                </div>
+              </div>
+              <div className="actions">
+                <button className="btn btn-ghost" onClick={handleExport}>
+                  📥 Export Excel
+                </button>
+                <button className="btn btn-primary" onClick={handleAddPatient}>
+                  + New Patient
+                </button>
+              </div>
+            </div>
+
+            {/* Controls */}
+            <div className="controls">
+              <div className="row">
+                <input 
+                  type="text" 
+                  className="search-box" 
+                  placeholder="Search by Name or MRN..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+              <div className="pillRow">
+                {['All', 'Active', 'Discharge Pending', 'Critical'].map(type => (
+                  <div 
+                    key={type} 
+                    className={`pill ${filter === type ? 'active' : ''}`}
+                    onClick={() => setFilter(type)}
+                  >
+                    {type}
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Main Content */}
+            <div className="content-area">
+              {loading ? (
+                <div className="empty-state">Loading Data...</div>
+              ) : filteredPatients.length === 0 ? (
+                <div className="empty-state">No patients found. Click "+ New Patient" to add one.</div>
+              ) : (
+                <table>
+                  <thead>
+                    <tr>
+                      <th width="80">Bed</th>
+                      <th width="200">Patient Details</th>
+                      <th>Diagnosis / Issues</th>
+                      <th>Plan / Notes</th>
+                      <th width="50"></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredPatients.map(p => (
+                      <tr key={p.id}>
+                        <td>
+                          <input 
+                            className="table-input" 
+                            value={p.bed} 
+                            placeholder="Bed"
+                            onChange={(e) => handleUpdate(p.id, 'bed', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <input 
+                            className="table-input" 
+                            style={{fontWeight:'bold'}} 
+                            value={p.name} 
+                            placeholder="Name"
+                            onChange={(e) => handleUpdate(p.id, 'name', e.target.value)}
+                          />
+                          <input 
+                            className="table-input" 
+                            style={{fontSize:'12px', color:'#666'}} 
+                            value={p.mrn} 
+                            placeholder="MRN"
+                            onChange={(e) => handleUpdate(p.id, 'mrn', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <textarea 
+                            className="table-input" 
+                            value={p.diagnosis} 
+                            placeholder="Diagnosis"
+                            rows={2}
+                            onChange={(e) => handleUpdate(p.id, 'diagnosis', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <textarea 
+                            className="table-input" 
+                            value={p.plan} 
+                            placeholder="Daily plan..."
+                            rows={2}
+                            onChange={(e) => handleUpdate(p.id, 'plan', e.target.value)}
+                          />
+                        </td>
+                        <td>
+                          <button className="btn btn-danger btn-small" onClick={() => handleDelete(p.id)}>×</button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
