@@ -15,108 +15,324 @@
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <style>
-    body {
-      font-family: 'Segoe UI', Roboto, sans-serif;
-      background: #f4f6f5;
-      margin: 0;
-      padding: 10px;
+    :root{
+      --bg:#f4f6f5;
+      --card:#ffffff;
+      --text:#1f2937;
+      --muted:#6b7280;
+      --border:#e5e7eb;
+      --green:#2e7d32;
+      --blue:#1976d2;
+      --red:#c62828;
+      --shadow: 0 2px 10px rgba(0,0,0,.08);
+      --radius: 14px;
     }
-    .container {
-      max-width: 1100px;
-      margin: auto;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
-      overflow: hidden;
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+      background:var(--bg);
+      color:var(--text);
+      padding:12px;
     }
-    .header {
+    .container{
+      max-width:1100px;
+      margin:0 auto;
+      background:var(--card);
+      border-radius:var(--radius);
+      box-shadow:var(--shadow);
+      overflow:hidden;
+    }
+
+    /* Header */
+    .header{
       background: linear-gradient(135deg, #2e7d32, #1b5e20);
-      color: white;
-      padding: 20px;
-      display: flex;
-      flex-wrap: wrap;
-      justify-content: space-between;
-      align-items: center;
-      gap: 10px;
+      color:#fff;
+      padding:16px;
+      display:flex;
+      flex-wrap:wrap;
+      gap:10px;
+      align-items:center;
+      justify-content:space-between;
     }
-    .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
-    .header-buttons {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 6px;
+    .header-title{
+      display:flex;
+      flex-direction:column;
+      gap:4px;
+      min-width:200px;
     }
-    .btn {
-      border: none;
-      border-radius: 6px;
-      padding: 8px 14px;
-      cursor: pointer;
-      font-size: 14px;
-      font-weight: 500;
-      transition: all 0.2s;
+    .header h1{
+      margin:0;
+      font-size:20px;
+      font-weight:700;
+      letter-spacing:.2px;
     }
-    .btn-primary { background: #4caf50; color: white; }
-    .btn-secondary { background: #1976d2; color: white; }
-    .btn-danger { background: #d32f2f; color: white; }
-    .controls {
-      padding: 16px;
-      background: #fafafa;
-      border-bottom: 1px solid #e0e0e0;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 8px;
+    .sub{
+      font-size:12px;
+      opacity:.9;
+      display:flex;
+      align-items:center;
+      gap:8px;
     }
-    select, input {
-      padding: 8px;
-      border-radius: 6px;
-      border: 1px solid #ddd;
-      flex: 1;
-      min-width: 160px;
+    .dot{
+      width:8px;height:8px;border-radius:50%;
+      background:#ffb300;
+      border:1px solid rgba(255,255,255,.7);
+      display:inline-block;
     }
-    .content { padding: 16px; }
-    .ward-section { margin-bottom: 24px; }
-    .ward-header {
-      background: #1976d2;
-      color: white;
-      padding: 12px;
-      border-radius: 6px;
-      font-weight: 500;
+    .dot.online{ background:#4caf50; }
+    .actions{
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
     }
-    .er-header { background: #c62828 !important; }
-    .table-wrapper {
-      overflow-x: auto;
-      margin-top: 10px;
+    .btn{
+      border:0;
+      border-radius:10px;
+      padding:10px 12px;
+      cursor:pointer;
+      font-weight:600;
+      font-size:13px;
+      transition:.15s transform, .15s opacity;
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      user-select:none;
+      white-space:nowrap;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      min-width: 600px;
+    .btn:active{ transform:scale(.98); opacity:.9; }
+    .btn.primary{ background:#ffffff; color:#1b5e20; }
+    .btn.blue{ background:#1976d2; color:#fff; }
+    .btn.gray{ background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.22); }
+    .btn.danger{ background:#d32f2f; color:#fff; }
+    .fileLabel{
+      position:relative;
+      overflow:hidden;
     }
-    th, td {
-      padding: 8px 10px;
-      border-bottom: 1px solid #eee;
-      text-align: left;
+    .fileLabel input{
+      position:absolute; inset:0;
+      opacity:0;
+      cursor:pointer;
     }
-    tr:hover { background: #f9f9f9; }
-    .status {
-      font-weight: 600;
-      border-radius: 8px;
-      padding: 3px 8px;
-      color: white;
+
+    /* Controls */
+    .controls{
+      padding:12px;
+      background:#fbfbfb;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      flex-wrap:wrap;
+      gap:8px;
+      align-items:center;
     }
-    .status.New { background: #7b1fa2; }
-    .status.Stable { background: #43a047; }
-    .status.Critical { background: #f57c00; }
-    .status.Discharged { background: #0288d1; }
-    @media (max-width: 600px) {
-      .header { flex-direction: column; align-items: flex-start; }
-      .table-wrapper { font-size: 13px; }
+    .control{
+      flex:1;
+      min-width:160px;
+    }
+    input, select, textarea{
+      width:100%;
+      border:1px solid var(--border);
+      border-radius:12px;
+      padding:10px 12px;
+      font-size:14px;
+      outline:none;
+      background:#fff;
+    }
+    textarea{ min-height:100px; resize:vertical; }
+    .seg{
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+    }
+    .chip{
+      border:1px solid var(--border);
+      background:#fff;
+      padding:9px 12px;
+      border-radius:999px;
+      font-size:13px;
+      cursor:pointer;
+      user-select:none;
+    }
+    .chip.active{
+      background:#e8f5e9;
+      border-color:#a5d6a7;
+      color:#1b5e20;
+      font-weight:700;
+    }
+
+    /* Board */
+    .content{ padding:12px; }
+    .section{
+      background:#fff;
+      border:1px solid var(--border);
+      border-radius:var(--radius);
+      margin-bottom:12px;
+      overflow:hidden;
+    }
+    .sectionHeader{
+      padding:10px 12px;
+      color:#fff;
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      font-weight:800;
+      letter-spacing:.2px;
+    }
+    .sectionHeader.blue{ background:var(--blue); }
+    .sectionHeader.red{ background:var(--red); }
+    .countPill{
+      background: rgba(255,255,255,.2);
+      border:1px solid rgba(255,255,255,.25);
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:800;
+    }
+
+    .tableWrap{ overflow-x:auto; }
+    table{
+      width:100%;
+      border-collapse:collapse;
+      min-width:850px;
+    }
+    th, td{
+      padding:10px 10px;
+      border-bottom:1px solid #f1f5f9;
+      text-align:left;
+      vertical-align:top;
+      font-size:13px;
+    }
+    th{
+      background:#f8fafc;
+      font-size:12px;
+      color:#374151;
+      letter-spacing:.2px;
+      border-bottom:1px solid var(--border);
+    }
+    tr:hover{ background:#fafafa; }
+    .rowBtn{
+      cursor:pointer;
+    }
+
+    .badge{
+      display:inline-flex;
+      align-items:center;
+      padding:4px 10px;
+      border-radius:999px;
+      font-size:12px;
+      font-weight:800;
+      border:1px solid transparent;
+      white-space:nowrap;
+    }
+    .b-new{ background:#ede7f6; color:#4527a0; border-color:#d1c4e9; }
+    .b-stable{ background:#e8f5e9; color:#1b5e20; border-color:#a5d6a7; }
+    .b-critical{ background:#fff3e0; color:#e65100; border-color:#ffcc80; }
+    .b-long{ background:#ffebee; color:#b71c1c; border-color:#ffcdd2; }
+    .b-discharge{ background:#e3f2fd; color:#0d47a1; border-color:#bbdefb; }
+
+    .notesMini{
+      color:var(--muted);
+      max-width:260px;
+      white-space:nowrap;
+      overflow:hidden;
+      text-overflow:ellipsis;
+    }
+
+    /* Modal */
+    .overlay{
+      position:fixed; inset:0;
+      background:rgba(0,0,0,.5);
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      padding:12px;
+      z-index:999;
+    }
+    .modal{
+      width:min(720px, 100%);
+      background:#fff;
+      border-radius:16px;
+      box-shadow:var(--shadow);
+      overflow:hidden;
+      max-height:92vh;
+      display:flex;
+      flex-direction:column;
+    }
+    .modalHead{
+      padding:14px 14px;
+      border-bottom:1px solid var(--border);
+      display:flex;
+      align-items:center;
+      justify-content:space-between;
+      gap:10px;
+      background:#fbfbfb;
+    }
+    .modalHead h2{
+      margin:0;
+      font-size:16px;
+      font-weight:900;
+    }
+    .modalBody{
+      padding:14px;
+      overflow:auto;
+    }
+    .grid{
+      display:grid;
+      grid-template-columns: 1fr 1fr;
+      gap:10px;
+    }
+    .grid .full{ grid-column:1 / -1; }
+    .label{
+      font-size:12px;
+      font-weight:800;
+      color:#374151;
+      margin-bottom:6px;
+    }
+    .modalFoot{
+      padding:12px 14px;
+      border-top:1px solid var(--border);
+      display:flex;
+      gap:8px;
+      justify-content:flex-end;
+      background:#fff;
+      flex-wrap:wrap;
+    }
+    .btn2{
+      border:0;
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
+      font-size:13px;
+    }
+    .btn2.save{ background:var(--green); color:#fff; }
+    .btn2.cancel{ background:#eef2f7; color:#111827; }
+    .btn2.del{ background:#d32f2f; color:#fff; }
+    .btn2.disc{ background:#1976d2; color:#fff; }
+
+    .empty{
+      padding:24px;
+      text-align:center;
+      color:var(--muted);
+    }
+
+    @media (max-width:720px){
+      body{ padding:8px; }
+      .grid{ grid-template-columns:1fr; }
+      table{ min-width:820px; }
+      .header{ align-items:flex-start; }
     }
   </style>
 </head>
+
 <body>
   <div id="root"></div>
 
   <script type="text/babel">
+    // =======================
+    // Firebase config
+    // =======================
     const firebaseConfig = {
       apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
       authDomain: "unit-e-1d07b.firebaseapp.com",
@@ -128,139 +344,329 @@
       measurementId: "G-6W2X2BBJLQ"
     };
 
-    firebase.initializeApp(firebaseConfig);
-    const db = firebase.database();
-    const { useState, useEffect } = React;
+    const { useEffect, useMemo, useState } = React;
 
-    function WardRoundsApp() {
+    const STATUS_OPTIONS = ["New admission","Stable","Critical","Long stay","Discharge"];
+    const statusBadgeClass = (s) => {
+      if (s === "New admission") return "badge b-new";
+      if (s === "Stable") return "badge b-stable";
+      if (s === "Critical") return "badge b-critical";
+      if (s === "Long stay") return "badge b-long";
+      if (s === "Discharge") return "badge b-discharge";
+      return "badge b-new";
+    };
+
+    function safeTrim(s, n=38){
+      const t = (s || "").trim();
+      if (!t) return "";
+      return t.length > n ? t.slice(0,n) + "…" : t;
+    }
+
+    function WardRoundsApp(){
+      const [db, setDb] = useState(null);
+      const [firebaseReady, setFirebaseReady] = useState(false);
+      const [connection, setConnection] = useState("offline");
+
       const [patients, setPatients] = useState([]);
-      const [filterStatus, setFilterStatus] = useState('New admission');
-      const [search, setSearch] = useState('');
+      const [loading, setLoading] = useState(true);
 
+      const [filterStatus, setFilterStatus] = useState("New admission"); // default as you asked
+      const [search, setSearch] = useState("");
+      const [view, setView] = useState("board"); // "board" or "table"
+
+      // modal
+      const [modalOpen, setModalOpen] = useState(false);
+      const [editingId, setEditingId] = useState(null);
+      const [form, setForm] = useState({
+        patientName:"",
+        diagnosis:"",
+        location:"ER",
+        room:"",
+        assignedDoctor:"",
+        status:"New admission",
+        notes:""
+      });
+
+      // Init firebase + anonymous auth
       useEffect(() => {
-        const patientsRef = db.ref('patients');
-        patientsRef.on('value', (snapshot) => {
-          const data = snapshot.val() || {};
-          const patientsArray = Object.entries(data).map(([id, value]) => ({ id, ...value }));
-          setPatients(patientsArray);
-        });
-        return () => patientsRef.off();
+        try{
+          firebase.initializeApp(firebaseConfig);
+          const _db = firebase.database();
+          setDb(_db);
+          setFirebaseReady(true);
+
+          // anonymous auth (helps if your rules require auth != null)
+          firebase.auth().signInAnonymously()
+            .then(() => setConnection("online"))
+            .catch(() => setConnection("offline"));
+        }catch(e){
+          console.log("Firebase init failed:", e);
+          setConnection("offline");
+          setFirebaseReady(false);
+        }
       }, []);
 
-      const filtered = patients.filter(p =>
-        (!filterStatus || p.status === filterStatus) &&
-        (p.patientName || '').toLowerCase().includes(search.toLowerCase())
-      );
+      // Realtime listener
+      useEffect(() => {
+        if (!db) return;
 
-      const erPatients = filtered.filter(p => p.location === 'ER');
-      const wardPatients = filtered.filter(p => p.location !== 'ER');
-
-      const addPatient = () => {
-        const name = prompt("Enter patient name:");
-        if (!name) return;
-        const newPatient = {
-          patientName: name,
-          diagnosis: "Not specified",
-          location: "Ward 1",
-          assignedDoctor: "Unassigned",
-          status: "New admission",
+        const ref = db.ref("patients");
+        const onValue = (snap) => {
+          const data = snap.val() || {};
+          const arr = Object.entries(data).map(([id, v]) => ({
+            id,
+            patientName: v.patientName || "",
+            diagnosis: v.diagnosis || "",
+            location: v.location || v.ward || "",
+            room: (v.room ?? ""),
+            assignedDoctor: v.assignedDoctor || "",
+            status: v.status || "New admission",
+            notes: v.notes || ""
+          }));
+          setPatients(arr);
+          setLoading(false);
         };
-        db.ref('patients').push(newPatient);
+        const onError = (err) => {
+          console.log("DB read error:", err);
+          setLoading(false);
+          setConnection("offline");
+          alert("Firebase read error. Check your database rules.");
+        };
+
+        ref.on("value", onValue, onError);
+        return () => ref.off("value", onValue);
+      }, [db]);
+
+      const locations = useMemo(() => {
+        const set = new Set(patients.map(p => (p.location || "").trim()).filter(Boolean));
+        set.add("ER"); // always include
+        const arr = Array.from(set);
+        // ER first
+        arr.sort((a,b) => {
+          if (a === "ER") return -1;
+          if (b === "ER") return 1;
+          return a.localeCompare(b);
+        });
+        return arr;
+      }, [patients]);
+
+      const filtered = useMemo(() => {
+        const q = search.trim().toLowerCase();
+        return patients.filter(p => {
+          const matchesStatus = !filterStatus || p.status === filterStatus;
+          const blob = `${p.patientName} ${p.diagnosis} ${p.location} ${p.room} ${p.assignedDoctor} ${p.notes}`.toLowerCase();
+          const matchesSearch = !q || blob.includes(q);
+          return matchesStatus && matchesSearch;
+        });
+      }, [patients, filterStatus, search]);
+
+      const grouped = useMemo(() => {
+        const map = {};
+        for (const p of filtered){
+          const loc = (p.location || "Unassigned").trim() || "Unassigned";
+          if (!map[loc]) map[loc] = [];
+          map[loc].push(p);
+        }
+        // stable ordering inside location: New admission first then others
+        Object.keys(map).forEach(k => {
+          map[k].sort((a,b) => {
+            const score = (s) => (s==="New admission"?0:s==="Critical"?1:s==="Stable"?2:s==="Long stay"?3:4);
+            return score(a.status) - score(b.status) || (a.patientName||"").localeCompare(b.patientName||"");
+          });
+        });
+        return map;
+      }, [filtered]);
+
+      const openAdd = () => {
+        setEditingId(null);
+        setForm({
+          patientName:"",
+          diagnosis:"",
+          location:"ER",
+          room:"",
+          assignedDoctor:"",
+          status:"New admission",
+          notes:""
+        });
+        setModalOpen(true);
       };
 
-      const exportData = () => {
-        const ws = XLSX.utils.json_to_sheet(patients);
+      const openEdit = (p) => {
+        setEditingId(p.id);
+        setForm({
+          patientName: p.patientName || "",
+          diagnosis: p.diagnosis || "",
+          location: p.location || "ER",
+          room: (p.room ?? ""),
+          assignedDoctor: p.assignedDoctor || "",
+          status: p.status || "New admission",
+          notes: p.notes || ""
+        });
+        setModalOpen(true);
+      };
+
+      const closeModal = () => {
+        setModalOpen(false);
+        setEditingId(null);
+      };
+
+      const savePatient = async () => {
+        if (!db){
+          alert("Database not connected.");
+          return;
+        }
+        const payload = {
+          patientName: (form.patientName || "").trim(),
+          diagnosis: (form.diagnosis || "").trim(),
+          location: (form.location || "").trim(),
+          ward: (form.location || "").trim(), // keep backward compatibility
+          room: (form.room ?? "").toString().trim(),
+          assignedDoctor: (form.assignedDoctor || "").trim(),
+          status: form.status || "New admission",
+          notes: (form.notes || "").trim(),
+          updatedAt: new Date().toISOString()
+        };
+
+        if (!payload.patientName){
+          alert("Patient name is required.");
+          return;
+        }
+        if (!payload.location) payload.location = "Unassigned";
+
+        try{
+          if (editingId){
+            await db.ref("patients/" + editingId).update(payload);
+          }else{
+            await db.ref("patients").push({
+              ...payload,
+              createdAt: new Date().toISOString()
+            });
+          }
+          closeModal();
+        }catch(e){
+          console.log("Write error:", e);
+          alert("Could not save. Your Firebase rules may be blocking write access.");
+        }
+      };
+
+      const deletePatient = async () => {
+        if (!db || !editingId) return;
+        if (!confirm("Delete this patient permanently?")) return;
+        try{
+          await db.ref("patients/" + editingId).remove();
+          closeModal();
+        }catch(e){
+          alert("Could not delete. Check Firebase rules.");
+        }
+      };
+
+      const markDischarge = async () => {
+        if (!db || !editingId) return;
+        if (!confirm("Mark as Discharge?")) return;
+        try{
+          await db.ref("patients/" + editingId).update({
+            status:"Discharge",
+            dischargedAt: new Date().toISOString()
+          });
+          closeModal();
+        }catch(e){
+          alert("Could not update. Check Firebase rules.");
+        }
+      };
+
+      const exportExcel = () => {
+        const data = filtered.map(p => ({
+          Name: p.patientName,
+          Diagnosis: p.diagnosis,
+          Location: p.location,
+          Room: p.room,
+          Doctor: p.assignedDoctor,
+          Status: p.status,
+          Notes: p.notes
+        }));
+        if (!data.length){
+          alert("No patients to export (check filters).");
+          return;
+        }
+        const ws = XLSX.utils.json_to_sheet(data);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Patients");
-        XLSX.writeFile(wb, "UnitE_WardRounds.xlsx");
+        const dateStr = new Date().toISOString().slice(0,10);
+        XLSX.writeFile(wb, `UnitE_WardRounds_${dateStr}.xlsx`);
       };
 
-      const importData = (event) => {
-        const file = event.target.files[0];
-        if (file) {
-          const reader = new FileReader();
-          reader.onload = (e) => {
-            const json = JSON.parse(e.target.result);
-            Object.values(json).forEach(p => db.ref('patients').push(p));
-            alert("Imported successfully!");
-          };
-          reader.readAsText(file);
-        }
+      const importJson = (event) => {
+        const file = event.target.files?.[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          try{
+            const raw = JSON.parse(e.target.result);
+            const arr = Array.isArray(raw) ? raw : Object.values(raw || {});
+            if (!arr.length){
+              alert("JSON file is empty.");
+              return;
+            }
+            if (!db){
+              alert("Database not connected.");
+              return;
+            }
+            if (!confirm(`Import ${arr.length} patients into the database?`)) return;
+
+            for (const item of arr){
+              const payload = {
+                patientName: (item.patientName || item.name || "").trim(),
+                diagnosis: (item.diagnosis || "").trim(),
+                location: (item.location || item.ward || "Unassigned").trim(),
+                ward: (item.location || item.ward || "Unassigned").trim(),
+                room: (item.room ?? "").toString().trim(),
+                assignedDoctor: (item.assignedDoctor || item.doctor || "").trim(),
+                status: item.status || "New admission",
+                notes: (item.notes || "").trim(),
+                createdAt: new Date().toISOString(),
+                updatedAt: new Date().toISOString()
+              };
+              if (payload.patientName) await db.ref("patients").push(payload);
+            }
+            alert("Import complete ✅");
+          }catch(err){
+            console.log(err);
+            alert("Invalid JSON file.");
+          }finally{
+            event.target.value = "";
+          }
+        };
+        reader.readAsText(file);
       };
 
       return (
         <div className="container">
           <div className="header">
-            <h1>Unit E Ward Rounds</h1>
-            <div className="header-buttons">
-              <button className="btn btn-primary" onClick={addPatient}>+ Add</button>
-              <button className="btn btn-secondary" onClick={exportData}>Export</button>
-              <label className="btn btn-secondary">
-                Import
-                <input type="file" accept=".json" style={{ display: "none" }} onChange={importData}/>
+            <div className="header-title">
+              <h1>📋 Unit E Ward Rounds</h1>
+              <div className="sub">
+                <span className={"dot " + (connection === "online" ? "online" : "")}></span>
+                <span>{connection === "online" ? "Realtime sync active" : "Offline / blocked writes"}</span>
+              </div>
+            </div>
+
+            <div className="actions">
+              <button className="btn primary" onClick={openAdd}>➕ Add Patient</button>
+              <button className="btn blue" onClick={exportExcel}>📊 Export Excel</button>
+              <label className="btn gray fileLabel">
+                📥 Import JSON
+                <input type="file" accept=".json,application/json" onChange={importJson}/>
               </label>
+              <button className="btn gray" onClick={() => window.print()}>🖨️ Print</button>
             </div>
           </div>
 
           <div className="controls">
-            <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-              <option value="">All statuses</option>
-              <option value="New admission">New admission</option>
-              <option value="Stable">Stable</option>
-              <option value="Critical">Critical</option>
-              <option value="Discharged">Discharged</option>
-            </select>
-            <input type="text" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
-          </div>
-
-          <div className="content">
-            {erPatients.length > 0 && (
-              <div className="ward-section">
-                <div className="ward-header er-header">Emergency Room (ER)</div>
-                <div className="table-wrapper">
-                  <table>
-                    <thead><tr><th>Name</th><th>Diagnosis</th><th>Doctor</th><th>Status</th></tr></thead>
-                    <tbody>
-                      {erPatients.map(p => (
-                        <tr key={p.id}>
-                          <td>{p.patientName}</td>
-                          <td>{p.diagnosis}</td>
-                          <td>{p.assignedDoctor}</td>
-                          <td><span className="status New">{p.status}</span></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            )}
-
-            <div className="ward-section">
-              <div className="ward-header">Wards</div>
-              <div className="table-wrapper">
-                <table>
-                  <thead><tr><th>Name</th><th>Diagnosis</th><th>Location</th><th>Doctor</th><th>Status</th></tr></thead>
-                  <tbody>
-                    {wardPatients.map(p => (
-                      <tr key={p.id}>
-                        <td>{p.patientName}</td>
-                        <td>{p.diagnosis}</td>
-                        <td>{p.location}</td>
-                        <td>{p.assignedDoctor}</td>
-                        <td><span className="status New">{p.status}</span></td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+            <div className="control">
+              <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
+                <option value="">All statuses</option>
+                {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
             </div>
-          </div>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<WardRoundsApp />);
-  </script>
-</body>
-</html>
+            <div className="control">
+              <input value={search} onChange={(e) => setSearch(e.target.va
