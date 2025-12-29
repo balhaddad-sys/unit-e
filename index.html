@@ -15,7 +15,7 @@
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <style>
-    /* CSS STYLING */
+    /* --- CSS STYLING --- */
     :root{ --green:#2e7d32; --green2:#1b5e20; --bg:#f0f2f5; --card:#fff; --border:#e5e7eb; --red:#d32f2f; --blue:#1976d2; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:#111827; padding-bottom:60px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:12px; }
@@ -50,12 +50,12 @@
     th{ text-align:left; padding:10px; background:#fff; border-bottom:2px solid var(--border); color:#64748b; font-size:11px; text-transform:uppercase; }
     td{ padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
 
-    /* Specific Input Classes (Replaces inline styles) */
+    /* Inputs */
     .inp { width:100%; border:1px solid transparent; padding:4px; border-radius:4px; background:transparent; font-family:inherit; resize:none; font-size:14px; }
     .inp:focus { border-color:var(--green); background:#f0fdf4; outline:none; }
-    .inp-bold { font-weight:700; color:#000; }
+    .inp-bold { font-weight:700; color:#000; font-size: 15px; }
     .inp-small { font-size:12px; color:#666; }
-    .inp-blue { font-size:11px; color:var(--blue); }
+    .inp-blue { font-size:11px; color:var(--blue); font-weight: 600; }
 
     /* Modal */
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:99; padding:10px; }
@@ -65,21 +65,47 @@
     .modalFooter{ padding:12px; background:#f8fafc; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border); }
     .loading-text { padding: 20px; text-align: center; font-weight: bold; color: var(--green); }
 
-    /* Mobile */
+    /* --- COMPACT MOBILE LAYOUT --- */
     @media(max-width:768px){
-      table, thead, tbody, th, td, tr { display:block; }
-      thead tr { position:absolute; top:-9999px; left:-9999px; }
-      tr { margin:10px; border:1px solid var(--border); border-radius:8px; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
-      td { border-bottom:1px solid #f1f5f9; padding:10px; position:relative; }
-      td:last-child { border-bottom:none; text-align:right; background:#f8fafc; }
-      .inp { background:#f8fafc; border:1px solid #e2e8f0; margin-top:4px; }
-      .inp:focus { background:#fff; }
+      table, tbody, th, td, tr { display:block; }
+      thead { display: none; } /* Hide Header */
+
+      tr {
+        display: flex;
+        flex-wrap: wrap;
+        padding: 10px;
+        margin-bottom: 12px;
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        background: #fff;
+        box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+        gap: 8px;
+        position: relative;
+      }
+
+      /* Bed Column (Top Left) */
+      td:nth-child(1) { width: 25%; padding: 0; border: none; }
       
-      /* Mobile Labels */
-      td:nth-of-type(1):before { content:"Bed / Location"; font-size:10px; font-weight:800; color:#888; display:block; }
-      td:nth-of-type(2):before { content:"Patient Name / MRN"; font-size:10px; font-weight:800; color:#888; display:block; }
-      td:nth-of-type(3):before { content:"Diagnosis"; font-size:10px; font-weight:800; color:#888; display:block; }
-      td:nth-of-type(4):before { content:"Plan"; font-size:10px; font-weight:800; color:#888; display:block; }
+      /* Name Column (Top Middle) */
+      td:nth-child(2) { width: 60%; padding: 0; border: none; }
+
+      /* Diagnosis Column (Middle Row - Full Width) */
+      td:nth-child(3) { width: 100%; padding: 0; border: none; margin-top: 4px; }
+      
+      /* Plan Column (Bottom Row - Full Width) */
+      td:nth-child(4) { width: 100%; padding: 0; border: none; }
+      
+      /* Delete Button (Top Right) */
+      td:nth-child(5) { 
+        width: 15%; padding: 0; border: none; 
+        position: absolute; top: 10px; right: 10px;
+        display: flex; justify-content: flex-end;
+      }
+
+      /* Style Adjustments for Inputs on Mobile */
+      .inp { border: 1px solid #eee; background: #fafafa; padding: 6px; }
+      .inp:focus { background: #fff; border-color: var(--green); }
+      .inp-bold { border: none; background: transparent; font-size: 16px; padding: 0; margin-bottom: 2px; }
     }
   </style>
 </head>
@@ -104,7 +130,7 @@
       appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
     };
 
-    // Safe Firebase Initialization
+    // Safe Firebase Init
     let db;
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -113,7 +139,6 @@
 
     const clean = v => (v ?? "").toString().trim();
     
-    // Bed Sorter
     const sortBed = (a, b) => {
       const na = parseInt(a.bed), nb = parseInt(b.bed);
       return (!isNaN(na) && !isNaN(nb)) ? na - nb : clean(a.bed).localeCompare(clean(b.bed));
@@ -124,7 +149,7 @@
       const [loading, setLoading] = useState(true);
       const [online, setOnline] = useState(true);
       const [search, setSearch] = useState("");
-      const [filter, setFilter] = useState("All"); // DEFAULT TO 'ALL' TO PREVENT HIDDEN DATA
+      const [filter, setFilter] = useState("All");
       
       const [modalOpen, setModalOpen] = useState(false);
       const [importData, setImportData] = useState([]);
@@ -149,7 +174,6 @@
         }
       }, []);
 
-      // Database Actions
       const update = (id, field, val) => db && db.ref(`patients/${id}`).update({[field]:val});
       const add = (loc) => db && db.ref('patients').push({ location:clean(loc), bed:"", name:"", mrn:"", diagnosis:"", plan:"", timestamp:Date.now() });
       const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
@@ -162,39 +186,46 @@
         XLSX.writeFile(wb, "Rounds.xlsx");
       };
 
-      // Import Logic
+      // --- IMPORT LOGIC ---
       const handleFile = async (e) => {
         const file = e.target.files?.[0];
         if(!file) return;
         const name = file.name.toLowerCase();
         
         try {
-          // EXCEL
+          // 1. EXCEL (.xlsx, .xls)
           if(name.endsWith('.xlsx') || name.endsWith('.xls')) {
             const reader = new FileReader();
             reader.onload = (evt) => {
               const wb = XLSX.read(evt.target.result, {type:'binary'});
               const ws = wb.Sheets[wb.SheetNames[0]];
               const json = XLSX.utils.sheet_to_json(ws);
-              const mapped = json.map(r => {
-                const k = Object.keys(r).reduce((acc, key) => ({...acc, [key.toLowerCase()]: r[key]}), {});
-                return {
-                  bed: clean(k.bed || k['bed no'] || k.bedno),
-                  name: clean(k.name || k['patient name'] || k.patient),
-                  mrn: clean(k.mrn || k['file no'] || k.id),
-                  diagnosis: clean(k.diagnosis || k.dx || k.problem),
-                  plan: clean(k.plan || k.notes || k.mx),
-                  location: clean(k.location || k.ward || ""),
-                  timestamp: Date.now()
-                };
-              }).filter(p => p.name || p.bed);
-              setImportData(mapped);
-              setModalOpen(true);
-              setOcrProgress(null);
+              processImportData(json);
             };
             reader.readAsBinaryString(file);
           } 
-          // IMAGE OCR
+          // 2. TEXT / CSV (.txt, .csv)
+          else if(name.endsWith('.txt') || name.endsWith('.csv')) {
+             const reader = new FileReader();
+             reader.onload = (evt) => {
+               const text = evt.target.result;
+               const lines = text.split('\n');
+               // Simple parser: Split by comma or tab
+               const json = lines.map(line => {
+                  const parts = line.split(/,|\t/); 
+                  if(parts.length < 2) return null; // Skip empty lines
+                  return {
+                    bed: parts[0] || "",
+                    name: parts[1] || "",
+                    diagnosis: parts[2] || "",
+                    plan: parts[3] || ""
+                  };
+               }).filter(Boolean);
+               processImportData(json);
+             };
+             reader.readAsText(file);
+          }
+          // 3. IMAGE OCR (.jpg, .png, etc)
           else if(name.match(/\.(jpg|jpeg|png|webp)$/)) {
             setModalOpen(true);
             setOcrProgress(0);
@@ -210,14 +241,28 @@
         e.target.value = null; 
       };
 
+      const processImportData = (rawList) => {
+         const mapped = rawList.map(r => {
+            // Loose key matching for Excel/JSON objects
+            const k = Object.keys(r).reduce((acc, key) => ({...acc, [key.toLowerCase()]: r[key]}), {});
+            return {
+              bed: clean(k.bed || k['bed no'] || k.bedno),
+              name: clean(k.name || k['patient name'] || k.patient),
+              mrn: clean(k.mrn || k['file no'] || k.id),
+              diagnosis: clean(k.diagnosis || k.dx || k.problem),
+              plan: clean(k.plan || k.notes || k.mx),
+              location: clean(k.location || k.ward || ""),
+              timestamp: Date.now()
+            };
+         }).filter(p => p.name || p.bed);
+         setImportData(mapped);
+         setModalOpen(true);
+         setOcrProgress(null);
+      };
+
       const groups = useMemo(() => {
         const g = {};
-        
-        // Safety: Ensure search term is a string
         const safeSearch = (search || "").toLowerCase();
-
-        // Filter Logic: Only filter if 'search' has text. 
-        // We aren't doing complex status filtering right now to prevent hiding data.
         const filtered = patients.filter(p => {
             const rowText = (clean(p.name) + clean(p.mrn) + clean(p.bed) + clean(p.diagnosis)).toLowerCase();
             return rowText.includes(safeSearch);
@@ -245,7 +290,7 @@
                 </div>
               </div>
               <div className="actions">
-                <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls,.jpg,.png" />
+                <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls,.csv,.txt,.jpg,.png" />
                 <button className="btn btn-ghost" onClick={() => fileRef.current.click()}>📷 / 📂 Import</button>
                 <button className="btn btn-ghost" onClick={exportExcel}>📥 Export</button>
                 <button className="btn btn-primary" onClick={() => add("")}>+ Add</button>
@@ -286,10 +331,10 @@
                             <input className="inp inp-small" value={p.mrn || ""} placeholder="MRN" onChange={e=>update(p.id, 'mrn', e.target.value)} />
                           </td>
                           <td>
-                            <textarea className="inp" rows={2} value={p.diagnosis || ""} placeholder="..." onChange={e=>update(p.id, 'diagnosis', e.target.value)} />
+                            <textarea className="inp" rows={2} value={p.diagnosis || ""} placeholder="Diagnosis..." onChange={e=>update(p.id, 'diagnosis', e.target.value)} />
                           </td>
                           <td>
-                            <textarea className="inp" rows={2} value={p.plan || ""} placeholder="..." onChange={e=>update(p.id, 'plan', e.target.value)} />
+                            <textarea className="inp" rows={2} value={p.plan || ""} placeholder="Plan..." onChange={e=>update(p.id, 'plan', e.target.value)} />
                           </td>
                           <td>
                             <button className="btn btn-danger" onClick={()=>del(p.id)}>×</button>
