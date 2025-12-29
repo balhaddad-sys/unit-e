@@ -10,8 +10,6 @@
   <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-
-  <!-- OCR (client-side) -->
   <script src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
 
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -58,6 +56,7 @@
       flex-direction: column;
     }
 
+    /* Topbar */
     .topbar{
       background: linear-gradient(135deg, var(--green) 0%, var(--green2) 100%);
       color:white;
@@ -89,6 +88,7 @@
     }
     .dot.online{ background:#22c55e; }
 
+    /* Buttons */
     .actions{
       display:flex;
       gap:8px;
@@ -114,6 +114,7 @@
     .btn-ghost:hover{ background: rgba(255,255,255,0.3); }
     .btn-danger{ background: var(--red); color:white; width: 32px; height: 32px; padding:0; border-radius: 50%; }
 
+    /* Controls */
     .controls{
       padding: 16px;
       background: #fafafa;
@@ -148,6 +149,7 @@
     }
     .pill.active { background: var(--green); color: white; border-color: var(--green); }
 
+    /* Main Content & Sectioning */
     .content-area { flex: 1; overflow-x: auto; padding: 12px 16px 18px; }
 
     .section{
@@ -188,12 +190,14 @@
       border: 1px solid var(--border);
       background: white;
       border-radius: 10px;
-      padding: 8px 10px;
-      font-weight: 800;
+      padding: 6px 10px;
+      font-weight: 700;
+      font-size: 12px;
       cursor: pointer;
     }
     .miniBtn:active{ transform: scale(0.98); }
 
+    /* Table */
     table { width: 100%; border-collapse: collapse; font-size: 15px; }
     th {
       text-align: left;
@@ -277,7 +281,7 @@
       line-height: 1.35;
     }
     .progressWrap{
-      margin-top: 10px;
+      margin: 20px;
       background: #e2e8f0;
       border-radius: 999px;
       overflow: hidden;
@@ -322,8 +326,10 @@
       gap: 6px;
       font-weight: 700;
       color: #0f172a;
+      cursor: pointer;
     }
 
+    /* Mobile Responsive */
     @media (max-width: 768px) {
       .wrap { padding: 8px; }
       .app { min-height: auto; border-radius: 8px; }
@@ -358,9 +364,8 @@
 
       td:nth-of-type(1):before { content: "Bed:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
       td:nth-of-type(2):before { content: "Patient:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
-      td:nth-of-type(3):before { content: "Location:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
-      td:nth-of-type(4):before { content: "Diagnosis:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
-      td:nth-of-type(5):before { content: "Plan:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+      td:nth-of-type(3):before { content: "Diagnosis:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+      td:nth-of-type(4):before { content: "Plan:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
 
       .table-input { background: #f8fafc; border: 1px solid #e2e8f0; }
       .table-input:focus { background: white; border-color: var(--green); }
@@ -373,9 +378,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
 
-    // ---------------------------
-    // YOUR FIREBASE CONFIG (PASTED)
-    // ---------------------------
+    // --- CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
       authDomain: "unit-e-1d07b.firebaseapp.com",
@@ -387,7 +390,6 @@
       measurementId: "G-6W2X2BBJLQ"
     };
 
-    // ✅ Fix: always set db after initialize (even if app already exists)
     let db = null;
     try {
       if (firebase.apps.length === 0) firebase.initializeApp(firebaseConfig);
@@ -396,6 +398,7 @@
       console.error("Firebase init error:", e);
     }
 
+    // --- HELPERS ---
     const clean = (v) => (v ?? "").toString().trim();
     const locLabel = (p) => clean(p.location) || "Unassigned";
 
@@ -423,7 +426,6 @@
         }
         return "";
       };
-
       return {
         location: clean(pick("location","loc","ward","unit","room","area")),
         bed: clean(pick("bed","bed no","bedno","bed_number","bed number")),
@@ -485,9 +487,7 @@
         cells.forEach((cell, idx) => {
           const val = clean(cell);
           if (!val) return;
-
           const key = colMap[idx] || null;
-
           if (key) {
             p[key] = (p[key] ? (p[key] + " | " + val) : val);
             return;
@@ -497,7 +497,6 @@
         const meaningful = clean(p.name) || clean(p.mrn) || clean(p.bed) || clean(p.diagnosis) || clean(p.plan) || clean(p.location);
         if (meaningful) out.push(p);
       }
-
       return out;
     };
 
@@ -508,6 +507,7 @@
       const [searchTerm, setSearchTerm] = useState("");
       const [filter, setFilter] = useState("All");
 
+      // Import State
       const [showImport, setShowImport] = useState(false);
       const [importRows, setImportRows] = useState([]);
       const [importSource, setImportSource] = useState("");
@@ -516,7 +516,7 @@
 
       const fileInputRef = useRef(null);
 
-      // --- FIREBASE SYNC (shared for everyone) ---
+      // --- FIREBASE LISTENERS ---
       useEffect(() => {
         const handleStatus = () => setIsOnline(navigator.onLine);
         window.addEventListener('online', handleStatus);
@@ -548,16 +548,16 @@
       // --- CRUD ---
       const addPatient = (location = "") => {
         const newP = { location: clean(location), name: "", mrn: "", bed: "", diagnosis: "", plan: "", timestamp: Date.now() };
-        db.ref('patients').push(newP);
+        if (db) db.ref('patients').push(newP);
       };
 
       const updatePatient = (id, field, val) => {
-        db.ref(`patients/${id}`).update({ [field]: val });
+        if (db) db.ref(`patients/${id}`).update({ [field]: val });
       };
 
       const deletePatient = (id) => {
         if(confirm("Delete this patient?")) {
-          db.ref(`patients/${id}`).remove();
+          if (db) db.ref(`patients/${id}`).remove();
         }
       };
 
@@ -634,16 +634,19 @@
             reader.readAsText(file);
           }
           else if (ftype.startsWith("image/") || fname.match(/\.(png|jpg|jpeg|webp)$/)) {
+            // OCR Logic
             setOcrProgress(0);
             setImportSource(`OCR: ${file.name}`);
             setShowImport(true);
             setImportRows([]);
 
-            const result = await Tesseract.recognize(file, 'eng', {
-              logger: (m) => {
-                if (m && m.status === "recognizing text" && typeof m.progress === "number") {
-                  setOcrProgress(m.progress);
+            try {
+              const result = await Tesseract.recognize(file, 'eng', {
+                logger: (m) => {
+                  if (m && m.status === "recognizing text" && typeof m.progress === "number") {
+                    setOcrProgress(m.progress);
+                  }
                 }
-              }
-            });
-            const text = result?.data?.text || "";
+              });
+              const text = result?.data?.text || "";
+              const rows = parseTabularText(text);
