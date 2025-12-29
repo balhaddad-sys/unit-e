@@ -15,95 +15,97 @@
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <style>
-    /* --- CSS VARIABLES --- */
-    :root{ --green:#2e7d32; --bg:#f2f4f8; --card:#fff; --border:#e2e8f0; --red:#ef4444; --text:#1e293b; --blue:#3b82f6; }
+    :root{ --green:#2e7d32; --blue:#1565c0; --bg:#f1f5f9; --card:#ffffff; --border:#cbd5e1; --text:#0f172a; }
     
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:80px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
     
-    /* --- APP CONTAINER --- */
-    .app{ background:var(--card); border-radius:12px; box-shadow:0 4px 12px rgba(0,0,0,0.08); overflow:hidden; min-height:85vh; display:flex; flex-direction:column; }
+    /* APP CONTAINER */
+    .app{ background:var(--bg); min-height:90vh; display:flex; flex-direction:column; gap:10px; }
 
-    /* --- TOPBAR --- */
-    .topbar{ background: #2e7d32; color:#fff; padding:16px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; }
+    /* HEADER */
+    .topbar{ background: var(--green); color:white; padding:16px; border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
     .title h1{ margin:0; font-size:18px; font-weight:700; }
-    .subtitle{ font-size:12px; opacity:0.9; margin-top:4px; display:flex; gap:6px; align-items:center; }
+    .subtitle{ font-size:12px; opacity:0.9; display:flex; align-items:center; gap:6px; margin-top:4px; }
     .dot{ width:8px; height:8px; border-radius:50%; background:#4ade80; }
 
-    /* --- ACTIONS --- */
+    /* ACTIONS & SEARCH */
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
-    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:0.2s; }
+    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:0.1s; }
     .btn:active{ transform:scale(0.96); }
     .btn-white{ background:white; color:var(--green); }
     .btn-ghost{ background:rgba(255,255,255,0.2); color:white; }
-    .btn-red{ background: #fee2e2; color: #b91c1c; border: 1px solid #fecaca; }
+    .btn-red{ background:#fee2e2; color:#b91c1c; }
+    
+    .search-bar { width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; background:white; outline:none; }
+    .search-bar:focus { border-color:var(--green); box-shadow:0 0 0 3px rgba(46,125,50,0.1); }
 
-    /* --- FILTERS --- */
-    .controls{ padding:12px; background:#f8fafc; border-bottom:1px solid var(--border); display:flex; gap:10px; align-items:center; }
-    .search-box{ flex:1; padding:10px; border:1px solid #cbd5e1; border-radius:6px; outline:none; font-size:14px; }
-    .search-box:focus{ border-color:var(--green); box-shadow:0 0 0 2px rgba(46,125,50,0.1); }
-
-    /* --- CONTENT AREA --- */
-    .content-area{ flex:1; padding:12px; overflow-y:auto; }
-    .section{ margin-bottom:20px; }
-    .section-header{ font-size:14px; font-weight:800; color:#475569; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center; background: #e2e8f0; padding: 8px 12px; border-radius: 6px; }
-
-    /* --- PATIENT CARD (MOBILE & DESKTOP) --- */
-    /* We use a grid/flex hybrid that works on all screens without tables */
-    .p-card {
-      background: #fff;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      margin-bottom: 10px;
-      padding: 12px;
-      display: flex;
-      flex-direction: column;
-      gap: 10px;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+    /* WARD HEADERS (Like the blue bars in your Excel) */
+    .ward-section { margin-top:20px; }
+    .ward-header { 
+      background: var(--blue); color:white; 
+      padding:10px 14px; 
+      border-radius:8px 8px 0 0; 
+      font-weight:700; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;
+      display:flex; justify-content:space-between; align-items:center;
     }
+    .ward-count { background:rgba(255,255,255,0.2); padding:2px 8px; border-radius:12px; font-size:11px; }
+
+    /* PATIENT CARD */
+    .p-card {
+      background:white;
+      border:1px solid var(--border);
+      border-top:none;
+      padding:12px;
+      display:flex;
+      flex-direction:column;
+      gap:10px;
+    }
+    .p-card:last-child { border-radius:0 0 8px 8px; }
     
-    .p-row-top { display: flex; gap: 10px; align-items: center; }
-    .p-bed { width: 80px; }
-    .p-name { flex: 1; }
-    .p-del { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; background: #fee2e2; color: #ef4444; border-radius: 50%; border:none; font-weight: bold; font-size: 16px; cursor: pointer; }
-
-    /* INPUT STYLES */
-    .inp { width: 100%; padding: 8px; border: 1px solid #e2e8f0; border-radius: 6px; font-size: 14px; font-family: inherit; background: #f8fafc; transition: 0.2s; resize: none; }
-    .inp:focus { background: #fff; border-color: var(--green); outline: none; }
+    .p-row { display:flex; gap:10px; align-items:center; }
+    .p-row-main { align-items: flex-start; }
     
-    .inp-bed { font-weight: 700; text-align: center; color: var(--green); }
-    .inp-name { font-weight: 600; color: #0f172a; }
-    .inp-meta { font-size: 12px; color: #64748b; margin-top: 4px; }
-    .inp-area { min-height: 50px; }
+    /* Input Styling */
+    .inp { width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; font-family:inherit; background:#f8fafc; resize:none; transition:0.2s; }
+    .inp:focus { background:white; border-color:var(--green); outline:none; }
+    
+    /* Specific Inputs */
+    .inp-bed { width:70px; font-weight:800; text-align:center; color:var(--blue); }
+    .inp-name { font-weight:700; font-size:15px; color:#1e293b; }
+    .inp-doc { font-size:12px; color:#64748b; font-weight:600; width:120px; }
+    .inp-area { min-height:50px; }
 
-    /* --- MODAL --- */
-    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:20px; }
-    .modal{ background:white; width:100%; max-width:600px; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; max-height:80vh; }
-    .modal-head{ padding:16px; background:#1e293b; color:white; font-weight:bold; display:flex; justify-content:space-between; }
-    .modal-body{ padding:16px; overflow-y:auto; }
-    .modal-foot{ padding:16px; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:8px; }
+    /* Delete Button */
+    .btn-del { width:30px; height:30px; border-radius:50%; background:#fee2e2; color:#ef4444; border:none; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 
-    /* --- DESKTOP TWEAKS --- */
+    /* MODAL (Add Patient) */
+    .modalOverlay { position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
+    .modal { background:white; width:100%; max-width:500px; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 10px 25px rgba(0,0,0,0.2); }
+    .modal-head { background:var(--green); padding:16px; color:white; font-weight:bold; font-size:16px; display:flex; justify-content:space-between; }
+    .modal-body { padding:20px; display:flex; flex-direction:column; gap:12px; max-height:70vh; overflow-y:auto; }
+    .form-group label { font-size:12px; font-weight:700; color:#64748b; margin-bottom:4px; display:block; }
+    .form-group select, .form-group input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; }
+    .modal-foot { padding:16px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
+
     @media(min-width: 768px) {
-      .p-card { flex-direction: row; align-items: flex-start; }
-      .p-row-top { width: 250px; flex-direction: column; align-items: flex-start; gap: 8px; border-right: 1px solid #eee; padding-right: 12px; }
-      .p-bed { width: 100%; display:flex; gap:5px; }
-      .p-del { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
-      .p-card { position: relative; padding-right: 50px; }
-      .p-info { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .p-card { flex-direction:row; align-items:flex-start; }
+      .p-col-left { width: 140px; display:flex; flex-direction:column; gap:6px; }
+      .p-col-mid { flex:1; display:flex; flex-direction:column; gap:6px; }
+      .p-col-right { width: 250px; display:flex; flex-direction:column; gap:6px; }
     }
   </style>
 </head>
-
 <body>
+
   <div id="root">
-    <div style="padding:50px; text-align:center; color:#666;">Initializing App...</div>
+    <div style="padding:40px; text-align:center; color:#64748b;">Loading System...</div>
   </div>
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
 
-    // --- FIREBASE CONFIGURATION ---
+    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
       authDomain: "unit-e-1d07b.firebaseapp.com",
@@ -118,10 +120,16 @@
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       db = firebase.database();
-    } catch(e) { console.error("DB Init Error", e); }
+    } catch(e) { console.error(e); }
 
+    // Helpers
     const clean = v => (v ?? "").toString().trim();
-    const sortBed = (a, b) => {
+    // Sort: Ward first, then Bed number
+    const sortPatients = (a, b) => {
+      const wa = clean(a.ward).toLowerCase();
+      const wb = clean(b.ward).toLowerCase();
+      if(wa !== wb) return wa.localeCompare(wb);
+      
       const na = parseInt(a.bed), nb = parseInt(b.bed);
       return (!isNaN(na) && !isNaN(nb)) ? na - nb : clean(a.bed).localeCompare(clean(b.bed));
     };
@@ -131,11 +139,18 @@
       const [loading, setLoading] = useState(true);
       const [search, setSearch] = useState("");
       
-      const [modalOpen, setModalOpen] = useState(false);
+      // Modals
+      const [addModal, setAddModal] = useState(false);
+      const [importModal, setImportModal] = useState(false);
       const [importData, setImportData] = useState([]);
       const fileRef = useRef(null);
 
-      // 1. Load Data
+      // New Patient Form State
+      const [newP, setNewP] = useState({
+        ward: "Ward 19", bed: "", name: "", mrn: "", diagnosis: "", plan: "", doctor: ""
+      });
+
+      // --- 1. LOAD DATA ---
       useEffect(() => {
         if (!db) { setLoading(false); return; }
         const ref = db.ref('patients');
@@ -148,26 +163,18 @@
         return () => ref.off();
       }, []);
 
-      // 2. Actions
-      const update = (id, field, val) => {
-        if(db) db.ref(`patients/${id}`).update({[field]:val});
-      };
+      // --- 2. ACTIONS ---
+      const update = (id, field, val) => { if(db) db.ref(`patients/${id}`).update({[field]:val}); };
       
-      const add = (loc) => {
-        if(db) db.ref('patients').push({ location:clean(loc), bed:"", name:"", mrn:"", diagnosis:"", plan:"", timestamp:Date.now() });
-      };
-      
-      const del = (id) => {
-        if(confirm("Are you sure you want to delete this patient?")) {
-          if(db) db.ref(`patients/${id}`).remove();
-        }
+      const saveNewPatient = () => {
+        if(!newP.name) return alert("Patient name is required");
+        if(db) db.ref('patients').push({ ...newP, timestamp: Date.now() });
+        setAddModal(false);
+        setNewP({ ward: "Ward 19", bed: "", name: "", mrn: "", diagnosis: "", plan: "", doctor: "" }); // Reset
       };
 
-      const resetDB = () => {
-        if(confirm("⚠️ DANGER: This will delete ALL patients from the database.\n\nAre you sure you want to start fresh?")) {
-          if(db) db.ref('patients').remove();
-        }
-      };
+      const del = (id) => { if(confirm("Delete this patient?")) db && db.ref(`patients/${id}`).remove(); };
+      const resetDB = () => { if(confirm("⚠️ RESET DATABASE: This deletes ALL patients.\n\nProceed?")) db && db.ref('patients').remove(); };
 
       const exportExcel = () => {
         const data = patients.map(({id, timestamp, ...rest}) => rest);
@@ -177,202 +184,231 @@
         XLSX.writeFile(wb, "Rounds.xlsx");
       };
 
-      // 3. Import Logic (Fixed)
+      // --- 3. IMPORT LOGIC ---
       const handleFile = async (e) => {
         const file = e.target.files?.[0];
         if(!file) return;
-        const name = file.name.toLowerCase();
-
-        try {
-          // EXCEL
-          if(name.endsWith('.xlsx') || name.endsWith('.xls')) {
-            const reader = new FileReader();
-            reader.onload = (evt) => {
-              const wb = XLSX.read(evt.target.result, {type:'binary'});
-              const ws = wb.Sheets[wb.SheetNames[0]];
-              const json = XLSX.utils.sheet_to_json(ws);
-              processImport(json);
-            };
-            reader.readAsBinaryString(file);
-          }
-          // TEXT / CSV
-          else if(name.endsWith('.txt') || name.endsWith('.csv')) {
-             const reader = new FileReader();
-             reader.onload = (evt) => {
-               const lines = evt.target.result.split('\n');
-               const json = lines.map(line => {
-                  // Split by tab or comma
-                  const parts = line.split(/,|\t/);
-                  if(parts.length < 2) return null;
-                  return { bed: parts[0], name: parts[1], diagnosis: parts[2]||"", plan: parts[3]||"" };
-               }).filter(Boolean);
-               processImport(json);
-             };
-             reader.readAsText(file);
-          }
-          // IMAGE (OCR)
-          else if(name.match(/\.(jpg|png|jpeg)$/)) {
-            setModalOpen(true);
-            setImportData([{name: "Scanning...", bed: "..."}]); // Temp loading state
-            const res = await Tesseract.recognize(file, 'eng');
-            const lines = res.data.text.split('\n').filter(l => l.length > 5);
-            setImportData(lines.map(l => ({ name: l, bed: "?", diagnosis:"", plan:"" })));
-          }
-        } catch(err) { alert("Error reading file: " + err.message); }
-        e.target.value = null; // Allow re-selecting same file
-      };
-
-      const processImport = (json) => {
-        const mapped = json.map(r => {
-           // Normalize keys (handle case sensitivity)
-           const k = {};
-           Object.keys(r).forEach(key => k[key.toLowerCase().trim()] = r[key]);
-           
-           return {
-             bed: clean(k.bed || k['bed no'] || k.bedno),
-             name: clean(k.name || k.patient),
-             mrn: clean(k.mrn || k.id),
-             diagnosis: clean(k.diagnosis || k.dx),
-             plan: clean(k.plan || k.mx),
-             location: "",
-             timestamp: Date.now()
-           };
-        });
-        setImportData(mapped);
-        setModalOpen(true);
+        
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const wb = XLSX.read(evt.target.result, {type:'binary'});
+            const ws = wb.Sheets[wb.SheetNames[0]];
+            const json = XLSX.utils.sheet_to_json(ws);
+            
+            const mapped = json.map(r => {
+               const k = {};
+               Object.keys(r).forEach(key => k[key.toLowerCase().trim()] = r[key]);
+               return {
+                 ward: clean(k.ward || k.location || "Unassigned"),
+                 bed: clean(k.bed || k['bed no'] || k.room || k.column1),
+                 name: clean(k.name || k.patient || k['patient name'] || k.column2),
+                 diagnosis: clean(k.diagnosis || k.dx || k.column3),
+                 doctor: clean(k.doctor || k['assigned doctor'] || k.column4),
+                 plan: clean(k.plan || k.mx || ""),
+                 mrn: clean(k.mrn || k.id || ""),
+                 timestamp: Date.now()
+               };
+            }).filter(p => p.name); // Filter empty rows
+            
+            setImportData(mapped);
+            setImportModal(true);
+          } catch(err) { alert("Error reading file"); }
+        };
+        reader.readAsBinaryString(file);
+        e.target.value = null;
       };
 
       const confirmImport = () => {
         if(!db) return;
         importData.forEach(p => db.ref('patients').push(p));
-        setModalOpen(false);
+        setImportModal(false);
         setImportData([]);
       };
 
-      // 4. Grouping
-      const groups = useMemo(() => {
-        const g = {};
+      // --- 4. GROUPING LOGIC ---
+      const groupedPatients = useMemo(() => {
+        const groups = {};
         const s = search.toLowerCase();
-        const filtered = patients.filter(p => (p.name+p.bed+p.mrn+p.diagnosis).toLowerCase().includes(s));
         
+        // Filter first
+        const filtered = patients.filter(p => 
+          (p.name+p.mrn+p.bed+p.diagnosis+p.doctor).toLowerCase().includes(s)
+        );
+
+        // Group by Ward
         filtered.forEach(p => {
-          const loc = p.location || "Unassigned";
-          if(!g[loc]) g[loc] = [];
-          g[loc].push(p);
+          const w = p.ward || "Unassigned";
+          if(!groups[w]) groups[w] = [];
+          groups[w].push(p);
         });
-        Object.keys(g).forEach(k => g[k].sort(sortBed));
-        return g;
+
+        // Sort inside groups
+        Object.keys(groups).forEach(k => groups[k].sort(sortPatients));
+        
+        // Define Custom Ward Order (like excel)
+        const customOrder = ["Ward 19", "Ward 20", "Ward 21", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
+        const sortedKeys = Object.keys(groups).sort((a,b) => {
+          const ia = customOrder.indexOf(a);
+          const ib = customOrder.indexOf(b);
+          if(ia !== -1 && ib !== -1) return ia - ib;
+          if(ia !== -1) return -1;
+          if(ib !== -1) return 1;
+          return a.localeCompare(b);
+        });
+
+        return { groups, sortedKeys };
       }, [patients, search]);
 
       return (
         <div className="wrap">
+          
+          <div className="topbar">
+            <div className="title">
+              <h1>Unit E Ward Rounds</h1>
+              <div className="subtitle"><div className="dot"></div> Online • {patients.length} Pts</div>
+            </div>
+            <div className="actions">
+              <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls" />
+              <button className="btn btn-ghost" onClick={()=>fileRef.current.click()}>📂 Import Excel</button>
+              <button className="btn btn-ghost" onClick={exportExcel}>📥 Export</button>
+              <button className="btn btn-red" onClick={resetDB}>Reset</button>
+              <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
+            </div>
+          </div>
+
+          <div style={{marginTop:10}}>
+            <input className="search-bar" placeholder="Search name, bed, diagnosis..." value={search} onChange={e=>setSearch(e.target.value)} />
+          </div>
+
           <div className="app">
+            {loading && <div style={{padding:40, textAlign:'center'}}>Loading...</div>}
             
-            {/* TOP BAR */}
-            <div className="topbar">
-              <div className="title">
-                <h1>Unit E Ward Rounds</h1>
-                <div className="subtitle"><div className="dot"></div> Online • {patients.length} Patients</div>
-              </div>
-              <div className="actions">
-                <input type="file" ref={fileRef} hidden onChange={handleFile} />
-                <button className="btn btn-ghost" onClick={()=>fileRef.current.click()}>📂 Import</button>
-                <button className="btn btn-ghost" onClick={exportExcel}>📥 Export</button>
-                <button className="btn btn-white" onClick={()=>add("")}>+ Add Patient</button>
-                <button className="btn btn-red" onClick={resetDB}>⚠️ Reset DB</button>
-              </div>
-            </div>
-
-            {/* SEARCH */}
-            <div className="controls">
-              <input className="search-box" placeholder="Search patients..." value={search} onChange={e=>setSearch(e.target.value)} />
-            </div>
-
-            {/* MAIN LIST */}
-            <div className="content-area">
-              {loading && <div style={{padding:20, textAlign:'center'}}>Loading...</div>}
-              
-              {!loading && Object.keys(groups).sort().map(loc => (
-                <div key={loc} className="section">
-                  <div className="section-header">
-                    <span>{loc} ({groups[loc].length})</span>
-                    <button className="btn btn-white" style={{fontSize:11, padding:'4px 8px'}} onClick={()=>add(loc==='Unassigned'?'':loc)}>+ Add</button>
-                  </div>
-                  
-                  {groups[loc].map(p => (
-                    <div className="p-card" key={p.id}>
+            {!loading && groupedPatients.sortedKeys.map(ward => (
+              <div key={ward} className="ward-section">
+                <div className="ward-header">
+                  <span>{ward}</span>
+                  <span className="ward-count">{groupedPatients.groups[ward].length}</span>
+                </div>
+                
+                {groupedPatients.groups[ward].map(p => (
+                  <div className="p-card" key={p.id}>
+                    {/* Desktop Layout Helper: 3 Columns */}
+                    <div className="p-row p-row-main" style={{flexWrap:'wrap'}}>
                       
-                      {/* Top Row: Bed + Name + Delete */}
-                      <div className="p-row-top">
-                        <div style={{width:'100%'}}>
-                          <input className="inp inp-bed" placeholder="Bed" value={p.bed} onChange={e=>update(p.id, 'bed', e.target.value)} />
-                          {loc === 'Unassigned' && (
-                            <input className="inp inp-meta" placeholder="Location?" value={p.location} onChange={e=>update(p.id, 'location', e.target.value)} />
-                          )}
-                        </div>
-                        <div style={{width:'100%'}}>
-                           <input className="inp inp-name" placeholder="Patient Name" value={p.name} onChange={e=>update(p.id, 'name', e.target.value)} />
-                           <input className="inp inp-meta" placeholder="MRN / ID" value={p.mrn} onChange={e=>update(p.id, 'mrn', e.target.value)} />
-                        </div>
+                      {/* Left: Bed & Doctor */}
+                      <div style={{display:'flex', flexDirection:'column', gap:5, minWidth:'80px'}}>
+                        <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
+                        <input className="inp inp-doc" value={p.doctor} placeholder="Dr..." onChange={e=>update(p.id,'doctor',e.target.value)} />
                       </div>
 
-                      <button className="p-del" onClick={()=>del(p.id)}>×</button>
-
-                      {/* Info Row: Diagnosis + Plan */}
-                      <div className="p-info">
-                        <textarea className="inp inp-area" placeholder="Diagnosis" value={p.diagnosis} onChange={e=>update(p.id, 'diagnosis', e.target.value)} />
-                        <textarea className="inp inp-area" placeholder="Daily Plan" value={p.plan} onChange={e=>update(p.id, 'plan', e.target.value)} />
+                      {/* Middle: Name & Diagnosis */}
+                      <div style={{flex:1, minWidth:'200px', display:'flex', flexDirection:'column', gap:5}}>
+                        <div style={{display:'flex', gap:5}}>
+                           <input className="inp inp-name" value={p.name} placeholder="Patient Name" onChange={e=>update(p.id,'name',e.target.value)} />
+                           <input className="inp" style={{width:'80px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
+                        </div>
+                        <input className="inp" style={{fontWeight:'bold', color:'#334155'}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
                       </div>
 
+                      {/* Right: Plan & Delete */}
+                      <div style={{width:'100%', maxWidth:'100%', flexBasis:'100%', display:'flex', gap:10, alignItems:'center'}}>
+                        <textarea className="inp inp-area" value={p.plan} placeholder="Plan / Notes..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                        <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                      </div>
+                      
                     </div>
-                  ))}
-                </div>
-              ))}
-              
-              {!loading && patients.length === 0 && (
-                <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
-                  No patients found.<br/>Click <b>+ Add Patient</b> or <b>Import</b> to start.
-                </div>
-              )}
-            </div>
+                  </div>
+                ))}
+              </div>
+            ))}
 
-            {/* IMPORT MODAL */}
-            {modalOpen && (
-              <div className="modalOverlay">
-                <div className="modal">
-                  <div className="modal-head">
-                    <span>Import Preview</span>
-                    <button onClick={()=>setModalOpen(false)} style={{background:'none', border:'none', color:'white', fontSize:20, cursor:'pointer'}}>×</button>
-                  </div>
-                  <div className="modal-body">
-                    {importData.length === 0 ? "No valid data found." : (
-                      <table style={{width:'100%', fontSize:12, borderCollapse:'collapse'}}>
-                        <thead>
-                           <tr style={{textAlign:'left', background:'#f1f5f9'}}>
-                             <th style={{padding:8}}>Bed</th><th style={{padding:8}}>Name</th><th style={{padding:8}}>Diagnosis</th>
-                           </tr>
-                        </thead>
-                        <tbody>
-                          {importData.map((row, i) => (
-                            <tr key={i} style={{borderBottom:'1px solid #eee'}}>
-                              <td style={{padding:8, fontWeight:'bold'}}>{row.bed}</td>
-                              <td style={{padding:8}}>{row.name}</td>
-                              <td style={{padding:8, color:'#666'}}>{row.diagnosis}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                  <div className="modal-foot">
-                    <button className="btn btn-ghost" style={{color:'#000'}} onClick={()=>setModalOpen(false)}>Cancel</button>
-                    <button className="btn btn-white" style={{background: 'var(--green)', color:'white'}} onClick={confirmImport}>Confirm Import ({importData.length})</button>
-                  </div>
-                </div>
+            {!loading && patients.length === 0 && (
+              <div style={{padding:50, textAlign:'center', color:'#94a3b8'}}>
+                No patients. Click <b>+ Add Patient</b> to start.
               </div>
             )}
-
           </div>
+
+          {/* ADD PATIENT MODAL */}
+          {addModal && (
+            <div className="modalOverlay">
+              <div className="modal">
+                <div className="modal-head">Add New Patient</div>
+                <div className="modal-body">
+                  <div className="form-group">
+                    <label>Ward / Location</label>
+                    <select value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>
+                      <option>Ward 19</option>
+                      <option>Ward 20</option>
+                      <option>Ward 21</option>
+                      <option>Ward 5</option>
+                      <option>Ward 10</option>
+                      <option>ICU</option>
+                      <option>ER</option>
+                      <option>Other</option>
+                    </select>
+                  </div>
+                  <div style={{display:'flex', gap:10}}>
+                    <div className="form-group" style={{flex:1}}>
+                      <label>Bed / Room</label>
+                      <input value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} placeholder="e.g. 19-1" />
+                    </div>
+                    <div className="form-group" style={{flex:1}}>
+                      <label>Assigned Doctor</label>
+                      <input value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} placeholder="Dr. Name" />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Patient Name</label>
+                    <input value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} placeholder="Full Name" />
+                  </div>
+                  <div className="form-group">
+                    <label>Diagnosis</label>
+                    <input value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} placeholder="Primary Diagnosis" />
+                  </div>
+                   <div className="form-group">
+                    <label>Initial Plan</label>
+                    <input value={newP.plan} onChange={e=>setNewP({...newP, plan:e.target.value})} placeholder="..." />
+                  </div>
+                </div>
+                <div className="modal-foot">
+                  <button className="btn btn-ghost" style={{color:'#333'}} onClick={()=>setAddModal(false)}>Cancel</button>
+                  <button className="btn btn-white" style={{background:'var(--green)', color:'white'}} onClick={saveNewPatient}>Save Patient</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* IMPORT MODAL */}
+          {importModal && (
+            <div className="modalOverlay">
+              <div className="modal">
+                 <div className="modal-head">Import Preview ({importData.length})</div>
+                 <div className="modal-body">
+                   <table style={{width:'100%', fontSize:12, borderCollapse:'collapse'}}>
+                     <thead>
+                       <tr style={{background:'#eee', textAlign:'left'}}><th style={{padding:5}}>Ward</th><th style={{padding:5}}>Bed</th><th style={{padding:5}}>Name</th></tr>
+                     </thead>
+                     <tbody>
+                       {importData.map((d,i) => (
+                         <tr key={i} style={{borderBottom:'1px solid #eee'}}>
+                           <td style={{padding:5}}>{d.ward}</td>
+                           <td style={{padding:5}}>{d.bed}</td>
+                           <td style={{padding:5}}>{d.name}</td>
+                         </tr>
+                       ))}
+                     </tbody>
+                   </table>
+                 </div>
+                 <div className="modal-foot">
+                   <button className="btn btn-ghost" style={{color:'#333'}} onClick={()=>setImportModal(false)}>Cancel</button>
+                   <button className="btn btn-white" style={{background:'var(--green)', color:'white'}} onClick={confirmImport}>Confirm Import</button>
+                 </div>
+              </div>
+            </div>
+          )}
+
         </div>
       );
     };
