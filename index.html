@@ -8,82 +8,97 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script crossorigin src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
   
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
   <style>
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; }
-    body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:80px; }
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; }
+    body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
     
-    /* ERROR BOX */
-    #error-log { display:none; background:#fee2e2; color:#b91c1c; padding:15px; border-radius:8px; border:1px solid #fca5a5; margin:20px; font-family:monospace; white-space:pre-wrap; }
+    /* ERROR LOG */
+    #error-log { display:none; background:#fee2e2; color:#b91c1c; padding:15px; border:1px solid #fca5a5; margin:20px; white-space:pre-wrap; }
 
     /* UI ELEMENTS */
-    .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
+    .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
     .title h1{ margin:0; font-size:18px; font-weight:800; }
+    .subtitle{ font-size: 12px; opacity: 0.8; }
     
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
     .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
     .btn:active{ transform:translateY(1px); }
     .btn-white{ background:white; color:var(--green); }
-    .btn-ghost{ background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.3); }
     .btn-red{ background:#fee2e2; color:#b91c1c; }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
 
-    .search-bar{ width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:15px; margin-bottom:16px; outline:none; }
+    /* FILTERS & SEARCH */
+    .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+    .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+    .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
+    
+    .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
     .search-bar:focus{ border-color:var(--green); ring:2px solid var(--green); }
 
     /* WARD & CARDS */
-    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; }
-    .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:14px; display:flex; justify-content:space-between; }
+    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .ward-header{ background:var(--blue); color:white; padding:8px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; letter-spacing: 0.5px; }
+    .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; }
     
-    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; }
+    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
     .p-card:last-child{ border-bottom:none; }
     
     /* INPUTS */
-    .inp{ width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; }
+    .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
     .inp-bed{ width:70px; font-weight:800; text-align:center; color:var(--blue); background:#eff6ff; }
     .inp-name{ font-weight:700; font-size:15px; }
-    .inp-doc{ width:120px; font-size:12px; font-weight:600; color:#64748b; }
-    .inp-area{ min-height:50px; resize:vertical; }
+    .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
+    .inp-area{ min-height:45px; resize:vertical; }
 
-    .btn-del{ width:30px; height:30px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    /* Status Dropdown on Card */
+    .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; outline: none; }
+    .status-new { background: #dbeafe; color: var(--blue); border-color: #93c5fd; }
+    .status-chronic { background: #ffedd5; color: var(--orange); border-color: #fdba74; }
+    .status-non { background: #f3e8ff; color: var(--purple); border-color: #d8b4fe; }
+
+    .card-actions { display: flex; gap: 6px; align-items: center; }
+    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 
     /* MODAL */
-    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
-    .modal{ background:white; width:100%; max-width:500px; border-radius:12px; display:flex; flex-direction:column; max-height:80vh; overflow:hidden; }
-    .modal-head{ background:var(--green); padding:16px; color:white; font-weight:bold; }
-    .modal-body{ padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; backdrop-filter: blur(2px); }
+    .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; }
+    .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .form-row{ display:flex; gap:10px; }
     .form-group{ flex:1; }
     .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
-    .modal-foot{ padding:16px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
+    .modal-foot{ padding:14px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
 
     /* RESPONSIVE */
     @media(min-width: 768px){
-      .p-card{ flex-direction:row; align-items:flex-start; gap:16px; }
-      .col-1{ width:140px; display:flex; flex-direction:column; gap:8px; }
-      .col-2{ flex:1; display:flex; flex-direction:column; gap:8px; }
-      .col-3{ width:280px; display:flex; flex-direction:column; gap:8px; }
+      .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
+      .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
+      .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
+      .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
+      .card-actions { flex-direction: column; align-items: flex-end; }
     }
     @media(max-width: 767px){
-      .mobile-row{ display:flex; gap:10px; }
+      .mobile-row{ display:flex; gap:8px; }
+      .card-actions { position: absolute; top: 12px; right: 12px; }
+      .p-card { padding-right: 50px; } /* Space for actions */
     }
   </style>
 </head>
 <body>
 
   <div id="error-log"></div>
-
   <div id="root"></div>
 
   <script>
-    // Global Error Handler
-    window.onerror = function(msg, url, line, col, error) {
+    window.onerror = function(msg, url, line) {
       const log = document.getElementById('error-log');
       log.style.display = 'block';
       log.textContent += `Error: ${msg}\nLine: ${line}\n\n`;
@@ -94,32 +109,32 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
 
-    // --- YOUR MASTER DATA (From JSON) ---
+    // --- UPDATED MASTER DATA WITH STATUSES ---
     const MASTER_DATA = [
-      { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", plan:"" },
-      { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", plan:"" },
-      { ward:"Ward 20", bed:"17-1", name:"Nawaf", diagnosis:"Chest infection", doctor:"Bader", plan:"" },
-      { ward:"Ward 20", bed:"11-1", name:"Iskander", diagnosis:"Infective endocarditis", doctor:"Ahmad", plan:"" },
-      { ward:"Ward 20", bed:"20-1", name:"Hameed", diagnosis:"Symptomatic anemia", doctor:"Aziz", plan:"" },
-      { ward:"Ward 20", bed:"12-1", name:"Dynamete", diagnosis:"AKI", doctor:"Aziz", plan:"" },
-      { ward:"Ward 21", bed:"13-1", name:"Mohammad", diagnosis:"CAP/AKI", doctor:"Mohammed", plan:"" },
-      { ward:"Ward 21", bed:"14-1", name:"Oiuutlah", diagnosis:"ICH", doctor:"Lutwa", plan:"" },
-      { ward:"Ward 21", bed:"14-2", name:"Raju", diagnosis:"Ischemic stroke", doctor:"Zahra", plan:"" },
-      { ward:"Ward 21", bed:"20-1", name:"Mohammed", diagnosis:"CVA within window", doctor:"Mohammed", plan:"" },
-      { ward:"Ward 27", bed:"", name:"Jassim Mohd", diagnosis:"CVA out of window", doctor:"Noura", plan:"" },
-      { ward:"Ward 5", bed:"16", name:"Mohammed Haji", diagnosis:"Sepsis Aki", doctor:"Bader", plan:"" },
-      { ward:"Ward 5", bed:"7", name:"Yousef", diagnosis:"Dizziness", doctor:"Ahmed", plan:"" },
-      { ward:"ER", bed:"", name:"Mohammed", diagnosis:"TIA", doctor:"Shrouq", plan:"" },
-      { ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", plan:"" },
-      { ward:"Ward 19", bed:"1", name:"Abdullatif", diagnosis:"CVA", doctor:"Lutwa", plan:"" },
-      { ward:"Ward 19", bed:"15-1", name:"Abdulla", diagnosis:"Urosepsis, hyperNa", doctor:"Bader", plan:"" },
-      { ward:"Ward 20", bed:"5", name:"Anwar", diagnosis:"Quadriplegia", doctor:"Zahra", plan:"" },
-      { ward:"Ward 20", bed:"14-2", name:"Hasan", diagnosis:"LVF", doctor:"Mohammed", plan:"" },
-      { ward:"Ward 20", bed:"14-1", name:"Mohamed", diagnosis:"UTI, weight loss", doctor:"Noura", plan:"" },
-      { ward:"Ward 21", bed:"8", name:"Abdulmohsen", diagnosis:"Drug overdose", doctor:"Mohammed", plan:"" },
-      { ward:"Ward 22", bed:"5", name:"Haidar", diagnosis:"CVA", doctor:"Ahmad", plan:"" },
-      { ward:"Ward 22", bed:"13-2", name:"Haraka Man", diagnosis:"ICH", doctor:"Bader", plan:"" },
-      { ward:"Ward 27", bed:"6", name:"Ishaq", diagnosis:"AP, urosepsis", doctor:"Aziz", plan:"" }
+      { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"New", plan:"" },
+      { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"Chronic", plan:"" },
+      { ward:"Ward 20", bed:"17-1", name:"Nawaf", diagnosis:"Chest infection", doctor:"Bader", status:"Non-Chronic", plan:"" },
+      { ward:"Ward 20", bed:"11-1", name:"Iskander", diagnosis:"Infective endocarditis", doctor:"Ahmad", status:"New", plan:"" },
+      { ward:"Ward 20", bed:"20-1", name:"Hameed", diagnosis:"Symptomatic anemia", doctor:"Aziz", status:"", plan:"" },
+      { ward:"Ward 20", bed:"12-1", name:"Dynamete", diagnosis:"AKI", doctor:"Aziz", status:"", plan:"" },
+      { ward:"Ward 21", bed:"13-1", name:"Mohammad", diagnosis:"CAP/AKI", doctor:"Mohammed", status:"New", plan:"" },
+      { ward:"Ward 21", bed:"14-1", name:"Oiuutlah", diagnosis:"ICH", doctor:"Lutwa", status:"Chronic", plan:"" },
+      { ward:"Ward 21", bed:"14-2", name:"Raju", diagnosis:"Ischemic stroke", doctor:"Zahra", status:"", plan:"" },
+      { ward:"Ward 21", bed:"20-1", name:"Mohammed", diagnosis:"CVA within window", doctor:"Mohammed", status:"", plan:"" },
+      { ward:"Ward 27", bed:"", name:"Jassim Mohd", diagnosis:"CVA out of window", doctor:"Noura", status:"", plan:"" },
+      { ward:"Ward 5", bed:"16", name:"Mohammed Haji", diagnosis:"Sepsis Aki", doctor:"Bader", status:"New", plan:"" },
+      { ward:"Ward 5", bed:"7", name:"Yousef", diagnosis:"Dizziness", doctor:"Ahmed", status:"", plan:"" },
+      { ward:"ER", bed:"", name:"Mohammed", diagnosis:"TIA", doctor:"Shrouq", status:"New", plan:"" },
+      { ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", status:"New", plan:"" },
+      { ward:"Ward 19", bed:"1", name:"Abdullatif", diagnosis:"CVA", doctor:"Lutwa", status:"Chronic", plan:"" },
+      { ward:"Ward 19", bed:"15-1", name:"Abdulla", diagnosis:"Urosepsis, hyperNa", doctor:"Bader", status:"Chronic", plan:"" },
+      { ward:"Ward 20", bed:"5", name:"Anwar", diagnosis:"Quadriplegia", doctor:"Zahra", status:"Chronic", plan:"" },
+      { ward:"Ward 20", bed:"14-2", name:"Hasan", diagnosis:"LVF", doctor:"Mohammed", status:"Chronic", plan:"" },
+      { ward:"Ward 20", bed:"14-1", name:"Mohamed", diagnosis:"UTI, weight loss", doctor:"Noura", status:"Chronic", plan:"" },
+      { ward:"Ward 21", bed:"8", name:"Abdulmohsen", diagnosis:"Drug overdose", doctor:"Mohammed", status:"New", plan:"" },
+      { ward:"Ward 22", bed:"5", name:"Haidar", diagnosis:"CVA", doctor:"Ahmad", status:"Chronic", plan:"" },
+      { ward:"Ward 22", bed:"13-2", name:"Haraka Man", diagnosis:"ICH", doctor:"Bader", status:"Chronic", plan:"" },
+      { ward:"Ward 27", bed:"6", name:"Ishaq", diagnosis:"AP, urosepsis", doctor:"Aziz", status:"Chronic", plan:"" }
     ];
 
     const firebaseConfig = {
@@ -142,6 +157,7 @@
 
     const clean = v => (v||"").toString().trim();
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
+    const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
     const sortPatients = (a, b) => {
       const na = parseInt(a.bed), nb = parseInt(b.bed);
@@ -149,11 +165,20 @@
       return clean(a.bed).localeCompare(clean(b.bed));
     };
 
+    // Helper to get status color class
+    const getStatusClass = (s) => {
+        if(!s) return '';
+        if(s === 'New') return 'status-new';
+        if(s === 'Chronic') return 'status-chronic';
+        return 'status-non';
+    }
+
     const App = () => {
       const [patients, setPatients] = useState([]);
       const [search, setSearch] = useState("");
+      const [viewFilter, setViewFilter] = useState("All"); // New state for filtering lists
       const [addModal, setAddModal] = useState(false);
-      const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:""});
+      const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
       
       useEffect(() => {
         if(!db) return;
@@ -167,29 +192,84 @@
       }, []);
 
       const update = (id, f, v) => db && db.ref(`patients/${id}`).update({[f]:v});
-      const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
-      const resetDB = () => confirm("Reset DB?") && db && db.ref('patients').remove();
+      const del = (id) => confirm("Delete patient?") && db && db.ref(`patients/${id}`).remove();
+      const resetDB = () => confirm("⚠️ RESET DATABASE: Delete ALL patients?") && db && db.ref('patients').remove();
       
       const loadMaster = () => {
-        if(confirm("Load Master List (25 patients)?")) {
+        if(confirm("Load Master List (24 patients)?")) {
           MASTER_DATA.forEach(p => db && db.ref('patients').push({...p, timestamp:Date.now()}));
         }
       };
 
       const saveNew = () => {
         if(newP.name) {
-          if(db) db.ref('patients').push({...newP, timestamp:Date.now()});
+          if(db) db.ref('patients').push({...newP, mrn:"", timestamp:Date.now()});
           setAddModal(false);
-          setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:""});
+          setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
         }
       };
 
+      // --- NEW: IMPROVED EXCEL EXPORT ---
+      const exportWellOrganizedExcel = () => {
+          const wb = XLSX.utils.book_new();
+          let dataRows = [];
+
+          // Main Headers
+          dataRows.push(["Ward", "Bed", "Name", "MRN", "Diagnosis", "Doctor", "Status", "Plan"]);
+
+          // Iterate through sorted wards based on current groupings
+          groups.sortedKeys.forEach(ward => {
+             // Add Ward Header Row (Empty cells make it look like a separator)
+             dataRows.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
+
+             // Add Patients in that ward
+             groups.g[ward].forEach(p => {
+                dataRows.push([
+                   p.ward,
+                   p.bed,
+                   p.name,
+                   p.mrn || "",
+                   p.diagnosis,
+                   p.doctor,
+                   p.status || "-",
+                   p.plan
+                ]);
+             });
+             // Add empty row for spacing
+             dataRows.push([]); 
+          });
+
+          const ws = XLSX.utils.aoa_to_sheet(dataRows);
+          
+          // Basic column width setting
+          const wscols = [
+            {wch:15}, {wch:8}, {wch:20}, {wch:10}, {wch:25}, {wch:15}, {wch:12}, {wch:30}
+          ];
+          ws['!cols'] = wscols;
+
+          XLSX.utils.book_append_sheet(wb, ws, "Unit E Rounds");
+          XLSX.writeFile(wb, `UnitE_Rounds_${viewFilter.replace(' ', '')}.xlsx`);
+      };
+
+
+      // --- GROUPING & FILTERING ---
       const groups = useMemo(() => {
         const g = {};
         const s = search.toLowerCase();
-        patients.filter(p => (p.name+p.bed+p.ward+p.diagnosis).toLowerCase().includes(s))
-        .forEach(p => {
+        
+        // 1. Apply View Filter (New, Chronic, etc.)
+        let filteredByView = patients;
+        if(viewFilter !== 'All') {
+            filteredByView = patients.filter(p => (p.status || "") === viewFilter);
+        }
+
+        // 2. Apply Search
+        const finalFiltered = filteredByView.filter(p => (p.name+p.bed+p.ward+p.diagnosis+p.doctor).toLowerCase().includes(s));
+
+        // 3. Group by Ward
+        finalFiltered.forEach(p => {
           let w = p.ward || "Unassigned";
+          // Fuzzy match wards
           if(w.toLowerCase().includes("ward 19")) w = "Ward 19";
           else if(w.toLowerCase().includes("ward 20")) w = "Ward 20";
           else if(w.toLowerCase().includes("ward 21")) w = "Ward 21";
@@ -197,113 +277,94 @@
           else if(w.toLowerCase().includes("ward 27")) w = "Ward 27";
           else if(w.toLowerCase().includes("ward 5")) w = "Ward 5";
           else if(w.toLowerCase().includes("er")) w = "ER";
+          else if(w.toLowerCase().includes("icu")) w = "ICU";
           
           if(!g[w]) g[w] = [];
           g[w].push(p);
         });
         
+        // 4. Sort beds and wards
         Object.keys(g).forEach(k => g[k].sort(sortPatients));
         const sortedKeys = Object.keys(g).sort((a,b) => {
           const ia = WARD_ORDER.indexOf(a), ib = WARD_ORDER.indexOf(b);
           return (ia!==-1 && ib!==-1) ? ia-ib : (ia!==-1 ? -1 : (ib!==-1 ? 1 : a.localeCompare(b)));
         });
-        return { g, sortedKeys };
-      }, [patients, search]);
+        return { g, sortedKeys, totalCount: finalFiltered.length };
+      }, [patients, search, viewFilter]);
 
       return (
         <div className="wrap">
           <div className="topbar">
             <div className="title">
               <h1>Unit E Ward Rounds</h1>
-              <div className="subtitle">{patients.length} Patients • {db ? "Connected" : "Local Mode"}</div>
+              <div className="subtitle">{groups.totalCount} Patients Shown • {db ? "Online" : "Local"}</div>
             </div>
             <div className="actions">
               <button className="btn btn-blue" onClick={loadMaster}>📥 Load Master List</button>
               <button className="btn btn-red" onClick={resetDB}>⚠️ Reset DB</button>
               <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
+              <button className="btn btn-white" onClick={exportWellOrganizedExcel}>📤 Export Excel</button>
             </div>
           </div>
 
-          <input className="search-bar" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
+          <div className="controls-container">
+            {/* Filter Buttons */}
+            <div className="filter-row">
+                {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
+                    <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>
+                        {f === 'New' ? 'New Admissions' : f}
+                    </button>
+                ))}
+            </div>
+            <input className="search-bar" placeholder={`Search in ${viewFilter === 'New' ? 'New Admissions' : viewFilter}...`} value={search} onChange={e=>setSearch(e.target.value)} />
+          </div>
 
           {groups.sortedKeys.map(ward => (
             <div key={ward} className="ward-section">
               <div className="ward-header"><span>{ward}</span><span className="ward-count">{groups.g[ward].length}</span></div>
               {groups.g[ward].map(p => (
                 <div className="p-card" key={p.id}>
-                  {/* Row 1 Mobile / Col 1 Desktop */}
+                  
+                  {/* Col 1: Bed & Doc */}
                   <div className="mobile-row col-1">
                     <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
                     <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
                   </div>
-                  {/* Row 2 Mobile / Col 2 Desktop */}
+
+                  {/* Col 2: Name, MRN, Diagnosis */}
                   <div className="col-2">
-                    <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
-                    <input className="inp" style={{color:'#64748b'}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
-                  </div>
-                  {/* Row 3 Mobile / Col 3 Desktop */}
-                  <div className="col-3">
-                    <div style={{display:'flex', gap:10, alignItems:'flex-start'}}>
-                       <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
-                       <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                    <div style={{display:'flex', gap:8}}>
+                         <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
+                         <input className="inp" style={{width:'90px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
                     </div>
+                    <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
                   </div>
+
+                  {/* Col 3: Plan & Actions */}
+                  <div className="col-3">
+                       <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                  </div>
+
+                   {/* Actions (Top right on mobile, right col on desktop) */}
+                  <div className="card-actions">
+                      {/* Status Dropdown for moving patients */}
+                       <select 
+                          className={`status-select ${getStatusClass(p.status)}`} 
+                          value={p.status || ""} 
+                          onChange={e=>update(p.id, 'status', e.target.value)}
+                       >
+                          <option value="">- Status -</option>
+                          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                       </select>
+                       <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                   </div>
+
                 </div>
               ))}
             </div>
           ))}
 
-          {patients.length === 0 && (
-            <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
-              No patients found.<br/><br/>
-              <button className="btn btn-blue" onClick={loadMaster}>Load Master List Now</button>
-            </div>
-          )}
-
-          {addModal && (
-            <div className="modalOverlay">
-              <div className="modal">
-                <div className="modal-head">Add Patient</div>
-                <div className="modal-body">
-                  <div className="form-group">
-                    <label>Ward</label>
-                    <select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>
-                      {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
-                    </select>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Bed</label>
-                      <input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} />
-                    </div>
-                    <div className="form-group">
-                      <label>Doctor</label>
-                      <input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Name</label>
-                    <input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label>Diagnosis</label>
-                    <input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} />
-                  </div>
-                </div>
-                <div className="modal-foot">
-                  <button className="btn btn-ghost" style={{color:'#333'}} onClick={()=>setAddModal(false)}>Cancel</button>
-                  <button className="btn btn-white" style={{background: 'var(--green)', color:'white'}} onClick={saveNew}>Save</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+          {patients.length > 0 && groups.totalCount === 0 && (
+             <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
+              No patients found in "{viewFilter}" category matching search.
+            
