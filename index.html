@@ -1,3 +1,4 @@
+```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -57,6 +58,7 @@
     .modal{ background:#fff; width:100%; max-width:900px; max-height:90vh; border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
     .modalHeader{ padding:12px; background:#1e293b; color:#fff; display:flex; justify-content:space-between; align-items:center; }
     .modalBody{ padding:10px; overflow-y:auto; flex:1; }
+    .modalFooter{ padding:12px; background:#f8fafc; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border); }
 
     @media(max-width:768px){
       table, thead, tbody, th, td, tr { display:block; }
@@ -400,16 +402,4 @@
                   <div className="modalBody">
                     {ocrProgress !== null ? (
                       <div style={{padding:20, textAlign:'center'}}>Reading Image... {Math.round(ocrProgress*100)}%</div>
-                    ) : (
-                      <table>
-                        <thead><tr><th>Bed</th><th>Name</th><th>Diagnosis</th></tr></thead>
-                        <tbody>
-                          {importData.map((r,i) => (
-                            <tr key={i}><td>{r.bed}</td><td>{r.name}</td><td>{r.diagnosis}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-
-                  <!-- FIX APPLIED HERE: color is '#000' and style strings are valid -
+         
