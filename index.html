@@ -17,33 +17,100 @@
   <style>
     body {
       font-family: 'Segoe UI', Roboto, sans-serif;
-      background: #f5f5f5;
+      background: #f4f6f5;
       margin: 0;
-      padding: 16px;
+      padding: 10px;
     }
-    .container { max-width: 1100px; margin: auto; background: white; border-radius: 10px; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
-    .header { background: linear-gradient(135deg, #2e7d32, #1b5e20); color: white; padding: 20px; display: flex; justify-content: space-between; align-items: center; }
-    .header h1 { margin: 0; font-size: 22px; }
-    .btn { border: none; border-radius: 5px; padding: 8px 14px; margin: 2px; cursor: pointer; font-size: 14px; }
-    .btn-primary { background: #2e7d32; color: white; }
-    .btn-danger { background: #d32f2f; color: white; }
+    .container {
+      max-width: 1100px;
+      margin: auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.08);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #2e7d32, #1b5e20);
+      color: white;
+      padding: 20px;
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+    .header h1 { margin: 0; font-size: 22px; font-weight: 600; }
+    .header-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
+    .btn {
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+    }
+    .btn-primary { background: #4caf50; color: white; }
     .btn-secondary { background: #1976d2; color: white; }
-    .controls { padding: 16px; background: #fafafa; border-bottom: 1px solid #e0e0e0; }
-    input, select { padding: 8px; border: 1px solid #ddd; border-radius: 5px; margin-right: 8px; }
+    .btn-danger { background: #d32f2f; color: white; }
+    .controls {
+      padding: 16px;
+      background: #fafafa;
+      border-bottom: 1px solid #e0e0e0;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    select, input {
+      padding: 8px;
+      border-radius: 6px;
+      border: 1px solid #ddd;
+      flex: 1;
+      min-width: 160px;
+    }
     .content { padding: 16px; }
     .ward-section { margin-bottom: 24px; }
-    .ward-header { background: #1976d2; color: white; padding: 12px; border-radius: 5px; }
+    .ward-header {
+      background: #1976d2;
+      color: white;
+      padding: 12px;
+      border-radius: 6px;
+      font-weight: 500;
+    }
     .er-header { background: #c62828 !important; }
-    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
-    th, td { padding: 8px; border-bottom: 1px solid #eee; text-align: left; }
+    .table-wrapper {
+      overflow-x: auto;
+      margin-top: 10px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 600px;
+    }
+    th, td {
+      padding: 8px 10px;
+      border-bottom: 1px solid #eee;
+      text-align: left;
+    }
     tr:hover { background: #f9f9f9; }
-    .status { font-weight: bold; border-radius: 8px; padding: 3px 8px; color: white; }
+    .status {
+      font-weight: 600;
+      border-radius: 8px;
+      padding: 3px 8px;
+      color: white;
+    }
     .status.New { background: #7b1fa2; }
-    .status.Stable { background: #388e3c; }
+    .status.Stable { background: #43a047; }
     .status.Critical { background: #f57c00; }
     .status.Discharged { background: #0288d1; }
-    .modal-bg { position: fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.5); display:flex; justify-content:center; align-items:center; }
-    .modal { background:white; padding:20px; border-radius:8px; width:90%; max-width:400px; }
+    @media (max-width: 600px) {
+      .header { flex-direction: column; align-items: flex-start; }
+      .table-wrapper { font-size: 13px; }
+    }
   </style>
 </head>
 <body>
@@ -60,152 +127,134 @@
       appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb",
       measurementId: "G-6W2X2BBJLQ"
     };
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
-
     const { useState, useEffect } = React;
 
     function WardRoundsApp() {
       const [patients, setPatients] = useState([]);
-      const [showModal, setShowModal] = useState(false);
-      const [editing, setEditing] = useState(null);
       const [filterStatus, setFilterStatus] = useState('New admission');
       const [search, setSearch] = useState('');
-      const [form, setForm] = useState({ name: '', diagnosis: '', location: '', doctor: '', status: 'New admission' });
 
       useEffect(() => {
-        const ref = db.ref('patients');
-        ref.on('value', snap => {
-          const data = snap.val() || {};
-          setPatients(Object.entries(data).map(([id, v]) => ({ id, ...v })));
+        const patientsRef = db.ref('patients');
+        patientsRef.on('value', (snapshot) => {
+          const data = snapshot.val() || {};
+          const patientsArray = Object.entries(data).map(([id, value]) => ({ id, ...value }));
+          setPatients(patientsArray);
         });
-        return () => ref.off();
+        return () => patientsRef.off();
       }, []);
-
-      const savePatient = () => {
-        const ref = db.ref('patients');
-        if (editing) ref.child(editing.id).set(form);
-        else ref.push(form);
-        setShowModal(false);
-        setEditing(null);
-        setForm({ name: '', diagnosis: '', location: '', doctor: '', status: 'New admission' });
-      };
-
-      const del = id => db.ref('patients').child(id).remove();
-
-      const exportExcel = () => {
-        const ws = XLSX.utils.json_to_sheet(patients);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, 'Patients');
-        XLSX.writeFile(wb, 'UnitE_Patients.xlsx');
-      };
-
-      const importFile = e => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = evt => {
-          const data = JSON.parse(evt.target.result);
-          db.ref('patients').set(data);
-        };
-        reader.readAsText(file);
-      };
 
       const filtered = patients.filter(p =>
         (!filterStatus || p.status === filterStatus) &&
-        (p.name || '').toLowerCase().includes(search.toLowerCase())
+        (p.patientName || '').toLowerCase().includes(search.toLowerCase())
       );
 
-      const er = filtered.filter(p => p.location === 'ER');
-      const wards = filtered.filter(p => p.location !== 'ER');
+      const erPatients = filtered.filter(p => p.location === 'ER');
+      const wardPatients = filtered.filter(p => p.location !== 'ER');
+
+      const addPatient = () => {
+        const name = prompt("Enter patient name:");
+        if (!name) return;
+        const newPatient = {
+          patientName: name,
+          diagnosis: "Not specified",
+          location: "Ward 1",
+          assignedDoctor: "Unassigned",
+          status: "New admission",
+        };
+        db.ref('patients').push(newPatient);
+      };
+
+      const exportData = () => {
+        const ws = XLSX.utils.json_to_sheet(patients);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Patients");
+        XLSX.writeFile(wb, "UnitE_WardRounds.xlsx");
+      };
+
+      const importData = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const json = JSON.parse(e.target.result);
+            Object.values(json).forEach(p => db.ref('patients').push(p));
+            alert("Imported successfully!");
+          };
+          reader.readAsText(file);
+        }
+      };
 
       return (
         <div className="container">
           <div className="header">
             <h1>Unit E Ward Rounds</h1>
-            <div>
-              <button className="btn btn-primary" onClick={() => setShowModal(true)}>+ Add</button>
-              <button className="btn btn-secondary" onClick={exportExcel}>Export</button>
-              <label className="btn btn-secondary" style={{cursor:'pointer'}}>
-                Import<input type="file" accept=".json" style={{display:'none'}} onChange={importFile}/>
+            <div className="header-buttons">
+              <button className="btn btn-primary" onClick={addPatient}>+ Add</button>
+              <button className="btn btn-secondary" onClick={exportData}>Export</button>
+              <label className="btn btn-secondary">
+                Import
+                <input type="file" accept=".json" style={{ display: "none" }} onChange={importData}/>
               </label>
             </div>
           </div>
 
           <div className="controls">
             <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)}>
-              <option value="">All</option>
+              <option value="">All statuses</option>
               <option value="New admission">New admission</option>
               <option value="Stable">Stable</option>
               <option value="Critical">Critical</option>
               <option value="Discharged">Discharged</option>
             </select>
-            <input placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input type="text" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
 
           <div className="content">
-            {er.length > 0 && (
+            {erPatients.length > 0 && (
               <div className="ward-section">
                 <div className="ward-header er-header">Emergency Room (ER)</div>
-                <table>
-                  <thead><tr><th>Name</th><th>Diagnosis</th><th>Doctor</th><th>Status</th><th></th></tr></thead>
-                  <tbody>
-                    {er.map(p => (
-                      <tr key={p.id}>
-                        <td>{p.name}</td><td>{p.diagnosis}</td><td>{p.doctor}</td>
-                        <td><span className={`status ${p.status.split(' ')[0]}`}>{p.status}</span></td>
-                        <td>
-                          <button className="btn btn-secondary" onClick={()=>{setEditing(p);setForm(p);setShowModal(true);}}>✎</button>
-                          <button className="btn btn-danger" onClick={()=>del(p.id)}>✕</button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <div className="table-wrapper">
+                  <table>
+                    <thead><tr><th>Name</th><th>Diagnosis</th><th>Doctor</th><th>Status</th></tr></thead>
+                    <tbody>
+                      {erPatients.map(p => (
+                        <tr key={p.id}>
+                          <td>{p.patientName}</td>
+                          <td>{p.diagnosis}</td>
+                          <td>{p.assignedDoctor}</td>
+                          <td><span className="status New">{p.status}</span></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
 
             <div className="ward-section">
               <div className="ward-header">Wards</div>
-              <table>
-                <thead><tr><th>Name</th><th>Diagnosis</th><th>Location</th><th>Doctor</th><th>Status</th><th></th></tr></thead>
-                <tbody>
-                  {wards.map(p => (
-                    <tr key={p.id}>
-                      <td>{p.name}</td><td>{p.diagnosis}</td><td>{p.location}</td><td>{p.doctor}</td>
-                      <td><span className={`status ${p.status.split(' ')[0]}`}>{p.status}</span></td>
-                      <td>
-                        <button className="btn btn-secondary" onClick={()=>{setEditing(p);setForm(p);setShowModal(true);}}>✎</button>
-                        <button className="btn btn-danger" onClick={()=>del(p.id)}>✕</button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-
-          {showModal && (
-            <div className="modal-bg">
-              <div className="modal">
-                <h3>{editing ? 'Edit Patient' : 'Add New Patient'}</h3>
-                <input placeholder="Name" value={form.name} onChange={e=>setForm({...form, name:e.target.value})} />
-                <input placeholder="Diagnosis" value={form.diagnosis} onChange={e=>setForm({...form, diagnosis:e.target.value})} />
-                <input placeholder="Location" value={form.location} onChange={e=>setForm({...form, location:e.target.value})} />
-                <input placeholder="Doctor" value={form.doctor} onChange={e=>setForm({...form, doctor:e.target.value})} />
-                <select value={form.status} onChange={e=>setForm({...form, status:e.target.value})}>
-                  <option>New admission</option>
-                  <option>Stable</option>
-                  <option>Critical</option>
-                  <option>Discharged</option>
-                </select>
-                <div style={{marginTop:'12px', textAlign:'right'}}>
-                  <button className="btn btn-secondary" onClick={()=>setShowModal(false)}>Cancel</button>
-                  <button className="btn btn-primary" onClick={savePatient}>{editing?'Update':'Save'}</button>
-                </div>
+              <div className="table-wrapper">
+                <table>
+                  <thead><tr><th>Name</th><th>Diagnosis</th><th>Location</th><th>Doctor</th><th>Status</th></tr></thead>
+                  <tbody>
+                    {wardPatients.map(p => (
+                      <tr key={p.id}>
+                        <td>{p.patientName}</td>
+                        <td>{p.diagnosis}</td>
+                        <td>{p.location}</td>
+                        <td>{p.assignedDoctor}</td>
+                        <td><span className="status New">{p.status}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
             </div>
-          )}
+          </div>
         </div>
       );
     }
