@@ -9,134 +9,119 @@
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script crossorigin src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-  <script crossorigin src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
+  
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <style>
-    /* VARIABLES */
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f8fafc; --card:#ffffff; --border:#cbd5e1; --text:#0f172a; --red:#b91c1c; }
-    
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:80px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
     
-    /* TOPBAR */
-    .topbar{ background: var(--green); color:white; padding:12px 16px; border-radius:12px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom: 16px; }
-    .title h1{ margin:0; font-size:18px; font-weight:800; letter-spacing: -0.5px; }
-    .subtitle{ font-size:12px; opacity:0.9; display:flex; align-items:center; gap:6px; margin-top:2px; }
-    .dot{ width:8px; height:8px; border-radius:50%; background:#4ade80; box-shadow: 0 0 8px #4ade80; }
+    /* ERROR BOX */
+    #error-log { display:none; background:#fee2e2; color:#b91c1c; padding:15px; border-radius:8px; border:1px solid #fca5a5; margin:20px; font-family:monospace; white-space:pre-wrap; }
 
-    /* BUTTONS */
+    /* UI ELEMENTS */
+    .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:16px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
+    .title h1{ margin:0; font-size:18px; font-weight:800; }
+    
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
-    .btn{ border:none; border-radius:6px; padding:8px 14px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:6px; transition:0.1s; box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
     .btn:active{ transform:translateY(1px); }
     .btn-white{ background:white; color:var(--green); }
-    .btn-ghost{ background:rgba(255,255,255,0.2); color:white; border: 1px solid rgba(255,255,255,0.3); }
-    .btn-red{ background:#fee2e2; color:var(--red); }
+    .btn-ghost{ background:rgba(255,255,255,0.2); color:white; border:1px solid rgba(255,255,255,0.3); }
+    .btn-red{ background:#fee2e2; color:#b91c1c; }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
 
-    /* SEARCH */
-    .search-bar { width:100%; padding:12px; border:1px solid #cbd5e1; border-radius:8px; font-size:15px; background:white; outline:none; margin-bottom: 16px; }
-    .search-bar:focus { border-color:var(--green); ring: 2px solid var(--green); }
+    .search-bar{ width:100%; padding:12px; border:1px solid var(--border); border-radius:8px; font-size:15px; margin-bottom:16px; outline:none; }
+    .search-bar:focus{ border-color:var(--green); ring:2px solid var(--green); }
 
-    /* WARD SECTIONS */
-    .ward-section { margin-bottom: 24px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border); background: white; }
-    .ward-header { 
-      background: var(--blue); color:white; 
-      padding:10px 16px; 
-      font-weight:700; font-size:14px; text-transform:uppercase; letter-spacing:0.5px;
-      display:flex; justify-content:space-between; align-items:center;
-    }
-    .ward-count { background:rgba(255,255,255,0.2); padding:2px 10px; border-radius:12px; font-size:11px; font-weight: 800; }
-
-    /* PATIENT CARD */
-    .p-card {
-      padding:14px;
-      border-bottom:1px solid var(--border);
-      display:flex;
-      flex-direction:column;
-      gap:12px;
-      background: white;
-    }
-    .p-card:last-child { border-bottom: none; }
+    /* WARD & CARDS */
+    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; }
+    .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:14px; display:flex; justify-content:space-between; }
+    
+    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; }
+    .p-card:last-child{ border-bottom:none; }
     
     /* INPUTS */
-    .inp { width:100%; padding:8px 10px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; font-family:inherit; background:#f8fafc; resize:none; transition:0.2s; }
-    .inp:focus { background:white; border-color:var(--green); outline:none; box-shadow: 0 0 0 2px rgba(21, 128, 61, 0.1); }
-    
-    .inp-bed { width:70px; font-weight:800; text-align:center; color:var(--blue); background: #eff6ff; border-color: #dbeafe; }
-    .inp-name { font-weight:700; font-size:15px; color:#1e293b; }
-    .inp-doc { font-size:12px; color:#64748b; font-weight:600; width:110px; }
-    .inp-area { min-height:60px; }
+    .inp{ width:100%; padding:8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; }
+    .inp:focus{ background:white; border-color:var(--green); outline:none; }
+    .inp-bed{ width:70px; font-weight:800; text-align:center; color:var(--blue); background:#eff6ff; }
+    .inp-name{ font-weight:700; font-size:15px; }
+    .inp-doc{ width:120px; font-size:12px; font-weight:600; color:#64748b; }
+    .inp-area{ min-height:50px; resize:vertical; }
 
-    /* DELETE BUTTON */
-    .btn-del { width:32px; height:32px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
-    .btn-del:hover { background: #fee2e2; }
+    .btn-del{ width:30px; height:30px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
 
     /* MODAL */
-    .modalOverlay { position:fixed; inset:0; background:rgba(15, 23, 42, 0.75); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; backdrop-filter: blur(2px); }
-    .modal { background:white; width:100%; max-width:500px; border-radius:12px; overflow:hidden; display:flex; flex-direction:column; box-shadow:0 20px 25px -5px rgba(0,0,0,0.1); }
-    .modal-head { background:var(--green); padding:16px; color:white; font-weight:bold; font-size:16px; display:flex; justify-content:space-between; }
-    .modal-body { padding:20px; display:flex; flex-direction:column; gap:14px; max-height:70vh; overflow-y:auto; }
-    .form-row { display: flex; gap: 12px; }
-    .form-group { flex: 1; }
-    .form-group label { font-size:12px; font-weight:700; color:#64748b; margin-bottom:6px; display:block; text-transform: uppercase; }
-    .form-group select, .form-group input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; background: #fff; }
-    .modal-foot { padding:16px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
+    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.6); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
+    .modal{ background:white; width:100%; max-width:500px; border-radius:12px; display:flex; flex-direction:column; max-height:80vh; overflow:hidden; }
+    .modal-head{ background:var(--green); padding:16px; color:white; font-weight:bold; }
+    .modal-body{ padding:20px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+    .form-row{ display:flex; gap:10px; }
+    .form-group{ flex:1; }
+    .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
+    .modal-foot{ padding:16px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
 
-    /* RESPONSIVE LAYOUT */
-    @media(min-width: 768px) {
-      .p-card { flex-direction:row; align-items:flex-start; gap: 20px; }
-      .col-1 { width: 140px; display:flex; flex-direction:column; gap:8px; }
-      .col-2 { flex:1; display:flex; flex-direction:column; gap:8px; }
-      .col-3 { width: 300px; display:flex; flex-direction:column; gap:8px; }
+    /* RESPONSIVE */
+    @media(min-width: 768px){
+      .p-card{ flex-direction:row; align-items:flex-start; gap:16px; }
+      .col-1{ width:140px; display:flex; flex-direction:column; gap:8px; }
+      .col-2{ flex:1; display:flex; flex-direction:column; gap:8px; }
+      .col-3{ width:280px; display:flex; flex-direction:column; gap:8px; }
     }
-    @media(max-width: 767px) {
-      .p-card { gap: 10px; }
-      .mobile-row { display: flex; gap: 10px; }
+    @media(max-width: 767px){
+      .mobile-row{ display:flex; gap:10px; }
     }
   </style>
 </head>
 <body>
 
-  <div id="root">
-    <div style="padding:40px; text-align:center; color:#64748b; font-family: sans-serif;">Loading System...</div>
-  </div>
+  <div id="error-log"></div>
+
+  <div id="root"></div>
+
+  <script>
+    // Global Error Handler
+    window.onerror = function(msg, url, line, col, error) {
+      const log = document.getElementById('error-log');
+      log.style.display = 'block';
+      log.textContent += `Error: ${msg}\nLine: ${line}\n\n`;
+      return false; 
+    };
+  </script>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef, useMemo } = React;
+    const { useState, useEffect, useMemo, useRef } = React;
 
-    // --- 1. YOUR MASTER LIST DATA (Embedded) ---
-    const MASTER_LIST = [
-      { id:1, ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"", plan:"" },
-      { id:2, ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"", plan:"" },
-      { id:3, ward:"Ward 20", bed:"17-1", name:"Nawaf", diagnosis:"Chest infection", doctor:"Bader", status:"Long stay", plan:"" },
-      { id:4, ward:"Ward 20", bed:"11-1", name:"Iskander", diagnosis:"Infective endocarditis", doctor:"Ahmad", status:"", plan:"" },
-      { id:5, ward:"Ward 20", bed:"20-1", name:"Hameed", diagnosis:"Symptomatic anemia", doctor:"Aziz", status:"", plan:"" },
-      { id:6, ward:"Ward 20", bed:"12-1", name:"Dynamete", diagnosis:"AKI", doctor:"Aziz", status:"", plan:"" },
-      { id:7, ward:"Ward 21", bed:"13-1", name:"Mohammad", diagnosis:"CAP/AKI", doctor:"Mohammed", status:"", plan:"" },
-      { id:8, ward:"Ward 21", bed:"14-1", name:"Oiuutlah", diagnosis:"ICH", doctor:"Lutwa", status:"", plan:"" },
-      { id:9, ward:"Ward 21", bed:"14-2", name:"Raju", diagnosis:"Ischemic stroke", doctor:"Zahra", status:"", plan:"" },
-      { id:10, ward:"Ward 21", bed:"20-1", name:"Mohammed", diagnosis:"CVA within window", doctor:"Mohammed", status:"", plan:"" },
-      { id:11, ward:"Ward 27", bed:"", name:"Jassim Mohd", diagnosis:"CVA out of window", doctor:"Noura", status:"", plan:"" },
-      { id:12, ward:"Ward 5", bed:"16", name:"Mohammed Haji", diagnosis:"Sepsis Aki", doctor:"Bader", status:"", plan:"" },
-      { id:13, ward:"Ward 5", bed:"7", name:"Yousef", diagnosis:"Dizziness", doctor:"Ahmed", status:"", plan:"" },
-      { id:14, ward:"ER", bed:"", name:"Mohammed", diagnosis:"TIA", doctor:"Shrouq", status:"New Admission", plan:"" },
-      { id:15, ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", status:"Critical", plan:"" },
-      { id:16, ward:"Ward 19", bed:"1", name:"Abdullatif", diagnosis:"CVA", doctor:"Lutwa", status:"Chronic", plan:"" },
-      { id:17, ward:"Ward 19", bed:"15-1", name:"Abdulla", diagnosis:"Urosepsis, hyperNa", doctor:"Bader", status:"Chronic", plan:"" },
-      { id:18, ward:"Ward 20", bed:"5", name:"Anwar", diagnosis:"Quadriplegia", doctor:"Zahra", status:"Chronic", plan:"" },
-      { id:19, ward:"Ward 20", bed:"14-2", name:"Hasan", diagnosis:"LVF", doctor:"Mohammed", status:"Chronic", plan:"" },
-      { id:20, ward:"Ward 20", bed:"14-1", name:"Mohamed", diagnosis:"UTI, weight loss", doctor:"Noura", status:"Chronic", plan:"" },
-      { id:21, ward:"Ward 21", bed:"8", name:"Abdulmohsen", diagnosis:"Drug overdose", doctor:"Mohammed", status:"Critical", plan:"" },
-      { id:22, ward:"Ward 22", bed:"5", name:"Haidar", diagnosis:"CVA", doctor:"Ahmad", status:"Chronic", plan:"" },
-      { id:23, ward:"Ward 22", bed:"13-2", name:"Haraka Man", diagnosis:"ICH", doctor:"Bader", status:"Chronic", plan:"" },
-      { id:24, ward:"Ward 27", bed:"6", name:"Ishaq", diagnosis:"AP, urosepsis", doctor:"Aziz", status:"Chronic", plan:"" },
-      { id:25, ward:"Ward 27", bed:"", name:"Ishaq", diagnosis:"Bedridden", doctor:"Noura", status:"Long stay", plan:"" }
+    // --- YOUR MASTER DATA (From JSON) ---
+    const MASTER_DATA = [
+      { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", plan:"" },
+      { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", plan:"" },
+      { ward:"Ward 20", bed:"17-1", name:"Nawaf", diagnosis:"Chest infection", doctor:"Bader", plan:"" },
+      { ward:"Ward 20", bed:"11-1", name:"Iskander", diagnosis:"Infective endocarditis", doctor:"Ahmad", plan:"" },
+      { ward:"Ward 20", bed:"20-1", name:"Hameed", diagnosis:"Symptomatic anemia", doctor:"Aziz", plan:"" },
+      { ward:"Ward 20", bed:"12-1", name:"Dynamete", diagnosis:"AKI", doctor:"Aziz", plan:"" },
+      { ward:"Ward 21", bed:"13-1", name:"Mohammad", diagnosis:"CAP/AKI", doctor:"Mohammed", plan:"" },
+      { ward:"Ward 21", bed:"14-1", name:"Oiuutlah", diagnosis:"ICH", doctor:"Lutwa", plan:"" },
+      { ward:"Ward 21", bed:"14-2", name:"Raju", diagnosis:"Ischemic stroke", doctor:"Zahra", plan:"" },
+      { ward:"Ward 21", bed:"20-1", name:"Mohammed", diagnosis:"CVA within window", doctor:"Mohammed", plan:"" },
+      { ward:"Ward 27", bed:"", name:"Jassim Mohd", diagnosis:"CVA out of window", doctor:"Noura", plan:"" },
+      { ward:"Ward 5", bed:"16", name:"Mohammed Haji", diagnosis:"Sepsis Aki", doctor:"Bader", plan:"" },
+      { ward:"Ward 5", bed:"7", name:"Yousef", diagnosis:"Dizziness", doctor:"Ahmed", plan:"" },
+      { ward:"ER", bed:"", name:"Mohammed", diagnosis:"TIA", doctor:"Shrouq", plan:"" },
+      { ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", plan:"" },
+      { ward:"Ward 19", bed:"1", name:"Abdullatif", diagnosis:"CVA", doctor:"Lutwa", plan:"" },
+      { ward:"Ward 19", bed:"15-1", name:"Abdulla", diagnosis:"Urosepsis, hyperNa", doctor:"Bader", plan:"" },
+      { ward:"Ward 20", bed:"5", name:"Anwar", diagnosis:"Quadriplegia", doctor:"Zahra", plan:"" },
+      { ward:"Ward 20", bed:"14-2", name:"Hasan", diagnosis:"LVF", doctor:"Mohammed", plan:"" },
+      { ward:"Ward 20", bed:"14-1", name:"Mohamed", diagnosis:"UTI, weight loss", doctor:"Noura", plan:"" },
+      { ward:"Ward 21", bed:"8", name:"Abdulmohsen", diagnosis:"Drug overdose", doctor:"Mohammed", plan:"" },
+      { ward:"Ward 22", bed:"5", name:"Haidar", diagnosis:"CVA", doctor:"Ahmad", plan:"" },
+      { ward:"Ward 22", bed:"13-2", name:"Haraka Man", diagnosis:"ICH", doctor:"Bader", plan:"" },
+      { ward:"Ward 27", bed:"6", name:"Ishaq", diagnosis:"AP, urosepsis", doctor:"Aziz", plan:"" }
     ];
 
-    // --- FIREBASE CONFIG ---
     const firebaseConfig = {
       apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
       authDomain: "unit-e-1d07b.firebaseapp.com",
@@ -149,16 +134,16 @@
 
     let db;
     try {
-      if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-      db = firebase.database();
-    } catch(e) { console.error(e); }
+      if(window.firebase && !firebase.apps.length) {
+        firebase.initializeApp(firebaseConfig);
+        db = firebase.database();
+      }
+    } catch(e) { console.error("Firebase Error", e); }
 
-    const clean = v => (v ?? "").toString().trim();
-    // Sort: Custom Ward Order -> Bed Number
+    const clean = v => (v||"").toString().trim();
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
-    
+
     const sortPatients = (a, b) => {
-      // 1. Sort by Bed (Numeric aware)
       const na = parseInt(a.bed), nb = parseInt(b.bed);
       if(!isNaN(na) && !isNaN(nb)) return na - nb;
       return clean(a.bed).localeCompare(clean(b.bed));
@@ -166,222 +151,159 @@
 
     const App = () => {
       const [patients, setPatients] = useState([]);
-      const [loading, setLoading] = useState(true);
       const [search, setSearch] = useState("");
-      
       const [addModal, setAddModal] = useState(false);
-      const [importModal, setImportModal] = useState(false);
-      const [importData, setImportData] = useState([]);
-      const fileRef = useRef(null);
-
-      const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", mrn: "", diagnosis: "", plan: "", doctor: "" });
-
-      // --- LOAD DATA ---
+      const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:""});
+      
       useEffect(() => {
-        // SAFETY TIMER: If Firebase is slow, force loading to finish in 2 seconds
-        const timer = setTimeout(() => setLoading(false), 2000);
-
-        if (!db) return;
-        
+        if(!db) return;
         const ref = db.ref('patients');
         ref.on('value', snap => {
           const val = snap.val();
           const list = val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : [];
           setPatients(list);
-          setLoading(false); // Success load
-          clearTimeout(timer);
         });
-
-        return () => {
-          ref.off();
-          clearTimeout(timer);
-        };
+        return () => ref.off();
       }, []);
 
-      // --- ACTIONS ---
-      const update = (id, field, val) => { if(db) db.ref(`patients/${id}`).update({[field]:val}); };
+      const update = (id, f, v) => db && db.ref(`patients/${id}`).update({[f]:v});
+      const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
+      const resetDB = () => confirm("Reset DB?") && db && db.ref('patients').remove();
       
-      const saveNewPatient = () => {
-        if(!newP.name) return alert("Patient name is required");
-        if(db) db.ref('patients').push({ ...newP, timestamp: Date.now() });
-        setAddModal(false);
-        setNewP({ ward: "Ward 19", bed: "", name: "", mrn: "", diagnosis: "", plan: "", doctor: "" });
-      };
-
-      const del = (id) => { if(confirm("Delete this patient?")) db && db.ref(`patients/${id}`).remove(); };
-      
-      const resetDB = () => { 
-        if(confirm("⚠️ RESET DATABASE: This deletes ALL current patients.\n\nProceed?")) {
-           if(db) db.ref('patients').remove(); 
+      const loadMaster = () => {
+        if(confirm("Load Master List (25 patients)?")) {
+          MASTER_DATA.forEach(p => db && db.ref('patients').push({...p, timestamp:Date.now()}));
         }
       };
 
-      // FUNCTION TO LOAD YOUR SPECIFIC LIST
-      const loadDefaults = () => {
-        if(confirm(`Load ${MASTER_LIST.length} patients from Master Shifu's list?`)) {
-           MASTER_LIST.forEach(p => db && db.ref('patients').push({ ...p, timestamp:Date.now() }));
+      const saveNew = () => {
+        if(newP.name) {
+          if(db) db.ref('patients').push({...newP, timestamp:Date.now()});
+          setAddModal(false);
+          setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:""});
         }
       };
 
-      const exportExcel = () => {
-        const data = patients.map(({id, timestamp, ...rest}) => rest);
-        const ws = XLSX.utils.json_to_sheet(data);
-        const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Rounds");
-        XLSX.writeFile(wb, "Rounds.xlsx");
-      };
-
-      // --- SMART IMPORT LOGIC ---
-      const handleFile = async (e) => {
-        const file = e.target.files?.[0];
-        if(!file) return;
-        
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          try {
-            const wb = XLSX.read(evt.target.result, {type:'binary'});
-            const ws = wb.Sheets[wb.SheetNames[0]];
-            const rawData = XLSX.utils.sheet_to_json(ws, {header:1});
-            
-            let currentWard = "Unassigned";
-            const processed = [];
-
-            for(let i=0; i<rawData.length; i++) {
-               const row = rawData[i];
-               if(!row || row.length === 0) continue;
-
-               // Check if row is a Ward Header
-               const firstCell = clean(row[0]);
-               if(firstCell.toLowerCase().includes("ward") || firstCell.toLowerCase().includes("icu") || firstCell.toLowerCase() === "er") {
-                  // Only treat as header if other cells are mostly empty
-                  if(!row[1]) {
-                    currentWard = firstCell;
-                    continue;
-                  }
-               }
-
-               // Treat as Data if it has a Bed or Name
-               if(row.length > 1) {
-                 processed.push({
-                   ward: currentWard,
-                   bed: clean(row[0]),
-                   name: clean(row[1]),
-                   diagnosis: clean(row[2]),
-                   doctor: clean(row[3]),
-                   status: clean(row[4]),
-                   plan: "",
-                   mrn: "",
-                   timestamp: Date.now()
-                 });
-               }
-            }
-            
-            setImportData(processed);
-            setImportModal(true);
-          } catch(err) { alert("Error reading file"); }
-        };
-        reader.readAsBinaryString(file);
-        e.target.value = null;
-      };
-
-      const confirmImport = () => {
-        if(!db) return;
-        importData.forEach(p => db.ref('patients').push(p));
-        setImportModal(false);
-        setImportData([]);
-      };
-
-      // --- GROUPING ---
-      const groupedPatients = useMemo(() => {
-        const groups = {};
+      const groups = useMemo(() => {
+        const g = {};
         const s = search.toLowerCase();
-        
-        const filtered = patients.filter(p => 
-          (p.name+p.mrn+p.bed+p.diagnosis+p.doctor+p.ward).toLowerCase().includes(s)
-        );
-
-        filtered.forEach(p => {
+        patients.filter(p => (p.name+p.bed+p.ward+p.diagnosis).toLowerCase().includes(s))
+        .forEach(p => {
           let w = p.ward || "Unassigned";
-          // Fuzzy match wards to keep them together
           if(w.toLowerCase().includes("ward 19")) w = "Ward 19";
           else if(w.toLowerCase().includes("ward 20")) w = "Ward 20";
           else if(w.toLowerCase().includes("ward 21")) w = "Ward 21";
           else if(w.toLowerCase().includes("ward 22")) w = "Ward 22";
           else if(w.toLowerCase().includes("ward 27")) w = "Ward 27";
           else if(w.toLowerCase().includes("ward 5")) w = "Ward 5";
+          else if(w.toLowerCase().includes("er")) w = "ER";
           
-          if(!groups[w]) groups[w] = [];
-          groups[w].push(p);
+          if(!g[w]) g[w] = [];
+          g[w].push(p);
         });
-
-        Object.keys(groups).forEach(k => groups[k].sort(sortPatients));
         
-        const sortedKeys = Object.keys(groups).sort((a,b) => {
-          const ia = WARD_ORDER.indexOf(a);
-          const ib = WARD_ORDER.indexOf(b);
-          if(ia !== -1 && ib !== -1) return ia - ib;
-          if(ia !== -1) return -1;
-          if(ib !== -1) return 1;
-          return a.localeCompare(b);
+        Object.keys(g).forEach(k => g[k].sort(sortPatients));
+        const sortedKeys = Object.keys(g).sort((a,b) => {
+          const ia = WARD_ORDER.indexOf(a), ib = WARD_ORDER.indexOf(b);
+          return (ia!==-1 && ib!==-1) ? ia-ib : (ia!==-1 ? -1 : (ib!==-1 ? 1 : a.localeCompare(b)));
         });
-
-        return { groups, sortedKeys };
+        return { g, sortedKeys };
       }, [patients, search]);
 
       return (
         <div className="wrap">
-          
           <div className="topbar">
             <div className="title">
               <h1>Unit E Ward Rounds</h1>
-              <div className="subtitle"><div className="dot"></div> Online • {patients.length} Pts</div>
+              <div className="subtitle">{patients.length} Patients • {db ? "Connected" : "Local Mode"}</div>
             </div>
             <div className="actions">
-              <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls" />
-              <button className="btn btn-ghost" onClick={()=>fileRef.current.click()}>📂 Smart Import</button>
-              <button className="btn btn-ghost" onClick={exportExcel}>📥 Export</button>
-              <button className="btn btn-blue" onClick={loadDefaults}>📥 Load Master List</button>
+              <button className="btn btn-blue" onClick={loadMaster}>📥 Load Master List</button>
               <button className="btn btn-red" onClick={resetDB}>⚠️ Reset DB</button>
-              <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add</button>
+              <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
             </div>
           </div>
 
-          <div style={{marginBottom:10}}>
-            <input className="search-bar" placeholder="Search name, bed, diagnosis..." value={search} onChange={e=>setSearch(e.target.value)} />
-          </div>
+          <input className="search-bar" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
 
-          <div className="app">
-            {loading && <div style={{padding:40, textAlign:'center'}}>Loading...</div>}
-            
-            {!loading && groupedPatients.sortedKeys.map(ward => (
-              <div key={ward} className="ward-section">
-                <div className="ward-header">
-                  <span>{ward}</span>
-                  <span className="ward-count">{groupedPatients.groups[ward].length}</span>
+          {groups.sortedKeys.map(ward => (
+            <div key={ward} className="ward-section">
+              <div className="ward-header"><span>{ward}</span><span className="ward-count">{groups.g[ward].length}</span></div>
+              {groups.g[ward].map(p => (
+                <div className="p-card" key={p.id}>
+                  {/* Row 1 Mobile / Col 1 Desktop */}
+                  <div className="mobile-row col-1">
+                    <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
+                    <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
+                  </div>
+                  {/* Row 2 Mobile / Col 2 Desktop */}
+                  <div className="col-2">
+                    <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
+                    <input className="inp" style={{color:'#64748b'}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
+                  </div>
+                  {/* Row 3 Mobile / Col 3 Desktop */}
+                  <div className="col-3">
+                    <div style={{display:'flex', gap:10, alignItems:'flex-start'}}>
+                       <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                       <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                    </div>
+                  </div>
                 </div>
-                
-                {groupedPatients.groups[ward].map(p => (
-                  <div className="p-card" key={p.id}>
-                    
-                    {/* MOBILE: Row 1 (Bed, Doc) */}
-                    <div className="mobile-row col-1">
-                       <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
-                       <input className="inp inp-doc" value={p.doctor} placeholder="Dr..." onChange={e=>update(p.id,'doctor',e.target.value)} />
-                    </div>
+              ))}
+            </div>
+          ))}
 
-                    {/* MOBILE: Row 2 (Name, Diagnosis) */}
-                    <div className="col-2">
-                       <div style={{display:'flex', gap:8}}>
-                          <input className="inp inp-name" value={p.name} placeholder="Patient Name" onChange={e=>update(p.id,'name',e.target.value)} />
-                          <input className="inp" style={{width:'80px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
-                       </div>
-                       <input className="inp" style={{color:'#334155'}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
-                    </div>
+          {patients.length === 0 && (
+            <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
+              No patients found.<br/><br/>
+              <button className="btn btn-blue" onClick={loadMaster}>Load Master List Now</button>
+            </div>
+          )}
 
-                    {/* MOBILE: Row 3 (Plan) */}
-                    <div className="col-3">
-                       <div style={{display:'flex', gap:10, alignItems:'flex-start'}}>
-                         <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
-                         <button className="btn-del" onClick={()=>del(p.id)}>×</button>
-                       </div>
-           
+          {addModal && (
+            <div className="modalOverlay">
+              <div className="modal">
+                <div className="modal-head">Add Patient</div>
+                <div className="modal-body">
+                  <div className="form-group">
+                    <label>Ward</label>
+                    <select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>
+                      {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
+                    </select>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Bed</label>
+                      <input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Doctor</label>
+                      <input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Name</label>
+                    <input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Diagnosis</label>
+                    <input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} />
+                  </div>
+                </div>
+                <div className="modal-foot">
+                  <button className="btn btn-ghost" style={{color:'#333'}} onClick={()=>setAddModal(false)}>Cancel</button>
+                  <button className="btn btn-white" style={{background: 'var(--green)', color:'white'}} onClick={saveNew}>Save</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
