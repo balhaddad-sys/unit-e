@@ -124,7 +124,7 @@
       const [loading, setLoading] = useState(true);
       const [online, setOnline] = useState(true);
       const [search, setSearch] = useState("");
-      const [filter, setFilter] = useState("All");
+      const [filter, setFilter] = useState("All"); // DEFAULT TO 'ALL' TO PREVENT HIDDEN DATA
       
       const [modalOpen, setModalOpen] = useState(false);
       const [importData, setImportData] = useState([]);
@@ -212,15 +212,26 @@
 
       const groups = useMemo(() => {
         const g = {};
-        const filtered = patients.filter(p => (p.name+p.mrn+p.bed).toLowerCase().includes(search.toLowerCase()));
+        
+        // Safety: Ensure search term is a string
+        const safeSearch = (search || "").toLowerCase();
+
+        // Filter Logic: Only filter if 'search' has text. 
+        // We aren't doing complex status filtering right now to prevent hiding data.
+        const filtered = patients.filter(p => {
+            const rowText = (clean(p.name) + clean(p.mrn) + clean(p.bed) + clean(p.diagnosis)).toLowerCase();
+            return rowText.includes(safeSearch);
+        });
+
         filtered.forEach(p => {
           const loc = p.location || "Unassigned";
           if(!g[loc]) g[loc] = [];
           g[loc].push(p);
         });
+        
         Object.keys(g).forEach(k => g[k].sort(sortBed));
         return g;
-      }, [patients, search]);
+      }, [patients, search, filter]);
 
       return (
         <div className="wrap">
@@ -244,7 +255,7 @@
             <div className="controls">
               <input className="search-box" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
               <div className="pillRow">
-                {['All', 'Active', 'Discharge'].map(f => (
+                {['All'].map(f => (
                   <div key={f} className={`pill ${filter===f?'active':''}`} onClick={()=>setFilter(f)}>{f}</div>
                 ))}
               </div>
