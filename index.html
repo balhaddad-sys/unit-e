@@ -5,45 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Unit E Ward Rounds</title>
 
-  <script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <script crossorigin="anonymous" src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-  <script crossorigin="anonymous" src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
-
-  <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
-
   <style>
     :root{ --green:#2e7d32; --green2:#1b5e20; --bg:#f0f2f5; --card:#fff; --border:#e5e7eb; --red:#d32f2f; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:#111827; padding-bottom:60px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:12px; }
     .app{ background:var(--card); border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; min-height:85vh; display:flex; flex-direction:column; }
 
-    /* Header */
     .topbar{ background:linear-gradient(135deg, var(--green), var(--green2)); color:#fff; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
     .title h1{ margin:0; font-size:20px; font-weight:700; }
     .subtitle{ font-size:12px; opacity:0.9; display:flex; align-items:center; gap:6px; }
     .dot{ width:8px; height:8px; border-radius:50%; background:#ffb300; border:2px solid rgba(255,255,255,0.8); }
     .dot.online{ background:#22c55e; }
 
-    /* Buttons */
     .actions{ display:flex; gap:8px; }
     .btn{ border:none; border-radius:8px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
     .btn-primary{ background:#fff; color:var(--green); }
     .btn-ghost{ background:rgba(255,255,255,0.2); color:#fff; }
     .btn-danger{ background:var(--red); color:#fff; width:28px; height:28px; padding:0; justify-content:center; border-radius:50%; }
 
-    /* Controls */
     .controls{ padding:12px; background:#fafafa; border-bottom:1px solid var(--border); display:flex; gap:10px; flex-wrap:wrap; }
     .search-box{ flex:1; min-width:180px; padding:8px 12px; border:1px solid var(--border); border-radius:8px; outline:none; }
     .pillRow{ display:flex; gap:6px; overflow-x:auto; }
     .pill{ border:1px solid var(--border); background:#fff; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; color:#666; }
     .pill.active{ background:var(--green); color:#fff; border-color:var(--green); }
 
-    /* Content */
     .content-area{ flex:1; overflow-x:auto; padding:10px; }
     .section{ margin-bottom:16px; border:1px solid var(--border); border-radius:10px; background:#fff; overflow:hidden; }
     .section-header{ background:#f8fafc; padding:10px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); }
@@ -54,13 +39,11 @@
     .inp{ width:100%; border:1px solid transparent; padding:4px; border-radius:4px; background:transparent; font-family:inherit; resize:none; font-size:14px; }
     .inp:focus{ border-color:var(--green); background:#f0fdf4; outline:none; }
 
-    /* Modal */
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:99; padding:10px; }
     .modal{ background:#fff; width:100%; max-width:900px; max-height:90vh; border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
     .modalHeader{ padding:12px; background:#1e293b; color:#fff; display:flex; justify-content:space-between; align-items:center; }
     .modalBody{ padding:10px; overflow-y:auto; flex:1; }
 
-    /* Mobile */
     @media(max-width:768px){
       table, thead, tbody, th, td, tr { display:block; }
       thead tr { position:absolute; top:-9999px; left:-9999px; }
@@ -69,47 +52,156 @@
       td:last-child { border-bottom:none; text-align:right; background:#f8fafc; }
       .inp { background:#f8fafc; border:1px solid #e2e8f0; margin-top:4px; }
       .inp:focus { background:#fff; }
-      /* Mobile Labels */
       td:nth-of-type(1):before { content:"Bed/Loc"; font-size:10px; font-weight:800; color:#888; display:block; }
       td:nth-of-type(2):before { content:"Patient"; font-size:10px; font-weight:800; color:#888; display:block; }
       td:nth-of-type(3):before { content:"Diagnosis"; font-size:10px; font-weight:800; color:#888; display:block; }
       td:nth-of-type(4):before { content:"Plan"; font-size:10px; font-weight:800; color:#888; display:block; }
     }
-  </style>
-</head>
-<body>
 
+    /* Boot logger */
+    #bootbox{
+      position:fixed; left:10px; right:10px; bottom:10px;
+      background:rgba(17,24,39,0.92); color:#e5e7eb;
+      padding:10px; border-radius:12px; z-index:9999;
+      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      font-size:11px; line-height:1.35;
+      max-height:35vh; overflow:auto;
+      box-shadow:0 6px 20px rgba(0,0,0,0.25);
+    }
+    #bootbox .row{ display:flex; gap:8px; align-items:center; justify-content:space-between; }
+    #bootbox button{
+      border:none; border-radius:8px; padding:6px 10px; cursor:pointer;
+      background:#111827; color:#e5e7eb; font-weight:700; font-size:11px;
+    }
+    #bootlog{ margin-top:8px; white-space:pre-wrap; }
+  </style>
+
+  <!-- Boot logger + visible crash -->
+  <script>
+    (function(){
+      const boot = {
+        lines: [],
+        ensureUI(){
+          if (document.getElementById('bootbox')) return;
+          const div = document.createElement('div');
+          div.id = 'bootbox';
+          div.innerHTML = `
+            <div class="row">
+              <div><b>Boot Log</b> <span id="bootstatus" style="opacity:.8">starting…</span></div>
+              <button id="boottoggle">Hide</button>
+            </div>
+            <div id="bootlog"></div>
+          `;
+          document.body.appendChild(div);
+          document.getElementById('boottoggle').onclick = () => {
+            const log = document.getElementById('bootlog');
+            const btn = document.getElementById('boottoggle');
+            const hidden = log.style.display === 'none';
+            log.style.display = hidden ? 'block' : 'none';
+            btn.textContent = hidden ? 'Hide' : 'Show';
+          };
+        },
+        push(msg){
+          this.lines.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
+          this.ensureUI();
+          document.getElementById('bootlog').textContent = this.lines.slice(-200).join('\n');
+        },
+        status(msg){
+          this.ensureUI();
+          document.getElementById('bootstatus').textContent = msg;
+        }
+      };
+      window.__boot = boot;
+
+      window.showFatal = function(msg) {
+        boot.push("FATAL: " + msg);
+        const root = document.getElementById("root");
+        if (root) {
+          root.innerHTML = `
+            <div style="max-width:900px;margin:20px auto;padding:14px;border:1px solid #ef4444;background:#fff1f2;border-radius:10px;font-family:system-ui">
+              <h3 style="margin:0 0 8px 0;color:#b91c1c">App crashed</h3>
+              <pre style="white-space:pre-wrap;margin:0;color:#111827">${String(msg)}</pre>
+              <p style="margin:10px 0 0 0;color:#6b7280;font-size:12px">Open DevTools → Console for details.</p>
+            </div>
+          `;
+        }
+      };
+
+      window.onerror = function(message, source, lineno, colno) {
+        showFatal(String(message) + " @ " + lineno + ":" + colno);
+      };
+      window.onunhandledrejection = function(e) {
+        showFatal(e?.reason?.message || e?.reason || "Unhandled promise rejection");
+      };
+
+      boot.push("Boot logger ready");
+    })();
+  </script>
+
+  <!-- Libraries with onload/onerror so you SEE what fails on GitHub Pages -->
+  <script crossorigin="anonymous"
+    src="https://unpkg.com/react@18/umd/react.production.min.js"
+    onload="__boot.push('Loaded React');"
+    onerror="__boot.push('FAILED React'); showFatal('Failed to load React from unpkg');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"
+    onload="__boot.push('Loaded ReactDOM');"
+    onerror="__boot.push('FAILED ReactDOM'); showFatal('Failed to load ReactDOM from unpkg');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://unpkg.com/@babel/standalone/babel.min.js"
+    onload="__boot.push('Loaded Babel');"
+    onerror="__boot.push('FAILED Babel'); showFatal('Failed to load Babel (JSX will NOT run)');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"
+    onload="__boot.push('Loaded XLSX');"
+    onerror="__boot.push('FAILED XLSX');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"
+    onload="__boot.push('Loaded Tesseract');"
+    onerror="__boot.push('FAILED Tesseract');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"
+    onload="__boot.push('Loaded Firebase app');"
+    onerror="__boot.push('FAILED Firebase app'); showFatal('Failed to load Firebase');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"
+    onload="__boot.push('Loaded Firebase database');"
+    onerror="__boot.push('FAILED Firebase database'); showFatal('Failed to load Firebase database');">
+  </script>
+
+  <script crossorigin="anonymous"
+    src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"
+    onload="__boot.push('Loaded Firebase auth');"
+    onerror="__boot.push('FAILED Firebase auth');">
+  </script>
+</head>
+
+<body>
   <div id="root" style="padding:20px; text-align:center; font-family:sans-serif; color:#666;">
     <h3>Initializing App...</h3>
     <p>If this stays on screen, there is an error.</p>
   </div>
 
-  <!-- Visible error overlay + promise rejection handler -->
-  <script>
-    function showFatal(msg) {
-      const root = document.getElementById("root");
-      if (root) {
-        root.innerHTML = `
-          <div style="max-width:900px;margin:20px auto;padding:14px;border:1px solid #ef4444;background:#fff1f2;border-radius:10px;font-family:system-ui">
-            <h3 style="margin:0 0 8px 0;color:#b91c1c">App crashed</h3>
-            <pre style="white-space:pre-wrap;margin:0;color:#111827">${String(msg)}</pre>
-            <p style="margin:10px 0 0 0;color:#6b7280;font-size:12px">Open DevTools → Console for details.</p>
-          </div>
-        `;
-      }
-      alert("Error: " + msg);
-    }
-
-    window.onerror = function(message, source, lineno, colno, error) {
-      showFatal(message + " @ " + lineno + ":" + colno);
-    };
-
-    window.onunhandledrejection = function(e) {
-      showFatal(e?.reason?.message || e?.reason || "Unhandled promise rejection");
-    };
-  </script>
-
   <script type="text/babel">
+    __boot.status("checking globals…");
+    __boot.push("React? " + (!!window.React));
+    __boot.push("ReactDOM? " + (!!window.ReactDOM));
+    __boot.push("Babel? " + (!!window.Babel));
+    __boot.push("firebase? " + (!!window.firebase));
+    __boot.status("starting app…");
+
     const { useState, useEffect, useRef, useMemo } = React;
 
     // --- CONFIGURATION ---
@@ -128,7 +220,12 @@
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       db = firebase.database();
-    } catch(e) { console.error(e); alert("Firebase Init Error: " + e.message); }
+      __boot.push("Firebase init OK");
+    } catch(e) {
+      console.error(e);
+      __boot.push("Firebase init FAILED: " + e.message);
+      showFatal("Firebase Init Error: " + e.message);
+    }
 
     // --- UTILS ---
     const clean = v => (v ?? "").toString().trim();
@@ -144,60 +241,56 @@
       const [search, setSearch] = useState("");
       const [filter, setFilter] = useState("All");
 
-      // Import Modal State
       const [modalOpen, setModalOpen] = useState(false);
       const [importData, setImportData] = useState([]);
       const [ocrProgress, setOcrProgress] = useState(null);
 
       const fileRef = useRef(null);
 
-      // 1. Sync Data
       useEffect(() => {
         const handleStatus = () => setOnline(navigator.onLine);
         window.addEventListener('online', handleStatus);
         window.addEventListener('offline', handleStatus);
 
-        if (db) {
-          // OPTIONAL: anonymous sign-in (required if your DB rules are auth != null)
-          if (firebase?.auth) {
-            firebase.auth().signInAnonymously().catch(err => {
+        if (!db) { setLoading(false); return; }
+
+        // Anonymous auth (needed if your rules are auth != null)
+        if (firebase?.auth) {
+          firebase.auth().signInAnonymously()
+            .then(() => __boot.push("Auth: anonymous OK"))
+            .catch(err => {
               console.error(err);
-              alert("Auth Error: " + err.message);
-              setLoading(false);
+              __boot.push("Auth FAILED: " + err.message);
+              // Don't fatal here; you might allow public read
             });
+        }
+
+        const ref = db.ref('patients');
+
+        ref.on(
+          'value',
+          snap => {
+            const val = snap.val();
+            const list = val ? Object.keys(val).map(k => ({ id:k, ...val[k] })) : [];
+            setPatients(list);
+            setLoading(false);
+            __boot.status("running ✅");
+          },
+          err => {
+            console.error(err);
+            __boot.push("DB LISTENER ERROR: " + err.message);
+            showFatal("Firebase DB Error: " + err.message);
+            setLoading(false);
           }
+        );
 
-          const ref = db.ref('patients');
-
-          // IMPORTANT: add error callback so you see PERMISSION_DENIED etc.
-          ref.on(
-            'value',
-            snap => {
-              const val = snap.val();
-              const list = val ? Object.keys(val).map(k => ({ id:k, ...val[k] })) : [];
-              setPatients(list);
-              setLoading(false);
-            },
-            err => {
-              console.error(err);
-              alert("Firebase DB Error: " + err.message);
-              setLoading(false);
-            }
-          );
-
-          return () => {
-            ref.off();
-            window.removeEventListener('online', handleStatus);
-            window.removeEventListener('offline', handleStatus);
-          };
-        } else {
-          setLoading(false);
+        return () => {
+          ref.off();
           window.removeEventListener('online', handleStatus);
           window.removeEventListener('offline', handleStatus);
-        }
+        };
       }, []);
 
-      // 2. Actions
       const update = (id, field, val) => db && db.ref(`patients/${id}`).update({ [field]: val });
       const add = (loc) => db && db.ref('patients').push({ location:clean(loc), bed:"", name:"", mrn:"", diagnosis:"", plan:"", timestamp:Date.now() });
       const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
@@ -210,15 +303,12 @@
         XLSX.writeFile(wb, "Rounds.xlsx");
       };
 
-      // 3. Import Logic
       const handleFile = async (e) => {
         const file = e.target.files?.[0];
         if(!file) return;
-
         const name = file.name.toLowerCase();
 
         try {
-          // EXCEL
           if(name.endsWith('.xlsx') || name.endsWith('.xls')) {
             const reader = new FileReader();
             reader.onload = (evt) => {
@@ -228,9 +318,7 @@
               processJSON(json);
             };
             reader.readAsBinaryString(file);
-          }
-          // IMAGE (OCR)
-          else if(name.match(/\.(jpg|jpeg|png|webp)$/)) {
+          } else if(name.match(/\.(jpg|jpeg|png|webp)$/)) {
             setModalOpen(true);
             setOcrProgress(0);
             setImportData([]);
@@ -241,13 +329,13 @@
               });
               parseText(res.data.text);
             } catch(err) {
-              alert("OCR Error: " + err.message);
+              showFatal("OCR Error: " + err.message);
               setModalOpen(false);
             }
             setOcrProgress(null);
           }
         } catch(err) {
-          alert("File Error: " + err.message);
+          showFatal("File Error: " + err.message);
         }
         e.target.value = null;
       };
@@ -285,7 +373,6 @@
         setImportData([]);
       };
 
-      // 4. Grouping
       const groups = useMemo(() => {
         const g = {};
         const filtered = patients.filter(p =>
@@ -355,63 +442,4 @@
                           </td>
                           <td>
                             <input className="inp" style={{fontWeight:'bold'}} value={p.name} placeholder="Name" onChange={e=>update(p.id, 'name', e.target.value)} />
-                            <input className="inp" style={{fontSize:12, color:'#666'}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id, 'mrn', e.target.value)} />
-                          </td>
-                          <td><textarea className="inp" rows={2} value={p.diagnosis} placeholder="..." onChange={e=>update(p.id, 'diagnosis', e.target.value)} /></td>
-                          <td><textarea className="inp" rows={2} value={p.plan} placeholder="..." onChange={e=>update(p.id, 'plan', e.target.value)} /></td>
-                          <td><button className="btn btn-danger" onClick={()=>del(p.id)}>×</button></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ))}
-              {!loading && patients.length === 0 && <div style={{padding:20, color:'#999', textAlign:'center'}}>No patients found. Click + Add</div>}
-            </div>
-
-            {modalOpen && (
-              <div className="modalOverlay">
-                <div className="modal">
-                  <div className="modalHeader">
-                    <span>Import Preview</span>
-                    <button className="btn btn-danger" onClick={()=>{setModalOpen(false); setOcrProgress(null);}}>×</button>
-                  </div>
-                  <div className="modalBody">
-                    {ocrProgress !== null ? (
-                      <div style={{padding:20, textAlign:'center'}}>Reading Image... {Math.round(ocrProgress*100)}%</div>
-                    ) : (
-                      <table>
-                        <thead><tr><th>Bed</th><th>Name</th><th>Diagnosis</th></tr></thead>
-                        <tbody>
-                          {importData.map((r,i) => (
-                            <tr key={i}><td>{r.bed}</td><td>{r.name}</td><td>{r.diagnosis}</td></tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    )}
-                  </div>
-                  <div className="modalHeader" style={{background:'#f1f5f9', color:'#000', justifyContent:'flex-end'}}>
-                    <!-- FIXED: var(--green) must be a string in React style -->
-                    <button
-                      className="btn btn-primary"
-                      style={{ background: "var(--green)", color: "white" }}
-                      onClick={confirmImport}
-                      disabled={ocrProgress !== null}
-                    >
-                      Confirm Import
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
-          </div>
-        </div>
-      );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+                            <input
