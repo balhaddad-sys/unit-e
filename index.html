@@ -19,10 +19,6 @@
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
     
-    /* ERROR LOG */
-    #error-log { display:none; background:#fee2e2; color:#b91c1c; padding:15px; border:1px solid #fca5a5; margin:20px; white-space:pre-wrap; }
-
-    /* UI ELEMENTS */
     .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
     .title h1{ margin:0; font-size:18px; font-weight:800; }
     
@@ -39,108 +35,59 @@
     .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
     
     .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
-    .search-bar:focus{ border-color:var(--green); ring:2px solid var(--green); }
 
     /* WARD & CARDS */
     .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    
-    .ward-header{ 
-        background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none;
-    }
-    .ward-header:hover { background: #1e3a8a; }
+    .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; }
     .arrow { transition: transform 0.2s; display: inline-block; }
     .arrow.down { transform: rotate(90deg); }
-    .ward-body { display: block; }
     .ward-body.collapsed { display: none; }
     .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
     
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
-    .p-card:last-child{ border-bottom:none; }
-    
-    /* INPUTS */
     .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; }
-    .inp:focus{ background:white; border-color:var(--green); outline:none; }
     .inp-bed{ width:70px; font-weight:800; text-align:center; color:var(--blue); background:#eff6ff; }
     .inp-name{ font-weight:700; font-size:15px; }
     .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
     .inp-area{ min-height:45px; resize:vertical; }
 
-    /* STATUS SELECT */
-    .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; outline: none; }
-    .status-new { background: #dbeafe; color: var(--blue); border-color: #93c5fd; }
-    .status-chronic { background: #ffedd5; color: var(--orange); border-color: #fdba74; }
-    .status-non { background: #f3e8ff; color: var(--purple); border-color: #d8b4fe; }
+    .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; }
+    .status-new { background: #dbeafe; color: var(--blue); }
+    .status-chronic { background: #ffedd5; color: var(--orange); }
+    .status-non { background: #f3e8ff; color: var(--purple); }
 
-    .card-actions { display: flex; gap: 6px; align-items: center; }
-    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; }
 
     /* MODAL */
-    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; backdrop-filter: blur(2px); }
+    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
     .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
     .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
-    .form-row{ display:flex; gap:10px; }
-    .form-group{ flex:1; }
     .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
-    .modal-foot{ padding:14px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
 
-    /* RESPONSIVE */
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
       .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
       .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
       .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
-      .card-actions { flex-direction: column; align-items: flex-end; }
     }
-    @media(max-width: 767px){
-      .mobile-row{ display:flex; gap:8px; }
-      .card-actions { position: absolute; top: 12px; right: 12px; }
-      .p-card { padding-right: 50px; } 
-    }
+    @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } }
   </style>
 </head>
 <body>
-
-  <div id="error-log"></div>
   <div id="root"></div>
-
-  <script>
-    window.onerror = function(msg, url, line) {
-      const log = document.getElementById('error-log');
-      log.style.display = 'block';
-      log.textContent += "Error: " + msg + "\nLine: " + line + "\n\n";
-      return false; 
-    };
-  </script>
 
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
 
+    // Master List for Shifu
     const MASTER_DATA = [
       { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"New", plan:"" },
       { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"Chronic", plan:"" },
       { ward:"Ward 20", bed:"17-1", name:"Nawaf", diagnosis:"Chest infection", doctor:"Bader", status:"Non-Chronic", plan:"" },
       { ward:"Ward 20", bed:"11-1", name:"Iskander", diagnosis:"Infective endocarditis", doctor:"Ahmad", status:"New", plan:"" },
-      { ward:"Ward 20", bed:"20-1", name:"Hameed", diagnosis:"Symptomatic anemia", doctor:"Aziz", status:"", plan:"" },
-      { ward:"Ward 20", bed:"12-1", name:"Dynamete", diagnosis:"AKI", doctor:"Aziz", status:"", plan:"" },
       { ward:"Ward 21", bed:"13-1", name:"Mohammad", diagnosis:"CAP/AKI", doctor:"Mohammed", status:"New", plan:"" },
-      { ward:"Ward 21", bed:"14-1", name:"Oiuutlah", diagnosis:"ICH", doctor:"Lutwa", status:"Chronic", plan:"" },
-      { ward:"Ward 21", bed:"14-2", name:"Raju", diagnosis:"Ischemic stroke", doctor:"Zahra", status:"", plan:"" },
-      { ward:"Ward 21", bed:"20-1", name:"Mohammed", diagnosis:"CVA within window", doctor:"Mohammed", status:"", plan:"" },
-      { ward:"Ward 27", bed:"", name:"Jassim Mohd", diagnosis:"CVA out of window", doctor:"Noura", status:"", plan:"" },
-      { ward:"Ward 5", bed:"16", name:"Mohammed Haji", diagnosis:"Sepsis Aki", doctor:"Bader", status:"New", plan:"" },
-      { ward:"Ward 5", bed:"7", name:"Yousef", diagnosis:"Dizziness", doctor:"Ahmed", status:"", plan:"" },
-      { ward:"ER", bed:"", name:"Mohammed", diagnosis:"TIA", doctor:"Shrouq", status:"New", plan:"" },
-      { ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", status:"New", plan:"" },
-      { ward:"Ward 19", bed:"1", name:"Abdullatif", diagnosis:"CVA", doctor:"Lutwa", status:"Chronic", plan:"" },
-      { ward:"Ward 19", bed:"15-1", name:"Abdulla", diagnosis:"Urosepsis, hyperNa", doctor:"Bader", status:"Chronic", plan:"" },
-      { ward:"Ward 20", bed:"5", name:"Anwar", diagnosis:"Quadriplegia", doctor:"Zahra", status:"Chronic", plan:"" },
-      { ward:"Ward 20", bed:"14-2", name:"Hasan", diagnosis:"LVF", doctor:"Mohammed", status:"Chronic", plan:"" },
-      { ward:"Ward 20", bed:"14-1", name:"Mohamed", diagnosis:"UTI, weight loss", doctor:"Noura", status:"Chronic", plan:"" },
-      { ward:"Ward 21", bed:"8", name:"Abdulmohsen", diagnosis:"Drug overdose", doctor:"Mohammed", status:"New", plan:"" },
-      { ward:"Ward 22", bed:"5", name:"Haidar", diagnosis:"CVA", doctor:"Ahmad", status:"Chronic", plan:"" },
-      { ward:"Ward 22", bed:"13-2", name:"Haraka Man", diagnosis:"ICH", doctor:"Bader", status:"Chronic", plan:"" },
-      { ward:"Ward 27", bed:"6", name:"Ishaq", diagnosis:"AP, urosepsis", doctor:"Aziz", status:"Chronic", plan:"" }
+      { ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", status:"New", plan:"" }
     ];
 
     const firebaseConfig = {
@@ -154,29 +101,10 @@
     };
 
     let db;
-    try {
-      if(window.firebase && !firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.database();
-      }
-    } catch(e) { console.error("Firebase Error", e); }
+    if(window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); db = firebase.database(); }
 
-    const clean = v => (v||"").toString().trim();
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
-
-    const sortPatients = (a, b) => {
-      const na = parseInt(a.bed), nb = parseInt(b.bed);
-      if(!isNaN(na) && !isNaN(nb)) return na - nb;
-      return clean(a.bed).localeCompare(clean(b.bed));
-    };
-
-    const getStatusClass = (s) => {
-        if(!s) return '';
-        if(s === 'New') return 'status-new';
-        if(s === 'Chronic') return 'status-chronic';
-        return 'status-non';
-    }
 
     const App = () => {
       const [patients, setPatients] = useState([]);
@@ -188,128 +116,92 @@
 
       useEffect(() => {
         if(!db) return;
-        const ref = db.ref('patients');
-        ref.on('value', snap => {
+        db.ref('patients').on('value', snap => {
           const val = snap.val();
-          const list = val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : [];
-          setPatients(list);
+          setPatients(val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : []);
         });
-        return () => ref.off();
       }, []);
 
       const update = (id, f, v) => db && db.ref(`patients/${id}`).update({[f]:v});
-      const del = (id) => confirm("Delete patient?") && db && db.ref(`patients/${id}`).remove();
-      const loadMaster = () => {
-        if(confirm("Load Master List?")) {
-          MASTER_DATA.forEach(p => db && db.ref('patients').push({...p, timestamp:Date.now()}));
-        }
-      };
-      const saveNew = () => {
-        if(newP.name) {
-          if(db) db.ref('patients').push({...newP, mrn:"", timestamp:Date.now()});
-          setAddModal(false);
-          setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
-        }
-      };
-      const toggleWard = (ward) => setCollapsed(prev => ({...prev, [ward]: !prev[ward]}));
+      const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
+      const loadMaster = () => MASTER_DATA.forEach(p => db && db.ref('patients').push({...p, timestamp:Date.now()}));
 
-      // --- STYLED EXCEL EXPORT ---
-      const exportFancyExcel = () => {
+      // --- NEW: ORGANIZED EXPORT ENGINE ---
+      const exportReportExcel = () => {
           const wb = XLSX.utils.book_new();
-          const wsData = [];
-          
-          wsData.push(["UNIT E WARD ROUNDS REPORT"]);
-          wsData.push(["Generated: " + new Date().toLocaleString()]);
-          wsData.push([]); 
+          const wsData = [
+              ["UNIT E ROUNDS REPORT"],
+              ["DATE: " + new Date().toLocaleDateString()],
+              [],
+              ["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"]
+          ];
 
-          const headers = ["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"];
-          wsData.push(headers);
+          const blueStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E40AF" } }, border: { outline: true, color: { rgb: "000000" } } };
+          const cellStyle = { border: { top: {style:'thin'}, bottom: {style:'thin'}, left: {style:'thin'}, right: {style:'thin'} } };
+          const headerStyle = { font: { bold: true }, fill: { fgColor: { rgb: "E5E7EB" } }, border: { outline: true } };
 
           groups.sortedKeys.forEach(ward => {
              wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
+             const wardRowIdx = wsData.length - 1;
+
              groups.g[ward].forEach(p => {
                 wsData.push([p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan]);
              });
+             wsData.push([]); // Spacer
           });
 
           const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-          // Apply Styles
-          const headerStyle = { font: { bold: true, color: { rgb: "000000" } }, fill: { fgColor: { rgb: "E2E8F0" } }, border: { bottom: { style: "thin" } } };
-          const wardStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E40AF" } } }; 
-          const cellStyle = { border: { top: {style:'thin', color:{rgb:"CCCCCC"}}, bottom: {style:'thin', color:{rgb:"CCCCCC"}}, left: {style:'thin', color:{rgb:"CCCCCC"}}, right: {style:'thin', color:{rgb:"CCCCCC"}} } };
-          
-          ws['!cols'] = [{wch:15}, {wch:8}, {wch:22}, {wch:12}, {wch:30}, {wch:15}, {wch:12}, {wch:40}];
+          // Apply Styling to Sheet
+          Object.keys(ws).forEach(addr => {
+              if(addr.startsWith('!')) return;
+              const cell = ws[addr];
+              const row = parseInt(addr.match(/\d+/)[0]) - 1;
 
-          Object.keys(ws).forEach(cellAddr => {
-             if(cellAddr.startsWith('!')) return;
-             const cell = ws[cellAddr];
-             const row = parseInt(cellAddr.replace(/[A-Z]/g, '')) - 1; 
-
-             if(row === 0) { cell.s = { font: { bold: true, sz: 16 } }; }
-             else if(row === 3) { cell.s = headerStyle; }
-             else if(row > 3) {
-                if(typeof cell.v === 'string' && groups.sortedKeys.map(k=>k.toUpperCase()).includes(cell.v)) {
-                    cell.s = wardStyle;
-                } else {
-                    cell.s = cellStyle;
-                }
-             }
+              if(row === 0) cell.s = { font: { bold: true, sz: 14 } };
+              if(row === 3) cell.s = headerStyle;
+              if(row > 3 && cell.v) {
+                  // If it's a Ward Header
+                  if(groups.sortedKeys.map(k=>k.toUpperCase()).includes(cell.v)) {
+                      cell.s = blueStyle;
+                  } else {
+                      cell.s = cellStyle;
+                  }
+              }
           });
 
+          ws['!cols'] = [{wch:15}, {wch:8}, {wch:22}, {wch:12}, {wch:30}, {wch:15}, {wch:12}, {wch:40}];
           XLSX.utils.book_append_sheet(wb, ws, "Rounds");
-          XLSX.writeFile(wb, "UnitE_Rounds_Organized.xlsx");
+          XLSX.writeFile(wb, "UnitE_Organized_Rounds.xlsx");
       };
 
       const groups = useMemo(() => {
         const g = {};
-        const s = search.toLowerCase();
-        let filteredByView = patients;
-        if(viewFilter !== 'All') filteredByView = patients.filter(p => (p.status || "") === viewFilter);
-        const finalFiltered = filteredByView.filter(p => (p.name+p.bed+p.ward+p.diagnosis+p.doctor).toLowerCase().includes(s));
-
-        finalFiltered.forEach(p => {
+        let filtered = patients;
+        if(viewFilter !== 'All') filtered = patients.filter(p => p.status === viewFilter);
+        filtered.filter(p => (p.name+p.bed+p.ward+p.diagnosis).toLowerCase().includes(search.toLowerCase())).forEach(p => {
           let w = p.ward || "Unassigned";
-          if(w.toLowerCase().includes("ward 19")) w = "Ward 19";
-          else if(w.toLowerCase().includes("ward 20")) w = "Ward 20";
-          else if(w.toLowerCase().includes("ward 21")) w = "Ward 21";
-          else if(w.toLowerCase().includes("ward 22")) w = "Ward 22";
-          else if(w.toLowerCase().includes("ward 27")) w = "Ward 27";
-          else if(w.toLowerCase().includes("ward 5")) w = "Ward 5";
-          else if(w.toLowerCase().includes("er")) w = "ER";
-          else if(w.toLowerCase().includes("icu")) w = "ICU";
-          if(!g[w]) g[w] = [];
-          g[w].push(p);
+          if(!g[w]) g[w] = []; g[w].push(p);
         });
-        
-        Object.keys(g).forEach(k => g[k].sort(sortPatients));
-        const sortedKeys = Object.keys(g).sort((a,b) => {
-          const ia = WARD_ORDER.indexOf(a), ib = WARD_ORDER.indexOf(b);
-          return (ia!==-1 && ib!==-1) ? ia-ib : (ia!==-1 ? -1 : (ib!==-1 ? 1 : a.localeCompare(b)));
-        });
-        return { g, sortedKeys, totalCount: finalFiltered.length };
+        const sortedKeys = Object.keys(g).sort((a,b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
+        return { g, sortedKeys, totalCount: filtered.length };
       }, [patients, search, viewFilter]);
 
       return (
         <div className="wrap">
           <div className="topbar">
-            <div className="title">
-              <h1>Unit E Ward Rounds</h1>
-              <div className="subtitle">{groups.totalCount} Patients • {db ? "Online" : "Local"}</div>
-            </div>
+            <div className="title"><h1>Unit E Ward Rounds</h1></div>
             <div className="actions">
-              <button className="btn btn-blue" onClick={loadMaster}>📥 Load Master List</button>
+              <button className="btn btn-blue" onClick={loadMaster}>📥 Master List</button>
               <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
-              <button className="btn btn-white" onClick={exportFancyExcel}>📤 Export Excel</button>
+              <button className="btn btn-white" onClick={exportReportExcel}>📤 Export Excel</button>
             </div>
           </div>
 
           <div className="controls-container">
             <div className="filter-row">
                 {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
-                    <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>
-                        {f === 'New' ? 'New Admissions' : f}
-                    </button>
+                    <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>{f}</button>
                 ))}
             </div>
             <input className="search-bar" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
@@ -317,11 +209,8 @@
 
           {groups.sortedKeys.map(ward => (
             <div key={ward} className="ward-section">
-              <div className="ward-header" onClick={() => toggleWard(ward)}>
-                  <div style={{display:'flex', alignItems:'center', gap:8}}>
-                      <span className={`arrow ${!collapsed[ward] ? 'down' : ''}`}>▶</span>
-                      <span>{ward}</span>
-                  </div>
+              <div className="ward-header" onClick={() => setCollapsed(prev => ({...prev, [ward]: !prev[ward]}))}>
+                  <div><span className={`arrow ${!collapsed[ward] ? 'down' : ''}`}>▶</span> {ward}</div>
                   <span className="ward-count">{groups.g[ward].length}</span>
               </div>
               <div className={`ward-body ${collapsed[ward] ? 'collapsed' : ''}`}>
@@ -332,18 +221,31 @@
                         <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
                       </div>
                       <div className="col-2">
-                        <div style={{display:'flex', gap:8}}>
-                             <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
-                             <input className="inp" style={{width:'90px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
-                        </div>
-                        <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
+                        <div style={{display:'flex', gap:8}}><input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} /><input className="inp" style={{width:'90px'}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} /></div>
+                        <input className="inp" value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
                       </div>
-                      <div className="col-3">
-                           <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
-                      </div>
-                      <div className="card-actions">
-                           <select className={`status-select ${getStatusClass(p.status)}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}>
-                              <option value="">- Status -</option>
-                              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                           </select>
-                           <button className="btn
+                      <div className="col-3"><textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} /></div>
+                      <div style={{display:'flex', gap:6, alignItems:'center'}}><select className={`status-select status-${p.status?.toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}><option value="">- Status -</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="btn-del" onClick={()=>del(p.id)}>×</button></div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
+
+          {addModal && (
+            <div className="modalOverlay"><div className="modal"><div className="modal-head">Add Patient</div><div className="modal-body">
+              <div className="form-group"><label>Ward</label><select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
+              <div style={{display:'flex', gap:10}}><div className="form-group"><label>Bed</label><input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} /></div><div className="form-group"><label>Doctor</label><input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} /></div></div>
+              <div className="form-group"><label>Name</label><input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} /></div>
+              <div className="form-group"><label>Diagnosis</label><input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} /></div>
+              <div className="form-group"><label>Status</label><select className="inp" value={newP.status} onChange={e=>setNewP({...newP, status:e.target.value})}>{STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}</select></div>
+            </div><div className="modal-foot"><button className="btn" onClick={()=>setAddModal(false)}>Cancel</button><button className="btn btn-blue" onClick={saveNew}>Save</button></div></div></div>
+          )}
+        </div>
+      );
+    };
+
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
