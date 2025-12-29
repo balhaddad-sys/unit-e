@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -18,15 +19,16 @@
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
     .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; }
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
-    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; }
+    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:4px; transition:0.1s; }
     .btn-white{ background:white; color:var(--green); }
     .btn-sync{ background:#fef3c7; color:#92400e; border: 1px solid #fcd34d; }
+    .btn-blue{ background:#dbeafe; color:var(--blue); }
     .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
     .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; }
     .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .filter-btn.active { background: var(--green); color: white; }
+    .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
     .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; outline:none; }
-    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; }
+    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; cursor: pointer; }
     .ward-body.is-hidden { display: none; }
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
@@ -35,7 +37,7 @@
     .inp-name{ font-weight:700; font-size:15px; }
     .inp-area{ min-height:45px; resize:vertical; }
     .status-select { padding: 4px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; }
-    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; cursor:pointer; }
+    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; cursor:pointer; font-weight: bold; }
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
       .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
@@ -63,7 +65,6 @@
     if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
-    // LINK UPDATED BY MASTER SHIFU
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwH18Yk5D6Ko7c2jiOn721jJ4v-dQFSoLI10FOp6DnDY27L1BFOD-jzSLxwUactSTDw/exec"; 
 
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
@@ -97,7 +98,7 @@
             }
           });
           alert("Sync Complete!");
-        } catch (e) { alert("Sync Error: Check Google Script Permissions."); }
+        } catch (e) { alert("Sync Error: Check Script Permissions."); }
       };
 
       const pushToGoogle = async (patientName, field, value) => {
@@ -112,13 +113,23 @@
 
       const handleUpdate = (id, pName, field, val) => {
         db.ref(`patients/${id}`).update({[field]: val});
-        // Push updates to Google for specific fields
-        if(['ward', 'bed', 'doctor', 'status'].includes(field)) {
+        if(['ward', 'bed', 'doctor', 'status', 'diagnosis'].includes(field)) {
           pushToGoogle(pName, field, val);
         }
       };
 
-      const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove();
+      const exportFancyExcel = () => {
+          const wb = XLSX.utils.book_new();
+          const wsData = [["UNIT E WARD ROUNDS"], ["Generated: " + new Date().toLocaleString()], [], ["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"]];
+          groups.sortedKeys.forEach(ward => {
+             wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
+             groups.g[ward].forEach(p => wsData.push([p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan]));
+          });
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          ws['!cols'] = [{wch:15}, {wch:8}, {wch:22}, {wch:12}, {wch:30}, {wch:15}, {wch:12}, {wch:40}];
+          XLSX.utils.book_append_sheet(wb, ws, "Rounds");
+          XLSX.writeFile(wb, "UnitE_Rounds.xlsx");
+      };
 
       const groups = useMemo(() => {
         const g = {};
@@ -138,7 +149,8 @@
           <div className="topbar">
             <div className="title"><h1>Unit E Ward Rounds</h1></div>
             <div className="actions">
-              <button className="btn btn-sync" onClick={syncFromGoogle}>🔄 Sync from Google</button>
+              <button className="btn btn-sync" onClick={syncFromGoogle}>🔄 Sync Master</button>
+              <button className="btn btn-white" onClick={exportFancyExcel}>📤 Export Excel</button>
             </div>
           </div>
 
@@ -148,7 +160,7 @@
                     <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>{f}</button>
                 ))}
             </div>
-            <input className="search-bar" placeholder="Search patients..." value={search} onChange={e=>setSearch(e.target.value)} />
+            <input className="search-bar" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
 
           {groups.sortedKeys.map(ward => (
@@ -166,10 +178,10 @@
                       </div>
                       <div className="col-2">
                         <input className="inp inp-name" value={p.name} readOnly />
-                        <input className="inp" value={p.diagnosis} placeholder="Diagnosis" onChange={e=>db.ref(`patients/${p.id}`).update({diagnosis: e.target.value})} />
+                        <input className="inp" value={p.diagnosis} placeholder="Diagnosis" onChange={e=>handleUpdate(p.id, p.name, 'diagnosis', e.target.value)} />
                       </div>
-                      <div className="col-3"><textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>db.ref(`patients/${p.id}`).update({plan: e.target.value})} /></div>
-                      <div style={{display:'flex', gap:6, alignItems:'center'}}><select className="status-select" value={p.status || ""} onChange={e=>handleUpdate(p.id, p.name, 'status', e.target.value)}><option value="">- Status -</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="btn-del" onClick={()=>del(p.id)}>×</button></div>
+                      <div className="col-3"><textarea className="inp inp-area" value={p.plan} placeholder="Clinical Plan..." onChange={e=>db.ref(`patients/${p.id}`).update({plan: e.target.value})} /></div>
+                      <div style={{display:'flex', gap:6, alignItems:'center'}}><select className="status-select" value={p.status || ""} onChange={e=>handleUpdate(p.id, p.name, 'status', e.target.value)}><option value="">- Status -</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="btn-del" onClick={()=>confirm("Delete?") && db.ref(`patients/${p.id}`).remove()}>×</button></div>
                     </div>
                   ))}
               </div>
