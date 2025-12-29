@@ -11,6 +11,9 @@
 
   <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
 
+  <!-- OCR (client-side) -->
+  <script src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
+
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
@@ -35,7 +38,7 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: var(--bg);
       color:#111827;
-      padding-bottom: 60px; /* Space for scrolling on mobile */
+      padding-bottom: 60px;
       -webkit-font-smoothing: antialiased;
     }
 
@@ -55,7 +58,6 @@
       flex-direction: column;
     }
 
-    /* Topbar */
     .topbar{
       background: linear-gradient(135deg, var(--green) 0%, var(--green2) 100%);
       color:white;
@@ -78,6 +80,7 @@
       font-size: 13px;
       opacity:0.9;
       margin-top: 4px;
+      flex-wrap: wrap;
     }
     .dot{
       width:10px; height:10px; border-radius:50%;
@@ -86,10 +89,10 @@
     }
     .dot.online{ background:#22c55e; }
 
-    /* Actions & Buttons */
     .actions{
       display:flex;
       gap:8px;
+      flex-wrap: wrap;
     }
     .btn{
       border: none;
@@ -103,6 +106,7 @@
       justify-content: center;
       gap:6px;
       transition: all 0.2s;
+      user-select: none;
     }
     .btn:active{ transform: scale(0.98); }
     .btn-primary{ background: #ffffff; color: var(--green); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
@@ -110,7 +114,6 @@
     .btn-ghost:hover{ background: rgba(255,255,255,0.3); }
     .btn-danger{ background: var(--red); color:white; width: 32px; height: 32px; padding:0; border-radius: 50%; }
 
-    /* Controls */
     .controls{
       padding: 16px;
       background: #fafafa;
@@ -118,6 +121,7 @@
       display:flex;
       gap: 12px;
       flex-wrap: wrap;
+      align-items: center;
     }
     .search-box {
       flex: 1;
@@ -129,7 +133,7 @@
       outline: none;
     }
     .search-box:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(46,125,50,0.1); }
-    
+
     .pillRow{ display:flex; gap:8px; overflow-x: auto; padding-bottom: 2px; }
     .pill{
       border: 1px solid var(--border);
@@ -144,22 +148,64 @@
     }
     .pill.active { background: var(--green); color: white; border-color: var(--green); }
 
-    /* Table Styles */
-    .content-area { flex: 1; overflow-x: auto; }
+    .content-area { flex: 1; overflow-x: auto; padding: 12px 16px 18px; }
+
+    .section{
+      margin: 14px 0 18px;
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      overflow: hidden;
+      background: white;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    }
+    .section-header{
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 12px 14px;
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+    }
+    .section-title{
+      font-weight: 800;
+      font-size: 14px;
+      color: #0f172a;
+      letter-spacing: 0.2px;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+    }
+    .countBadge{
+      font-size: 12px;
+      font-weight: 700;
+      color: #0f172a;
+      background: #e2e8f0;
+      border-radius: 999px;
+      padding: 4px 10px;
+    }
+    .miniBtn{
+      border: 1px solid var(--border);
+      background: white;
+      border-radius: 10px;
+      padding: 8px 10px;
+      font-weight: 800;
+      cursor: pointer;
+    }
+    .miniBtn:active{ transform: scale(0.98); }
+
     table { width: 100%; border-collapse: collapse; font-size: 15px; }
-    
     th {
       text-align: left;
       padding: 14px 16px;
-      background: #f8fafc;
+      background: #ffffff;
       border-bottom: 2px solid var(--border);
       color: #64748b;
-      font-weight: 600;
+      font-weight: 700;
       font-size: 12px;
       text-transform: uppercase;
       letter-spacing: 0.5px;
     }
-    
     td {
       padding: 12px 16px;
       border-bottom: 1px solid var(--border);
@@ -167,7 +213,6 @@
       background: white;
     }
 
-    /* Inputs inside table */
     .table-input {
       width: 100%;
       border: 1px solid transparent;
@@ -186,36 +231,124 @@
     }
     .table-input::placeholder { color: #cbd5e1; }
 
-    /* --- MOBILE RESPONSIVENESS (The Magic Part) --- */
+    /* Modal (Import Preview) */
+    .modalOverlay{
+      position: fixed;
+      inset: 0;
+      background: rgba(15,23,42,0.55);
+      display:flex;
+      align-items: center;
+      justify-content: center;
+      padding: 14px;
+      z-index: 9999;
+    }
+    .modal{
+      width: min(1100px, 100%);
+      background: white;
+      border-radius: 14px;
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      display:flex;
+      flex-direction: column;
+      max-height: 92vh;
+    }
+    .modalTop{
+      padding: 14px 16px;
+      background: #0f172a;
+      color: white;
+      display:flex;
+      align-items:center;
+      justify-content: space-between;
+      gap: 10px;
+    }
+    .modalTop h2{
+      margin:0;
+      font-size: 16px;
+      font-weight: 800;
+    }
+    .modalBody{
+      padding: 12px 12px 16px;
+      overflow: auto;
+    }
+    .hint{
+      color:#64748b;
+      font-size: 12px;
+      margin: 8px 2px 12px;
+      line-height: 1.35;
+    }
+    .progressWrap{
+      margin-top: 10px;
+      background: #e2e8f0;
+      border-radius: 999px;
+      overflow: hidden;
+      height: 10px;
+    }
+    .progressBar{
+      height: 10px;
+      background: var(--green);
+      width: 0%;
+      transition: width 0.2s ease;
+    }
+    .modalActions{
+      padding: 12px 14px;
+      border-top: 1px solid var(--border);
+      display:flex;
+      gap: 10px;
+      justify-content: flex-end;
+      background: #fafafa;
+      flex-wrap: wrap;
+    }
+    .btn-outline{
+      border: 1px solid var(--border);
+      background: white;
+      color: #0f172a;
+    }
+    .btn-green{
+      background: var(--green);
+      color: white;
+    }
+    .smallNote{
+      font-size: 12px;
+      color: #64748b;
+      margin-right: auto;
+      display:flex;
+      align-items:center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .checkbox{
+      display:flex;
+      align-items:center;
+      gap: 6px;
+      font-weight: 700;
+      color: #0f172a;
+    }
+
     @media (max-width: 768px) {
       .wrap { padding: 8px; }
       .app { min-height: auto; border-radius: 8px; }
-      
       .topbar { flex-direction: column; align-items: stretch; gap: 16px; text-align: center; }
       .actions { justify-content: center; width: 100%; }
       .btn { flex: 1; justify-content: center; }
 
-      /* Force table to act like a list of cards */
       table, thead, tbody, th, td, tr { display: block; }
-      
-      /* Hide headers */
       thead tr { position: absolute; top: -9999px; left: -9999px; }
-      
+
       tr {
-        margin-bottom: 16px;
+        margin: 12px;
         border: 1px solid var(--border);
         border-radius: 12px;
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         background: white;
         overflow: hidden;
       }
-      
+
       td {
         border-bottom: 1px solid #f1f5f9;
         position: relative;
         padding: 12px 16px;
       }
-      
+
       td:last-child {
         border-bottom: none;
         text-align: right;
@@ -223,43 +356,150 @@
         padding: 8px 16px;
       }
 
-      /* Add Labels via CSS for context on mobile */
-      td:nth-of-type(1):before { content: "Bed:"; font-size: 11px; color: var(--muted); font-weight:700; display:block; margin-bottom:4px; }
-      td:nth-of-type(3):before { content: "Diagnosis:"; font-size: 11px; color: var(--muted); font-weight:700; display:block; margin-bottom:4px; }
-      td:nth-of-type(4):before { content: "Plan:"; font-size: 11px; color: var(--muted); font-weight:700; display:block; margin-bottom:4px; }
-      
-      /* Specific styling for the Bed/Name inputs on mobile to look nicer */
+      td:nth-of-type(1):before { content: "Bed:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+      td:nth-of-type(2):before { content: "Patient:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+      td:nth-of-type(3):before { content: "Location:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+      td:nth-of-type(4):before { content: "Diagnosis:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+      td:nth-of-type(5):before { content: "Plan:"; font-size: 11px; color: var(--muted); font-weight:800; display:block; margin-bottom:4px; }
+
       .table-input { background: #f8fafc; border: 1px solid #e2e8f0; }
       .table-input:focus { background: white; border-color: var(--green); }
     }
   </style>
 </head>
 <body>
-
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
+    const { useState, useEffect, useRef, useMemo } = React;
 
-    // --- PASTE FIREBASE CONFIG HERE ---
+    // ---------------------------
+    // YOUR FIREBASE CONFIG (PASTED)
+    // ---------------------------
     const firebaseConfig = {
-      // apiKey: "...",
-      // authDomain: "...",
-      // databaseURL: "...",
-      // projectId: "...",
-      // storageBucket: "...",
-      // messagingSenderId: "...",
-      // appId: "..."
+      apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
+      authDomain: "unit-e-1d07b.firebaseapp.com",
+      databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "unit-e-1d07b",
+      storageBucket: "unit-e-1d07b.firebasestorage.app",
+      messagingSenderId: "465930916258",
+      appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb",
+      measurementId: "G-6W2X2BBJLQ"
     };
 
-    // Initialize Firebase
+    // ✅ Fix: always set db after initialize (even if app already exists)
     let db = null;
     try {
-      if (firebase.apps.length === 0 && firebaseConfig.apiKey) {
-        firebase.initializeApp(firebaseConfig);
-        db = firebase.database();
+      if (firebase.apps.length === 0) firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+    } catch (e) {
+      console.error("Firebase init error:", e);
+    }
+
+    const clean = (v) => (v ?? "").toString().trim();
+    const locLabel = (p) => clean(p.location) || "Unassigned";
+
+    const sortBed = (a, b) => {
+      const aa = clean(a.bed);
+      const bb = clean(b.bed);
+      const na = parseInt(aa, 10);
+      const nb = parseInt(bb, 10);
+      if (!isNaN(na) && !isNaN(nb)) return na - nb;
+      return aa.localeCompare(bb);
+    };
+
+    const normalizeRowKeys = (obj) => {
+      const out = {};
+      Object.keys(obj || {}).forEach(k => out[clean(k).toLowerCase()] = obj[k]);
+      return out;
+    };
+
+    const rowToPatient = (row) => {
+      const r = normalizeRowKeys(row || {});
+      const pick = (...keys) => {
+        for (const k of keys) {
+          const kk = k.toLowerCase();
+          if (r[kk] !== undefined) return r[kk];
+        }
+        return "";
+      };
+
+      return {
+        location: clean(pick("location","loc","ward","unit","room","area")),
+        bed: clean(pick("bed","bed no","bedno","bed_number","bed number")),
+        name: clean(pick("name","patient","patient name","patient_name")),
+        mrn: clean(pick("mrn","hospital no","hospital number","file no","file number","id")),
+        diagnosis: clean(pick("diagnosis","dx","problem","issues")),
+        plan: clean(pick("plan","notes","management","mx","comment","comments")),
+        timestamp: Date.now()
+      };
+    };
+
+    const looksLikeHeader = (cellsLower) => {
+      return cellsLower.some(c => /name|mrn|bed|diagn|dx|plan|notes|loc|ward|unit|room/.test(c));
+    };
+
+    const parseTabularText = (textRaw) => {
+      const text = (textRaw || "").replace(/\u00A0/g, " ");
+      const lines = text.split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      if (!lines.length) return [];
+
+      const hasTabs = lines.some(l => l.includes("\t"));
+      const hasCommas = lines.some(l => l.split(",").length >= 4);
+      const splitter = hasTabs ? "\t" : (hasCommas ? "," : null);
+
+      const rowsCells = lines.map(l => {
+        if (splitter) return l.split(splitter).map(c => c.trim());
+        return l.split(/\s{2,}/).map(c => c.trim());
+      }).filter(arr => arr.some(c => clean(c)));
+
+      if (!rowsCells.length) return [];
+
+      const headerLower = rowsCells[0].map(c => clean(c).toLowerCase());
+      const headerIsHeader = looksLikeHeader(headerLower);
+
+      let colMap = [];
+      let start = 0;
+
+      if (headerIsHeader) {
+        colMap = headerLower.map(c => {
+          if (/loc|ward|unit|room|area/.test(c)) return "location";
+          if (/bed/.test(c)) return "bed";
+          if (/name|patient/.test(c)) return "name";
+          if (/mrn|file|hospital|id/.test(c)) return "mrn";
+          if (/diagn|dx|problem/.test(c)) return "diagnosis";
+          if (/plan|notes|mx|comment/.test(c)) return "plan";
+          return null;
+        });
+        start = 1;
+      } else {
+        colMap = ["bed","name","mrn","location","diagnosis","plan"];
+        start = 0;
       }
-    } catch (e) { console.error("Firebase Error", e); }
+
+      const out = [];
+      for (let i = start; i < rowsCells.length; i++) {
+        const cells = rowsCells[i];
+        const p = { location:"", bed:"", name:"", mrn:"", diagnosis:"", plan:"", timestamp: Date.now() };
+
+        cells.forEach((cell, idx) => {
+          const val = clean(cell);
+          if (!val) return;
+
+          const key = colMap[idx] || null;
+
+          if (key) {
+            p[key] = (p[key] ? (p[key] + " | " + val) : val);
+            return;
+          }
+        });
+
+        const meaningful = clean(p.name) || clean(p.mrn) || clean(p.bed) || clean(p.diagnosis) || clean(p.plan) || clean(p.location);
+        if (meaningful) out.push(p);
+      }
+
+      return out;
+    };
 
     const App = () => {
       const [patients, setPatients] = useState([]);
@@ -267,24 +507,30 @@
       const [isOnline, setIsOnline] = useState(navigator.onLine);
       const [searchTerm, setSearchTerm] = useState("");
       const [filter, setFilter] = useState("All");
+
+      const [showImport, setShowImport] = useState(false);
+      const [importRows, setImportRows] = useState([]);
+      const [importSource, setImportSource] = useState("");
+      const [replaceAll, setReplaceAll] = useState(false);
+      const [ocrProgress, setOcrProgress] = useState(null);
+
       const fileInputRef = useRef(null);
 
-      // --- 1. MOCK DATA (Remove if using real DB) ---
+      // --- FIREBASE SYNC (shared for everyone) ---
       useEffect(() => {
-        if (!db) {
-          setPatients([
-            { id: '1', name: "Ali Ahmed", mrn: "99887", bed: "01", diagnosis: "Chest Infection", plan: "IV Antibiotics" },
-            { id: '2', name: "Sarah Smith", mrn: "11223", bed: "02", diagnosis: "Hypertension", plan: "Monitor BP q4h" },
-          ]);
-          setLoading(false);
-        }
-      }, []);
+        const handleStatus = () => setIsOnline(navigator.onLine);
+        window.addEventListener('online', handleStatus);
+        window.addEventListener('offline', handleStatus);
 
-      // --- 2. FIREBASE SYNC ---
-      useEffect(() => {
-        if (!db) return;
+        if (!db) {
+          setLoading(false);
+          return () => {
+            window.removeEventListener('online', handleStatus);
+            window.removeEventListener('offline', handleStatus);
+          };
+        }
+
         const ref = db.ref('patients');
-        
         ref.on('value', snapshot => {
           const data = snapshot.val();
           const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
@@ -292,212 +538,112 @@
           setLoading(false);
         });
 
-        const handleStatus = () => setIsOnline(navigator.onLine);
-        window.addEventListener('online', handleStatus);
-        window.addEventListener('offline', handleStatus);
-        return () => { ref.off(); window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
+        return () => {
+          ref.off();
+          window.removeEventListener('online', handleStatus);
+          window.removeEventListener('offline', handleStatus);
+        };
       }, []);
 
-      // --- 3. CRUD ACTIONS ---
-      const addPatient = () => {
-        const newP = { name: "", mrn: "", bed: "", diagnosis: "", plan: "", timestamp: Date.now() };
-        if (db) db.ref('patients').push(newP);
-        else setPatients([...patients, { ...newP, id: Date.now().toString() }]);
+      // --- CRUD ---
+      const addPatient = (location = "") => {
+        const newP = { location: clean(location), name: "", mrn: "", bed: "", diagnosis: "", plan: "", timestamp: Date.now() };
+        db.ref('patients').push(newP);
       };
 
       const updatePatient = (id, field, val) => {
-        if (db) db.ref(`patients/${id}`).update({ [field]: val });
-        else setPatients(patients.map(p => p.id === id ? { ...p, [field]: val } : p));
+        db.ref(`patients/${id}`).update({ [field]: val });
       };
 
       const deletePatient = (id) => {
         if(confirm("Delete this patient?")) {
-          if (db) db.ref(`patients/${id}`).remove();
-          else setPatients(patients.filter(p => p.id !== id));
+          db.ref(`patients/${id}`).remove();
         }
       };
 
-      // --- 4. EXPORT ---
+      // --- EXPORT ---
       const handleExport = () => {
-        const exportData = patients.map(({id, timestamp, ...rest}) => rest); // remove technical fields
+        const exportData = [...patients]
+          .map(({id, timestamp, ...rest}) => rest)
+          .sort((a,b) => {
+            const la = locLabel(a);
+            const lb = locLabel(b);
+            if (la === lb) return sortBed(a,b);
+            if (la === "Unassigned") return 1;
+            if (lb === "Unassigned") return -1;
+            return la.localeCompare(lb);
+          });
+
         const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Ward Rounds");
         XLSX.writeFile(wb, "Ward_Rounds_Export.xlsx");
       };
 
-      // --- 5. IMPORT ---
+      // --- IMPORT ---
       const triggerImport = () => fileInputRef.current.click();
-      
-      const handleImport = (e) => {
-        const file = e.target.files[0];
-        if(!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (evt) => {
-          try {
-            const bstr = evt.target.result;
-            const wb = XLSX.read(bstr, { type: 'binary' });
-            const wsname = wb.SheetNames[0];
-            const ws = wb.Sheets[wsname];
-            const data = XLSX.utils.sheet_to_json(ws);
-
-            if(confirm(`Found ${data.length} rows. Import them?`)) {
-              data.forEach(row => {
-                // Map excel columns to our schema loosely
-                const newP = {
-                  name: row.Name || row.name || "Unknown",
-                  mrn: row.MRN || row.mrn || "",
-                  bed: row.Bed || row.bed || "",
-                  diagnosis: row.Diagnosis || row.diagnosis || "",
-                  plan: row.Plan || row.plan || "",
-                  timestamp: Date.now()
-                };
-                if(db) db.ref('patients').push(newP);
-                else setPatients(prev => [...prev, {...newP, id: Math.random().toString()}]);
-              });
-            }
-          } catch(err) {
-            alert("Error reading file. Ensure it is a valid Excel file.");
-            console.error(err);
-          }
-        };
-        reader.readAsBinaryString(file);
-        // Reset input so same file can be selected again if needed
-        e.target.value = null;
+      const openPreview = (rows, sourceLabel) => {
+        setImportRows(rows.map(r => ({
+          location: clean(r.location),
+          bed: clean(r.bed),
+          name: clean(r.name),
+          mrn: clean(r.mrn),
+          diagnosis: clean(r.diagnosis),
+          plan: clean(r.plan),
+          timestamp: Date.now()
+        })));
+        setImportSource(sourceLabel || "Import");
+        setShowImport(true);
+        setOcrProgress(null);
       };
 
-      const filtered = patients.filter(p => 
-        (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
-        (p.mrn || "").includes(searchTerm)
-      );
+      const handleImport = async (e) => {
+        const file = e.target.files && e.target.files[0];
+        if (!file) return;
 
-      return (
-        <div className="wrap">
-          <div className="app">
-            
-            <div className="topbar">
-              <div className="title">
-                <h1>Unit E Ward Rounds</h1>
-                <div className="subtitle">
-                  <div className={`dot ${isOnline ? 'online' : 'offline'}`}></div>
-                  <span>{isOnline ? "Online" : "Offline"}</span>
-                </div>
-              </div>
-              <div className="actions">
-                {/* Hidden File Input */}
-                <input 
-                  type="file" 
-                  ref={fileInputRef} 
-                  style={{display:'none'}} 
-                  accept=".xlsx, .xls"
-                  onChange={handleImport} 
-                />
-                
-                <button className="btn btn-ghost" onClick={triggerImport}>
-                  📂 Import
-                </button>
-                <button className="btn btn-ghost" onClick={handleExport}>
-                  📥 Export
-                </button>
-                <button className="btn btn-primary" onClick={addPatient}>
-                  + Add
-                </button>
-              </div>
-            </div>
+        const fname = (file.name || "").toLowerCase();
+        const ftype = (file.type || "").toLowerCase();
 
-            <div className="controls">
-              <input 
-                className="search-box" 
-                placeholder="Search Name or MRN..." 
-                value={searchTerm}
-                onChange={e => setSearchTerm(e.target.value)}
-              />
-            </div>
+        try {
+          if (fname.endsWith(".xlsx") || fname.endsWith(".xls")) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              try {
+                const bstr = evt.target.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const wsname = wb.SheetNames[0];
+                const ws = wb.Sheets[wsname];
+                const data = XLSX.utils.sheet_to_json(ws, { defval: "" });
+                const rows = data.map(rowToPatient).filter(p => p.name || p.mrn || p.bed || p.diagnosis || p.plan || p.location);
+                openPreview(rows, `Excel: ${file.name}`);
+              } catch (err) {
+                alert("Error reading Excel file.");
+                console.error(err);
+              }
+            };
+            reader.readAsBinaryString(file);
+          }
+          else if (fname.endsWith(".csv") || fname.endsWith(".txt") || ftype.includes("text")) {
+            const reader = new FileReader();
+            reader.onload = (evt) => {
+              const text = evt.target.result || "";
+              const rows = parseTabularText(text);
+              openPreview(rows, `Text: ${file.name}`);
+            };
+            reader.readAsText(file);
+          }
+          else if (ftype.startsWith("image/") || fname.match(/\.(png|jpg|jpeg|webp)$/)) {
+            setOcrProgress(0);
+            setImportSource(`OCR: ${file.name}`);
+            setShowImport(true);
+            setImportRows([]);
 
-            <div className="content-area">
-              {loading ? (
-                <div style={{padding:20, textAlign:'center'}}>Loading...</div>
-              ) : (
-                <table>
-                  <thead>
-                    <tr>
-                      <th width="80">Bed</th>
-                      <th width="220">Patient Info</th>
-                      <th>Diagnosis</th>
-                      <th>Plan</th>
-                      <th width="40"></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filtered.map(p => (
-                      <tr key={p.id}>
-                        <td>
-                          <input 
-                            className="table-input" 
-                            value={p.bed} 
-                            placeholder="Bed"
-                            onChange={e => updatePatient(p.id, 'bed', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <input 
-                            className="table-input" 
-                            style={{fontWeight:'700', color:'black'}} 
-                            value={p.name} 
-                            placeholder="Name"
-                            onChange={e => updatePatient(p.id, 'name', e.target.value)}
-                          />
-                          <input 
-                            className="table-input" 
-                            style={{fontSize:'13px', color:'#666'}} 
-                            value={p.mrn} 
-                            placeholder="MRN"
-                            onChange={e => updatePatient(p.id, 'mrn', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <textarea 
-                            className="table-input" 
-                            value={p.diagnosis} 
-                            placeholder="Diagnosis..."
-                            rows={3}
-                            onChange={e => updatePatient(p.id, 'diagnosis', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <textarea 
-                            className="table-input" 
-                            value={p.plan} 
-                            placeholder="Plan..."
-                            rows={3}
-                            onChange={e => updatePatient(p.id, 'plan', e.target.value)}
-                          />
-                        </td>
-                        <td style={{verticalAlign:'middle'}}>
-                          <button className="btn btn-danger" onClick={() => deletePatient(p.id)}>×</button>
-                        </td>
-                      </tr>
-                    ))}
-                    {filtered.length === 0 && (
-                      <tr>
-                        <td colSpan="5" style={{textAlign:'center', padding:30, color:'#999'}}>
-                          No patients found.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              )}
-            </div>
-
-          </div>
-        </div>
-      );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+            const result = await Tesseract.recognize(file, 'eng', {
+              logger: (m) => {
+                if (m && m.status === "recognizing text" && typeof m.progress === "number") {
+                  setOcrProgress(m.progress);
+                }
+              }
+            });
+            const text = result?.data?.text || "";
