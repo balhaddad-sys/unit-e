@@ -24,7 +24,6 @@
     /* UI ELEMENTS */
     .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
     .title h1{ margin:0; font-size:18px; font-weight:800; }
-    .subtitle{ font-size: 12px; opacity: 0.8; }
     
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
     .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
@@ -45,7 +44,6 @@
     /* WARD & CARDS */
     .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .ward-header{ background:var(--blue); color:white; padding:8px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; letter-spacing: 0.5px; }
-    .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; }
     
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
     .p-card:last-child{ border-bottom:none; }
@@ -58,7 +56,7 @@
     .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
     .inp-area{ min-height:45px; resize:vertical; }
 
-    /* Status Dropdown on Card */
+    /* STATUS SELECT */
     .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; outline: none; }
     .status-new { background: #dbeafe; color: var(--blue); border-color: #93c5fd; }
     .status-chronic { background: #ffedd5; color: var(--orange); border-color: #fdba74; }
@@ -69,7 +67,7 @@
 
     /* MODAL */
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; backdrop-filter: blur(2px); }
-    .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1); }
+    .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
     .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .form-row{ display:flex; gap:10px; }
@@ -88,7 +86,7 @@
     @media(max-width: 767px){
       .mobile-row{ display:flex; gap:8px; }
       .card-actions { position: absolute; top: 12px; right: 12px; }
-      .p-card { padding-right: 50px; } /* Space for actions */
+      .p-card { padding-right: 50px; } 
     }
   </style>
 </head>
@@ -101,7 +99,7 @@
     window.onerror = function(msg, url, line) {
       const log = document.getElementById('error-log');
       log.style.display = 'block';
-      log.textContent += `Error: ${msg}\nLine: ${line}\n\n`;
+      log.textContent += "Error: " + msg + "\nLine: " + line + "\n\n";
       return false; 
     };
   </script>
@@ -109,7 +107,7 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
 
-    // --- UPDATED MASTER DATA WITH STATUSES ---
+    // --- MASTER DATA ---
     const MASTER_DATA = [
       { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"New", plan:"" },
       { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"Chronic", plan:"" },
@@ -165,7 +163,6 @@
       return clean(a.bed).localeCompare(clean(b.bed));
     };
 
-    // Helper to get status color class
     const getStatusClass = (s) => {
         if(!s) return '';
         if(s === 'New') return 'status-new';
@@ -176,7 +173,7 @@
     const App = () => {
       const [patients, setPatients] = useState([]);
       const [search, setSearch] = useState("");
-      const [viewFilter, setViewFilter] = useState("All"); // New state for filtering lists
+      const [viewFilter, setViewFilter] = useState("All"); 
       const [addModal, setAddModal] = useState(false);
       const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
       
@@ -209,20 +206,17 @@
         }
       };
 
-      // --- NEW: IMPROVED EXCEL EXPORT ---
       const exportWellOrganizedExcel = () => {
           const wb = XLSX.utils.book_new();
           let dataRows = [];
 
-          // Main Headers
+          // Headers
           dataRows.push(["Ward", "Bed", "Name", "MRN", "Diagnosis", "Doctor", "Status", "Plan"]);
 
-          // Iterate through sorted wards based on current groupings
           groups.sortedKeys.forEach(ward => {
-             // Add Ward Header Row (Empty cells make it look like a separator)
+             // Separator Row
              dataRows.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
 
-             // Add Patients in that ward
              groups.g[ward].forEach(p => {
                 dataRows.push([
                    p.ward,
@@ -235,41 +229,28 @@
                    p.plan
                 ]);
              });
-             // Add empty row for spacing
-             dataRows.push([]); 
+             dataRows.push([]); // Spacer
           });
 
           const ws = XLSX.utils.aoa_to_sheet(dataRows);
-          
-          // Basic column width setting
-          const wscols = [
-            {wch:15}, {wch:8}, {wch:20}, {wch:10}, {wch:25}, {wch:15}, {wch:12}, {wch:30}
-          ];
-          ws['!cols'] = wscols;
-
+          ws['!cols'] = [{wch:15}, {wch:8}, {wch:20}, {wch:10}, {wch:25}, {wch:15}, {wch:12}, {wch:30}];
           XLSX.utils.book_append_sheet(wb, ws, "Unit E Rounds");
-          XLSX.writeFile(wb, `UnitE_Rounds_${viewFilter.replace(' ', '')}.xlsx`);
+          XLSX.writeFile(wb, "UnitE_Rounds_Report.xlsx");
       };
 
-
-      // --- GROUPING & FILTERING ---
       const groups = useMemo(() => {
         const g = {};
         const s = search.toLowerCase();
         
-        // 1. Apply View Filter (New, Chronic, etc.)
         let filteredByView = patients;
         if(viewFilter !== 'All') {
             filteredByView = patients.filter(p => (p.status || "") === viewFilter);
         }
 
-        // 2. Apply Search
         const finalFiltered = filteredByView.filter(p => (p.name+p.bed+p.ward+p.diagnosis+p.doctor).toLowerCase().includes(s));
 
-        // 3. Group by Ward
         finalFiltered.forEach(p => {
           let w = p.ward || "Unassigned";
-          // Fuzzy match wards
           if(w.toLowerCase().includes("ward 19")) w = "Ward 19";
           else if(w.toLowerCase().includes("ward 20")) w = "Ward 20";
           else if(w.toLowerCase().includes("ward 21")) w = "Ward 21";
@@ -283,7 +264,6 @@
           g[w].push(p);
         });
         
-        // 4. Sort beds and wards
         Object.keys(g).forEach(k => g[k].sort(sortPatients));
         const sortedKeys = Object.keys(g).sort((a,b) => {
           const ia = WARD_ORDER.indexOf(a), ib = WARD_ORDER.indexOf(b);
@@ -297,7 +277,7 @@
           <div className="topbar">
             <div className="title">
               <h1>Unit E Ward Rounds</h1>
-              <div className="subtitle">{groups.totalCount} Patients Shown • {db ? "Online" : "Local"}</div>
+              <div className="subtitle">{groups.totalCount} Patients • {db ? "Online" : "Local"}</div>
             </div>
             <div className="actions">
               <button className="btn btn-blue" onClick={loadMaster}>📥 Load Master List</button>
@@ -308,7 +288,6 @@
           </div>
 
           <div className="controls-container">
-            {/* Filter Buttons */}
             <div className="filter-row">
                 {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
                     <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>
@@ -316,7 +295,7 @@
                     </button>
                 ))}
             </div>
-            <input className="search-bar" placeholder={`Search in ${viewFilter === 'New' ? 'New Admissions' : viewFilter}...`} value={search} onChange={e=>setSearch(e.target.value)} />
+            <input className="search-bar" placeholder="Search..." value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
 
           {groups.sortedKeys.map(ward => (
@@ -324,14 +303,10 @@
               <div className="ward-header"><span>{ward}</span><span className="ward-count">{groups.g[ward].length}</span></div>
               {groups.g[ward].map(p => (
                 <div className="p-card" key={p.id}>
-                  
-                  {/* Col 1: Bed & Doc */}
                   <div className="mobile-row col-1">
                     <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
                     <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
                   </div>
-
-                  {/* Col 2: Name, MRN, Diagnosis */}
                   <div className="col-2">
                     <div style={{display:'flex', gap:8}}>
                          <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
@@ -339,26 +314,16 @@
                     </div>
                     <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
                   </div>
-
-                  {/* Col 3: Plan & Actions */}
                   <div className="col-3">
                        <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
                   </div>
-
-                   {/* Actions (Top right on mobile, right col on desktop) */}
                   <div className="card-actions">
-                      {/* Status Dropdown for moving patients */}
-                       <select 
-                          className={`status-select ${getStatusClass(p.status)}`} 
-                          value={p.status || ""} 
-                          onChange={e=>update(p.id, 'status', e.target.value)}
-                       >
+                       <select className={`status-select ${getStatusClass(p.status)}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}>
                           <option value="">- Status -</option>
                           {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                        </select>
                        <button className="btn-del" onClick={()=>del(p.id)}>×</button>
                    </div>
-
                 </div>
               ))}
             </div>
@@ -366,5 +331,69 @@
 
           {patients.length > 0 && groups.totalCount === 0 && (
              <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
-              No patients found in "{viewFilter}" category matching search.
-            
+              No patients found matching your search.
+            </div>
+          )}
+
+          {patients.length === 0 && (
+            <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
+              Database empty.<br/><br/>
+              <button className="btn btn-blue" onClick={loadMaster}>Load Master List Now</button>
+            </div>
+          )}
+
+          {addModal && (
+            <div className="modalOverlay">
+              <div className="modal">
+                <div className="modal-head">Add Patient</div>
+                <div className="modal-body">
+                  <div className="form-row">
+                      <div className="form-group">
+                        <label>Ward</label>
+                        <select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>
+                          {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
+                        </select>
+                      </div>
+                      <div className="form-group">
+                        <label>Status</label>
+                        <select className="inp" value={newP.status} onChange={e=>setNewP({...newP, status:e.target.value})}>
+                          {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
+                        </select>
+                      </div>
+                  </div>
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label>Bed</label>
+                      <input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} />
+                    </div>
+                    <div className="form-group">
+                      <label>Doctor</label>
+                      <input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} />
+                    </div>
+                  </div>
+                  <div className="form-group">
+                    <label>Name</label>
+                    <input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} />
+                  </div>
+                  <div className="form-group">
+                    <label>Diagnosis</label>
+                    <input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} />
+                  </div>
+                </div>
+                <div className="modal-foot">
+                  <button className="btn btn-ghost" style={{color:'#333'}} onClick={()=>setAddModal(false)}>Cancel</button>
+                  <button className="btn btn-white" style={{background: 'var(--green)', color:'white'}} onClick={saveNew}>Save</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
