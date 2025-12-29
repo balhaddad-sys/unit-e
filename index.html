@@ -1,4 +1,3 @@
-```html
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -9,6 +8,7 @@
   <script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
   <script crossorigin="anonymous" src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
   <script crossorigin="anonymous" src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
 
@@ -127,7 +127,7 @@
       boot.push = (msg) => {
         boot.lines.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
         ensureUI();
-        document.getElementById('bootlog').textContent = boot.lines.slice(-200).join('\n');
+        document.getElementById('bootlog').textContent = boot.lines.slice(-250).join('\n');
       };
       boot.status = (msg) => {
         ensureUI();
@@ -245,7 +245,15 @@
       }, []);
 
       const update = (id, field, val) => db && db.ref(`patients/${id}`).update({ [field]: val });
-      const add = (loc) => db && db.ref('patients').push({ location:clean(loc), bed:"", name:"", mrn:"", diagnosis:"", plan:"", timestamp:Date.now() });
+      const add = (loc) => db && db.ref('patients').push({
+        location: clean(loc),
+        bed:"",
+        name:"",
+        mrn:"",
+        diagnosis:"",
+        plan:"",
+        timestamp: Date.now()
+      });
       const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
 
       const exportExcel = () => {
@@ -284,6 +292,7 @@
 
               setImportData(mapped);
               setModalOpen(true);
+              setOcrProgress(null);
             };
             reader.readAsBinaryString(file);
           } else if(name.match(/\.(jpg|jpeg|png|webp)$/)) {
@@ -296,12 +305,21 @@
             });
 
             const lines = res.data.text.split('\n').filter(l => l.trim().length > 4);
-            setImportData(lines.map(l => ({ name:l, bed:"?", diagnosis:"", plan:"", location:"", timestamp:Date.now() })));
+            setImportData(lines.map(l => ({
+              name: l,
+              bed: "?",
+              mrn: "",
+              diagnosis: "",
+              plan: "",
+              location: "",
+              timestamp: Date.now()
+            })));
             setOcrProgress(null);
           }
         } catch(err) {
           showFatal("Import Error: " + err.message);
         }
+
         e.target.value = null;
       };
 
@@ -310,16 +328,24 @@
         importData.forEach(p => db.ref('patients').push(p));
         setModalOpen(false);
         setImportData([]);
+        setOcrProgress(null);
       };
 
       const groups = useMemo(() => {
         const g = {};
-        const filtered = patients.filter(p => (p.name+p.mrn+p.bed).toLowerCase().includes(search.toLowerCase()));
+        const s = search.toLowerCase();
+
+        const filtered = patients.filter(p => {
+          const hay = (p.name + " " + (p.mrn||"") + " " + (p.bed||"") + " " + (p.location||"") + " " + (p.diagnosis||"") + " " + (p.plan||"")).toLowerCase();
+          return hay.includes(s);
+        });
+
         filtered.forEach(p => {
           const loc = p.location || "Unassigned";
           if(!g[loc]) g[loc] = [];
           g[loc].push(p);
         });
+
         Object.keys(g).forEach(k => g[k].sort(sortBed));
         return g;
       }, [patients, search]);
@@ -335,9 +361,10 @@
                   <span className={`dot ${online?'online':''}`}></span> {online?'Online':'Offline'}
                 </div>
               </div>
+
               <div className="actions">
-                <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls,.jpg,.png" />
-                <button className="btn btn-ghost" onClick={() => fileRef.current.click()}>📷 / 📂 Import</button>
+                <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls,.jpg,.png,.jpeg,.webp" />
+                <button className="btn btn-ghost" onClick={() => fileRef.current && fileRef.current.click()}>📷 / 📂 Import</button>
                 <button className="btn btn-ghost" onClick={exportExcel}>📥 Export</button>
                 <button className="btn btn-primary" onClick={() => add("")}>+ Add</button>
               </div>
@@ -361,24 +388,44 @@
                     <span>{loc} ({groups[loc].length})</span>
                     <button className="btn btn-ghost" style={{color:'#000', padding:'4px 8px'}} onClick={()=>add(loc==='Unassigned'?'':loc)}>+ Add</button>
                   </div>
+
                   <table>
-                    <thead><tr><th width="80">Bed</th><th>Patient</th><th>Diagnosis</th><th>Plan</th><th width="30"></th></tr></thead>
+                    <thead>
+                      <tr>
+                        <th width="80">Bed</th>
+                        <th>Patient</th>
+                        <th>Diagnosis</th>
+                        <th>Plan</th>
+                        <th width="30"></th>
+                      </tr>
+                    </thead>
+
                     <tbody>
                       {groups[loc].map(p => (
                         <tr key={p.id}>
                           <td>
-                            <input className="inp" value={p.bed} placeholder="-" onChange={e=>update(p.id, 'bed', e.target.value)} />
+                            <input className="inp" value={p.bed || ""} placeholder="-" onChange={e=>update(p.id, 'bed', e.target.value)} />
                             {loc==='Unassigned' && (
-                              <input className="inp inp-blue" value={p.location} placeholder="Loc?" onChange={e=>update(p.id, 'location', e.target.value)} />
+                              <input className="inp inp-blue" value={p.location || ""} placeholder="Loc?" onChange={e=>update(p.id, 'location', e.target.value)} />
                             )}
                           </td>
+
                           <td>
-                            <input className="inp inp-bold" value={p.name} placeholder="Name" onChange={e=>update(p.id, 'name', e.target.value)} />
-                            <input className="inp inp-small" value={p.mrn} placeholder="MRN" onChange={e=>update(p.id, 'mrn', e.target.value)} />
+                            <input className="inp inp-bold" value={p.name || ""} placeholder="Name" onChange={e=>update(p.id, 'name', e.target.value)} />
+                            <input className="inp inp-small" value={p.mrn || ""} placeholder="MRN" onChange={e=>update(p.id, 'mrn', e.target.value)} />
                           </td>
-                          <td><textarea className="inp" rows={2} value={p.diagnosis} placeholder="..." onChange={e=>update(p.id, 'diagnosis', e.target.value)} /></td>
-                          <td><textarea className="inp" rows={2} value={p.plan} placeholder="..." onChange={e=>update(p.id, 'plan', e.target.value)} /></td>
-                          <td><button className="btn btn-danger" onClick={()=>del(p.id)}>×</button></td>
+
+                          <td>
+                            <textarea className="inp" rows={2} value={p.diagnosis || ""} placeholder="..." onChange={e=>update(p.id, 'diagnosis', e.target.value)} />
+                          </td>
+
+                          <td>
+                            <textarea className="inp" rows={2} value={p.plan || ""} placeholder="..." onChange={e=>update(p.id, 'plan', e.target.value)} />
+                          </td>
+
+                          <td>
+                            <button className="btn btn-danger" onClick={()=>del(p.id)}>×</button>
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -394,12 +441,4 @@
             {modalOpen && (
               <div className="modalOverlay">
                 <div className="modal">
-                  <div className="modalHeader">
-                    <span>Import Preview</span>
-                    <button className="btn btn-danger" onClick={()=>{setModalOpen(false); setOcrProgress(null);}}>×</button>
-                  </div>
-
-                  <div className="modalBody">
-                    {ocrProgress !== null ? (
-                      <div style={{padding:20, textAlign:'center'}}>Reading Image... {Math.round(ocrProgress*100)}%</div>
-         
+             
