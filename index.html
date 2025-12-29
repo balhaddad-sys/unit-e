@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Unit E Ward Rounds</title>
 
   <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -20,14 +20,13 @@
       --green:#2e7d32;
       --green2:#1b5e20;
       --blue:#1976d2;
-      --red:#c62828;
-      --bg:#f5f5f5;
+      --red:#d32f2f;
+      --bg:#f0f2f5;
       --card:#ffffff;
       --muted:#6b7280;
       --border:#e5e7eb;
-      --shadow: 0 6px 18px rgba(0,0,0,.08);
-      --shadow2: 0 1px 3px rgba(0,0,0,.08);
-      --radius: 14px;
+      --shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+      --radius: 12px;
     }
 
     *{ box-sizing:border-box; }
@@ -36,13 +35,14 @@
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
       background: var(--bg);
       color:#111827;
-      padding-bottom: 40px;
+      padding-bottom: 60px; /* Space for scrolling on mobile */
+      -webkit-font-smoothing: antialiased;
     }
 
     .wrap{
-      max-width: 1100px;
+      max-width: 1200px;
       margin: 0 auto;
-      padding: 14px;
+      padding: 16px;
     }
 
     .app{
@@ -50,189 +50,187 @@
       border-radius: var(--radius);
       box-shadow: var(--shadow);
       overflow:hidden;
-      border: 1px solid rgba(0,0,0,.04);
-      min-height: 80vh;
+      min-height: 85vh;
+      display: flex;
+      flex-direction: column;
     }
 
     /* Topbar */
     .topbar{
       background: linear-gradient(135deg, var(--green) 0%, var(--green2) 100%);
       color:white;
-      padding: 16px 16px;
+      padding: 16px;
       display:flex;
-      gap:12px;
-      align-items:flex-start;
+      align-items:center;
       justify-content:space-between;
       flex-wrap:wrap;
-    }
-    .title{
-      display:flex;
-      flex-direction:column;
-      gap:6px;
-      min-width: 200px;
+      gap: 12px;
     }
     .title h1{
       margin:0;
-      font-size: 20px;
-      line-height: 1.1;
-      letter-spacing:.2px;
+      font-size: 22px;
+      font-weight: 700;
     }
     .subtitle{
       display:flex;
       align-items:center;
       gap:8px;
-      font-size: 12px;
-      opacity:.95;
+      font-size: 13px;
+      opacity:0.9;
+      margin-top: 4px;
     }
-    
-    /* Status Dot */
     .dot{
-      width:10px; height:10px; border-radius:999px;
+      width:10px; height:10px; border-radius:50%;
       background:#ffb300;
-      border: 2px solid rgba(255,255,255,.9);
-      box-shadow: 0 0 0 3px rgba(255,255,255,.15);
+      border: 2px solid rgba(255,255,255,0.8);
     }
     .dot.online{ background:#22c55e; }
-    .dot.offline{ background:#ffb300; }
 
+    /* Actions & Buttons */
     .actions{
       display:flex;
-      gap:10px;
-      align-items:center;
-      flex-wrap:wrap;
+      gap:8px;
     }
-
-    /* Buttons */
     .btn{
       border: none;
-      border-radius: 12px;
-      padding: 10px 16px;
+      border-radius: 8px;
+      padding: 10px 14px;
       font-weight: 600;
-      font-size: 13px;
+      font-size: 14px;
       cursor: pointer;
       display:inline-flex;
       align-items:center;
-      gap:8px;
-      transition: transform .05s ease, opacity .15s ease, background .15s ease;
-      user-select:none;
+      justify-content: center;
+      gap:6px;
+      transition: all 0.2s;
     }
-    .btn:active{ transform: translateY(1px); }
-    .btn-primary{ background: #ffffff; color: var(--green); }
-    .btn-primary:hover{ opacity:.92; }
-    .btn-ghost{
-      background: rgba(255,255,255,.14);
-      color:white;
-      border: 1px solid rgba(255,255,255,.18);
-    }
-    .btn-ghost:hover{ background: rgba(255,255,255,.2); }
-    .btn-danger{ background:#ef4444; color:white; }
-    .btn-small{ padding: 8px 10px; border-radius: 10px; font-size:12px; font-weight:700; }
-    
-    /* Controls Area */
+    .btn:active{ transform: scale(0.98); }
+    .btn-primary{ background: #ffffff; color: var(--green); box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+    .btn-ghost{ background: rgba(255,255,255,0.2); color:white; }
+    .btn-ghost:hover{ background: rgba(255,255,255,0.3); }
+    .btn-danger{ background: var(--red); color:white; width: 32px; height: 32px; padding:0; border-radius: 50%; }
+
+    /* Controls */
     .controls{
-      padding: 12px 14px;
+      padding: 16px;
       background: #fafafa;
       border-bottom: 1px solid var(--border);
       display:flex;
-      flex-direction:column;
-      gap:10px;
+      gap: 12px;
+      flex-wrap: wrap;
     }
-
-    .row{
-      display:flex;
-      gap:10px;
-      flex-wrap:wrap;
-      align-items:center;
-    }
-
     .search-box {
       flex: 1;
-      padding: 10px;
+      min-width: 200px;
+      padding: 10px 14px;
       border: 1px solid var(--border);
       border-radius: 8px;
-      font-size: 14px;
-      min-width: 200px;
+      font-size: 15px;
+      outline: none;
     }
-
-    /* Pills */
-    .pillRow{
-      display:flex;
-      gap:8px;
-      flex-wrap:wrap;
-    }
+    .search-box:focus { border-color: var(--green); box-shadow: 0 0 0 2px rgba(46,125,50,0.1); }
+    
+    .pillRow{ display:flex; gap:8px; overflow-x: auto; padding-bottom: 2px; }
     .pill{
       border: 1px solid var(--border);
       background:white;
-      padding: 6px 12px;
+      padding: 8px 16px;
       border-radius: 20px;
-      font-size: 12px;
+      font-size: 13px;
       font-weight: 600;
       color: var(--muted);
       cursor: pointer;
-      transition: all 0.2s;
+      white-space: nowrap;
     }
-    .pill:hover { border-color: var(--green); color: var(--green); }
     .pill.active { background: var(--green); color: white; border-color: var(--green); }
 
-    /* Table/List Area */
-    .content-area {
-      padding: 0;
-      overflow-x: auto;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 14px;
-    }
+    /* Table Styles */
+    .content-area { flex: 1; overflow-x: auto; }
+    table { width: 100%; border-collapse: collapse; font-size: 15px; }
+    
     th {
       text-align: left;
-      padding: 12px 16px;
-      background: #f9fafb;
+      padding: 14px 16px;
+      background: #f8fafc;
       border-bottom: 2px solid var(--border);
-      color: var(--muted);
+      color: #64748b;
       font-weight: 600;
       font-size: 12px;
       text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
+    
     td {
-      padding: 14px 16px;
+      padding: 12px 16px;
       border-bottom: 1px solid var(--border);
       vertical-align: top;
+      background: white;
     }
-    tr:last-child td { border-bottom: none; }
-    tr:hover td { background: #fdfdfd; }
 
-    /* Inputs within table */
+    /* Inputs inside table */
     .table-input {
       width: 100%;
       border: 1px solid transparent;
-      padding: 4px;
-      border-radius: 4px;
+      padding: 6px;
+      border-radius: 6px;
       background: transparent;
       font-family: inherit;
-      font-size: inherit;
+      font-size: 15px;
       resize: none;
+      transition: all 0.2s;
     }
     .table-input:focus {
-      border-color: var(--blue);
-      background: white;
+      border-color: var(--green);
+      background: #f0fdf4;
       outline: none;
     }
-    .badge {
-      display: inline-block;
-      padding: 2px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      font-weight: 700;
-      background: #e0f2f1;
-      color: #00695c;
-    }
+    .table-input::placeholder { color: #cbd5e1; }
 
-    /* Loading / Empty States */
-    .empty-state {
-      padding: 40px;
-      text-align: center;
-      color: var(--muted);
+    /* --- MOBILE RESPONSIVENESS (The Magic Part) --- */
+    @media (max-width: 768px) {
+      .wrap { padding: 8px; }
+      .app { min-height: auto; border-radius: 8px; }
+      
+      .topbar { flex-direction: column; align-items: stretch; gap: 16px; text-align: center; }
+      .actions { justify-content: center; width: 100%; }
+      .btn { flex: 1; justify-content: center; }
+
+      /* Force table to act like a list of cards */
+      table, thead, tbody, th, td, tr { display: block; }
+      
+      /* Hide headers */
+      thead tr { position: absolute; top: -9999px; left: -9999px; }
+      
+      tr {
+        margin-bottom: 16px;
+        border: 1px solid var(--border);
+        border-radius: 12px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+        background: white;
+        overflow: hidden;
+      }
+      
+      td {
+        border-bottom: 1px solid #f1f5f9;
+        position: relative;
+        padding: 12px 16px;
+      }
+      
+      td:last-child {
+        border-bottom: none;
+        text-align: right;
+        background: #f8fafc;
+        padding: 8px 16px;
+      }
+
+      /* Add Labels via CSS for context on mobile */
+      td:nth-of-type(1):before { content: "Bed:"; font-size: 11px; color: var(--muted); font-weight:700; display:block; margin-bottom:4px; }
+      td:nth-of-type(3):before { content: "Diagnosis:"; font-size: 11px; color: var(--muted); font-weight:700; display:block; margin-bottom:4px; }
+      td:nth-of-type(4):before { content: "Plan:"; font-size: 11px; color: var(--muted); font-weight:700; display:block; margin-bottom:4px; }
+      
+      /* Specific styling for the Bed/Name inputs on mobile to look nicer */
+      .table-input { background: #f8fafc; border: 1px solid #e2e8f0; }
+      .table-input:focus { background: white; border-color: var(--green); }
     }
   </style>
 </head>
@@ -241,30 +239,27 @@
   <div id="root"></div>
 
   <script type="text/babel">
-    const { useState, useEffect, useMemo } = React;
+    const { useState, useEffect, useRef } = React;
 
-    // --- FIREBASE CONFIGURATION ---
-    // Master Shifu: PASTE YOUR FIREBASE CONFIG HERE
+    // --- PASTE FIREBASE CONFIG HERE ---
     const firebaseConfig = {
-       // apiKey: "YOUR_API_KEY",
-       // authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-       // databaseURL: "https://YOUR_PROJECT_ID.firebaseio.com",
-       // projectId: "YOUR_PROJECT_ID",
-       // storageBucket: "YOUR_PROJECT_ID.appspot.com",
-       // messagingSenderId: "SENDER_ID",
-       // appId: "APP_ID"
+      // apiKey: "...",
+      // authDomain: "...",
+      // databaseURL: "...",
+      // projectId: "...",
+      // storageBucket: "...",
+      // messagingSenderId: "...",
+      // appId: "..."
     };
 
-    // Initialize Firebase safely
+    // Initialize Firebase
     let db = null;
     try {
       if (firebase.apps.length === 0 && firebaseConfig.apiKey) {
         firebase.initializeApp(firebaseConfig);
         db = firebase.database();
       }
-    } catch (e) {
-      console.error("Firebase init error:", e);
-    }
+    } catch (e) { console.error("Firebase Error", e); }
 
     const App = () => {
       const [patients, setPatients] = useState([]);
@@ -272,210 +267,225 @@
       const [isOnline, setIsOnline] = useState(navigator.onLine);
       const [searchTerm, setSearchTerm] = useState("");
       const [filter, setFilter] = useState("All");
+      const fileInputRef = useRef(null);
 
-      // --- MOCK DATA (DELETE THIS IF USING REAL FIREBASE) ---
-      // This ensures you see data even if Firebase isn't set up yet
+      // --- 1. MOCK DATA (Remove if using real DB) ---
       useEffect(() => {
         if (!db) {
           setPatients([
-            { id: 1, name: "John Doe", mrn: "12345", bed: "A1", diagnosis: "Pneumonia", plan: "Continue antibiotics" },
-            { id: 2, name: "Jane Smith", mrn: "67890", bed: "A2", diagnosis: "DKA", plan: "Insulin sliding scale" },
+            { id: '1', name: "Ali Ahmed", mrn: "99887", bed: "01", diagnosis: "Chest Infection", plan: "IV Antibiotics" },
+            { id: '2', name: "Sarah Smith", mrn: "11223", bed: "02", diagnosis: "Hypertension", plan: "Monitor BP q4h" },
           ]);
           setLoading(false);
         }
       }, []);
-      // ----------------------------------------------------
 
-      // Firebase Listener
+      // --- 2. FIREBASE SYNC ---
       useEffect(() => {
         if (!db) return;
-
-        const patientsRef = db.ref('patients');
-        patientsRef.on('value', (snapshot) => {
+        const ref = db.ref('patients');
+        
+        ref.on('value', snapshot => {
           const data = snapshot.val();
-          const loadedPatients = [];
-          for (let id in data) {
-            loadedPatients.push({ id, ...data[id] });
-          }
-          setPatients(loadedPatients);
+          const list = data ? Object.keys(data).map(key => ({ id: key, ...data[key] })) : [];
+          setPatients(list);
           setLoading(false);
         });
 
-        const handleStatusChange = () => setIsOnline(navigator.onLine);
-        window.addEventListener('online', handleStatusChange);
-        window.addEventListener('offline', handleStatusChange);
-
-        return () => {
-          patientsRef.off();
-          window.removeEventListener('online', handleStatusChange);
-          window.removeEventListener('offline', handleStatusChange);
-        };
+        const handleStatus = () => setIsOnline(navigator.onLine);
+        window.addEventListener('online', handleStatus);
+        window.addEventListener('offline', handleStatus);
+        return () => { ref.off(); window.removeEventListener('online', handleStatus); window.removeEventListener('offline', handleStatus); };
       }, []);
 
-      const handleAddPatient = () => {
-        const newPatient = {
-          name: "New Patient",
-          mrn: "",
-          bed: "",
-          diagnosis: "",
-          plan: "",
-          timestamp: Date.now()
-        };
-        
-        if(db) {
-          db.ref('patients').push(newPatient);
-        } else {
-          // Local mock update
-          setPatients([...patients, { ...newPatient, id: Date.now() }]);
+      // --- 3. CRUD ACTIONS ---
+      const addPatient = () => {
+        const newP = { name: "", mrn: "", bed: "", diagnosis: "", plan: "", timestamp: Date.now() };
+        if (db) db.ref('patients').push(newP);
+        else setPatients([...patients, { ...newP, id: Date.now().toString() }]);
+      };
+
+      const updatePatient = (id, field, val) => {
+        if (db) db.ref(`patients/${id}`).update({ [field]: val });
+        else setPatients(patients.map(p => p.id === id ? { ...p, [field]: val } : p));
+      };
+
+      const deletePatient = (id) => {
+        if(confirm("Delete this patient?")) {
+          if (db) db.ref(`patients/${id}`).remove();
+          else setPatients(patients.filter(p => p.id !== id));
         }
       };
 
-      const handleUpdate = (id, field, value) => {
-        if(db) {
-          db.ref(`patients/${id}`).update({ [field]: value });
-        } else {
-           // Local mock update
-           setPatients(patients.map(p => p.id === id ? { ...p, [field]: value } : p));
-        }
-      };
-
-      const handleDelete = (id) => {
-        if (confirm("Are you sure you want to discharge/delete this patient?")) {
-          if(db) {
-            db.ref(`patients/${id}`).remove();
-          } else {
-            setPatients(patients.filter(p => p.id !== id));
-          }
-        }
-      };
-
+      // --- 4. EXPORT ---
       const handleExport = () => {
-        const ws = XLSX.utils.json_to_sheet(patients);
+        const exportData = patients.map(({id, timestamp, ...rest}) => rest); // remove technical fields
+        const ws = XLSX.utils.json_to_sheet(exportData);
         const wb = XLSX.utils.book_new();
         XLSX.utils.book_append_sheet(wb, ws, "Ward Rounds");
-        XLSX.writeFile(wb, "Unit_E_Rounds.xlsx");
+        XLSX.writeFile(wb, "Ward_Rounds_Export.xlsx");
       };
 
-      const filteredPatients = patients.filter(p => 
-        (p.name && p.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (p.mrn && p.mrn.includes(searchTerm))
+      // --- 5. IMPORT ---
+      const triggerImport = () => fileInputRef.current.click();
+      
+      const handleImport = (e) => {
+        const file = e.target.files[0];
+        if(!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+          try {
+            const bstr = evt.target.result;
+            const wb = XLSX.read(bstr, { type: 'binary' });
+            const wsname = wb.SheetNames[0];
+            const ws = wb.Sheets[wsname];
+            const data = XLSX.utils.sheet_to_json(ws);
+
+            if(confirm(`Found ${data.length} rows. Import them?`)) {
+              data.forEach(row => {
+                // Map excel columns to our schema loosely
+                const newP = {
+                  name: row.Name || row.name || "Unknown",
+                  mrn: row.MRN || row.mrn || "",
+                  bed: row.Bed || row.bed || "",
+                  diagnosis: row.Diagnosis || row.diagnosis || "",
+                  plan: row.Plan || row.plan || "",
+                  timestamp: Date.now()
+                };
+                if(db) db.ref('patients').push(newP);
+                else setPatients(prev => [...prev, {...newP, id: Math.random().toString()}]);
+              });
+            }
+          } catch(err) {
+            alert("Error reading file. Ensure it is a valid Excel file.");
+            console.error(err);
+          }
+        };
+        reader.readAsBinaryString(file);
+        // Reset input so same file can be selected again if needed
+        e.target.value = null;
+      };
+
+      const filtered = patients.filter(p => 
+        (p.name || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+        (p.mrn || "").includes(searchTerm)
       );
 
       return (
         <div className="wrap">
           <div className="app">
             
-            {/* Header */}
             <div className="topbar">
               <div className="title">
                 <h1>Unit E Ward Rounds</h1>
                 <div className="subtitle">
                   <div className={`dot ${isOnline ? 'online' : 'offline'}`}></div>
-                  <span>{isOnline ? "System Online" : "Offline Mode"}</span>
-                  { !db && <span style={{opacity:0.6}}>(Demo Data)</span> }
+                  <span>{isOnline ? "Online" : "Offline"}</span>
                 </div>
               </div>
               <div className="actions">
-                <button className="btn btn-ghost" onClick={handleExport}>
-                  📥 Export Excel
-                </button>
-                <button className="btn btn-primary" onClick={handleAddPatient}>
-                  + New Patient
-                </button>
-              </div>
-            </div>
-
-            {/* Controls */}
-            <div className="controls">
-              <div className="row">
+                {/* Hidden File Input */}
                 <input 
-                  type="text" 
-                  className="search-box" 
-                  placeholder="Search by Name or MRN..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
+                  type="file" 
+                  ref={fileInputRef} 
+                  style={{display:'none'}} 
+                  accept=".xlsx, .xls"
+                  onChange={handleImport} 
                 />
-              </div>
-              <div className="pillRow">
-                {['All', 'Active', 'Discharge Pending', 'Critical'].map(type => (
-                  <div 
-                    key={type} 
-                    className={`pill ${filter === type ? 'active' : ''}`}
-                    onClick={() => setFilter(type)}
-                  >
-                    {type}
-                  </div>
-                ))}
+                
+                <button className="btn btn-ghost" onClick={triggerImport}>
+                  📂 Import
+                </button>
+                <button className="btn btn-ghost" onClick={handleExport}>
+                  📥 Export
+                </button>
+                <button className="btn btn-primary" onClick={addPatient}>
+                  + Add
+                </button>
               </div>
             </div>
 
-            {/* Main Content */}
+            <div className="controls">
+              <input 
+                className="search-box" 
+                placeholder="Search Name or MRN..." 
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+              />
+            </div>
+
             <div className="content-area">
               {loading ? (
-                <div className="empty-state">Loading Data...</div>
-              ) : filteredPatients.length === 0 ? (
-                <div className="empty-state">No patients found. Click "+ New Patient" to add one.</div>
+                <div style={{padding:20, textAlign:'center'}}>Loading...</div>
               ) : (
                 <table>
                   <thead>
                     <tr>
                       <th width="80">Bed</th>
-                      <th width="200">Patient Details</th>
-                      <th>Diagnosis / Issues</th>
-                      <th>Plan / Notes</th>
-                      <th width="50"></th>
+                      <th width="220">Patient Info</th>
+                      <th>Diagnosis</th>
+                      <th>Plan</th>
+                      <th width="40"></th>
                     </tr>
                   </thead>
                   <tbody>
-                    {filteredPatients.map(p => (
+                    {filtered.map(p => (
                       <tr key={p.id}>
                         <td>
                           <input 
                             className="table-input" 
                             value={p.bed} 
                             placeholder="Bed"
-                            onChange={(e) => handleUpdate(p.id, 'bed', e.target.value)}
+                            onChange={e => updatePatient(p.id, 'bed', e.target.value)}
                           />
                         </td>
                         <td>
                           <input 
                             className="table-input" 
-                            style={{fontWeight:'bold'}} 
+                            style={{fontWeight:'700', color:'black'}} 
                             value={p.name} 
                             placeholder="Name"
-                            onChange={(e) => handleUpdate(p.id, 'name', e.target.value)}
+                            onChange={e => updatePatient(p.id, 'name', e.target.value)}
                           />
                           <input 
                             className="table-input" 
-                            style={{fontSize:'12px', color:'#666'}} 
+                            style={{fontSize:'13px', color:'#666'}} 
                             value={p.mrn} 
                             placeholder="MRN"
-                            onChange={(e) => handleUpdate(p.id, 'mrn', e.target.value)}
+                            onChange={e => updatePatient(p.id, 'mrn', e.target.value)}
                           />
                         </td>
                         <td>
                           <textarea 
                             className="table-input" 
                             value={p.diagnosis} 
-                            placeholder="Diagnosis"
-                            rows={2}
-                            onChange={(e) => handleUpdate(p.id, 'diagnosis', e.target.value)}
+                            placeholder="Diagnosis..."
+                            rows={3}
+                            onChange={e => updatePatient(p.id, 'diagnosis', e.target.value)}
                           />
                         </td>
                         <td>
                           <textarea 
                             className="table-input" 
                             value={p.plan} 
-                            placeholder="Daily plan..."
-                            rows={2}
-                            onChange={(e) => handleUpdate(p.id, 'plan', e.target.value)}
+                            placeholder="Plan..."
+                            rows={3}
+                            onChange={e => updatePatient(p.id, 'plan', e.target.value)}
                           />
                         </td>
-                        <td>
-                          <button className="btn btn-danger btn-small" onClick={() => handleDelete(p.id)}>×</button>
+                        <td style={{verticalAlign:'middle'}}>
+                          <button className="btn btn-danger" onClick={() => deletePatient(p.id)}>×</button>
                         </td>
                       </tr>
                     ))}
+                    {filtered.length === 0 && (
+                      <tr>
+                        <td colSpan="5" style={{textAlign:'center', padding:30, color:'#999'}}>
+                          No patients found.
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               )}
