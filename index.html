@@ -30,7 +30,6 @@
     .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
     .btn:active{ transform:translateY(1px); }
     .btn-white{ background:white; color:var(--green); }
-    .btn-red{ background:#fee2e2; color:#b91c1c; }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
 
     /* FILTERS */
@@ -200,7 +199,6 @@
 
       const update = (id, f, v) => db && db.ref(`patients/${id}`).update({[f]:v});
       const del = (id) => confirm("Delete patient?") && db && db.ref(`patients/${id}`).remove();
-      const resetDB = () => confirm("⚠️ RESET DATABASE: Delete ALL patients?") && db && db.ref('patients').remove();
       const loadMaster = () => {
         if(confirm("Load Master List?")) {
           MASTER_DATA.forEach(p => db && db.ref('patients').push({...p, timestamp:Date.now()}));
@@ -220,59 +218,40 @@
           const wb = XLSX.utils.book_new();
           const wsData = [];
           
-          // 1. Title Row
           wsData.push(["UNIT E WARD ROUNDS REPORT"]);
           wsData.push(["Generated: " + new Date().toLocaleString()]);
-          wsData.push([]); // Spacer
+          wsData.push([]); 
 
-          // 2. Headers
           const headers = ["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"];
           wsData.push(headers);
 
-          // 3. Data Loop
           groups.sortedKeys.forEach(ward => {
-             // Ward Header Row
              wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
-
-             // Patient Rows
              groups.g[ward].forEach(p => {
-                wsData.push([
-                   p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan
-                ]);
+                wsData.push([p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan]);
              });
           });
 
           const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-          // 4. APPLY STYLES
-          // Define standard styles
+          // Apply Styles
           const headerStyle = { font: { bold: true, color: { rgb: "000000" } }, fill: { fgColor: { rgb: "E2E8F0" } }, border: { bottom: { style: "thin" } } };
-          const wardStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E40AF" } } }; // Blue
+          const wardStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E40AF" } } }; 
           const cellStyle = { border: { top: {style:'thin', color:{rgb:"CCCCCC"}}, bottom: {style:'thin', color:{rgb:"CCCCCC"}}, left: {style:'thin', color:{rgb:"CCCCCC"}}, right: {style:'thin', color:{rgb:"CCCCCC"}} } };
           
-          // Apply Column Widths
           ws['!cols'] = [{wch:15}, {wch:8}, {wch:22}, {wch:12}, {wch:30}, {wch:15}, {wch:12}, {wch:40}];
 
-          // Loop through cells to apply styles
-          // Note: Row 0 = Title, Row 1 = Date, Row 2 = Empty, Row 3 = Headers
           Object.keys(ws).forEach(cellAddr => {
              if(cellAddr.startsWith('!')) return;
              const cell = ws[cellAddr];
-             const row = parseInt(cellAddr.replace(/[A-Z]/g, '')) - 1; // 0-indexed
+             const row = parseInt(cellAddr.replace(/[A-Z]/g, '')) - 1; 
 
-             // Title Styling
              if(row === 0) { cell.s = { font: { bold: true, sz: 16 } }; }
-             
-             // Header Row (Row 3)
              else if(row === 3) { cell.s = headerStyle; }
-
-             // Data Rows
              else if(row > 3) {
-                // If it's a Ward Header Row (Value matches a known ward name in uppercase)
                 if(typeof cell.v === 'string' && groups.sortedKeys.map(k=>k.toUpperCase()).includes(cell.v)) {
                     cell.s = wardStyle;
                 } else {
-                    // Normal Cell
                     cell.s = cellStyle;
                 }
              }
@@ -320,7 +299,6 @@
             </div>
             <div className="actions">
               <button className="btn btn-blue" onClick={loadMaster}>📥 Load Master List</button>
-              <button className="btn btn-red" onClick={resetDB}>⚠️ Reset DB</button>
               <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
               <button className="btn btn-white" onClick={exportFancyExcel}>📤 Export Excel</button>
             </div>
@@ -358,4 +336,14 @@
                              <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
                              <input className="inp" style={{width:'90px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
                         </div>
-                        <in
+                        <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
+                      </div>
+                      <div className="col-3">
+                           <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                      </div>
+                      <div className="card-actions">
+                           <select className={`status-select ${getStatusClass(p.status)}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}>
+                              <option value="">- Status -</option>
+                              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                           </select>
+                           <button className="btn
