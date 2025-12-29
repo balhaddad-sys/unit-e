@@ -1,0 +1,509 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Unit E Ward Rounds</title>
+
+  <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+
+  <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <!-- ✅ Firebase Auth (needed for secure rules using auth != null) -->
+  <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+      background: #f5f5f5;
+      padding: 16px;
+      line-height: 1.5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+      overflow: hidden;
+    }
+    .header {
+      background: linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%);
+      color: white;
+      padding: 24px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .header h1 { font-size: 24px; font-weight: 600; }
+    .header-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 14px;
+      font-weight: 500;
+      transition: all 0.2s;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .btn-primary { background: white; color: #2e7d32; }
+    .btn-primary:hover { background: #f5f5f5; }
+    .btn-secondary { background: rgba(255,255,255,0.2); color: white; border: 1px solid rgba(255,255,255,0.3); }
+    .btn-secondary:hover { background: rgba(255,255,255,0.3); }
+    .btn-danger { background: #d32f2f; color: white; }
+    .btn-danger:hover { background: #b71c1c; }
+    .btn-success { background: #388e3c; color: white; }
+    .btn-success:hover { background: #2e7d32; }
+    .btn-small { padding: 6px 12px; font-size: 12px; }
+
+    .controls { padding: 24px; background: #fafafa; border-bottom: 1px solid #e0e0e0; }
+    .shared-info {
+      background: #e3f2fd;
+      border-left: 4px solid #1976d2;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      border-radius: 4px;
+      font-size: 14px;
+      color: #1565c0;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .search-filter { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
+    .search-filter input, .search-filter select {
+      flex: 1; min-width: 200px; padding: 10px 14px;
+      border: 1px solid #ddd; border-radius: 6px; font-size: 14px;
+    }
+
+    .list-type-tabs { display: flex; gap: 8px; margin-bottom: 16px; flex-wrap: wrap; }
+    .tab {
+      padding: 10px 20px; background: white; border: 1px solid #ddd;
+      border-radius: 6px; cursor: pointer; font-size: 14px; transition: all 0.2s;
+      user-select: none;
+    }
+    .tab.active { background: #2e7d32; color: white; border-color: #2e7d32; }
+
+    .content { padding: 24px; }
+
+    .ward-section { margin-bottom: 32px; }
+    .ward-header {
+      background: #1976d2; color: white; padding: 12px 16px;
+      border-radius: 6px; margin-bottom: 12px;
+      display: flex; justify-content: space-between; align-items: center;
+    }
+    /* ✅ ER is separate + highlighted */
+    .er-header { background: #c62828 !important; }
+
+    .patient-table {
+      width: 100%; border-collapse: collapse; margin-bottom: 16px;
+      background: white; border-radius: 6px; overflow: hidden;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    .patient-table thead { background: #e3f2fd; }
+    .patient-table th {
+      padding: 12px; text-align: left; font-weight: 600;
+      font-size: 13px; color: #424242; border-bottom: 2px solid #1976d2;
+    }
+    .patient-table td { padding: 12px; border-bottom: 1px solid #f5f5f5; font-size: 14px; }
+    .patient-table tbody tr:hover { background: #fafafa; }
+    .patient-table tbody tr.discharged { opacity: 0.6; background: #f5f5f5; }
+
+    .status-badge { padding: 4px 10px; border-radius: 12px; font-size: 12px; font-weight: 600; display: inline-block; }
+
+    .status-new-admission { background: #e1bee7; color: #4a148c; } /* ✅ new */
+    .status-long-stay { background: #ffcdd2; color: #c62828; }
+    .status-stable { background: #c8e6c9; color: #2e7d32; }
+    .status-critical { background: #fff59d; color: #f57f17; }
+    .status-discharge { background: #b3e5fc; color: #01579b; }
+
+    .modal-overlay {
+      position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center;
+      z-index: 1000; padding: 16px;
+    }
+    .modal {
+      background: white; border-radius: 12px; padding: 24px;
+      max-width: 600px; width: 100%; max-height: 90vh; overflow-y: auto;
+    }
+    .modal h2 { font-size: 20px; margin-bottom: 20px; color: #2e7d32; }
+    .form-group { margin-bottom: 16px; }
+    .form-group label { display: block; margin-bottom: 6px; font-weight: 500; font-size: 14px; color: #424242; }
+    .form-group input, .form-group select, .form-group textarea {
+      width: 100%; padding: 10px 14px; border: 1px solid #ddd;
+      border-radius: 6px; font-size: 14px; font-family: inherit;
+    }
+    .form-group textarea { resize: vertical; min-height: 80px; }
+    .form-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 24px; }
+
+    .delete-x, .edit-icon {
+      cursor: pointer; padding: 4px 8px; border-radius: 4px; transition: all 0.2s;
+      display: inline-flex; align-items: center; justify-content: center;
+    }
+    .delete-x { color: #d32f2f; font-weight: bold; }
+    .delete-x:hover { background: #ffebee; transform: scale(1.2); }
+    .edit-icon { color: #1976d2; }
+    .edit-icon:hover { background: #e3f2fd; }
+
+    .empty-state { text-align: center; padding: 48px 24px; color: #757575; }
+    .loading-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 400px; color: #757575; }
+    .loading-spinner {
+      width: 48px; height: 48px; border: 4px solid #e0e0e0; border-top-color: #2e7d32;
+      border-radius: 50%; animation: spin 1s linear infinite; margin-bottom: 16px;
+    }
+    .connection-status { font-size: 12px; opacity: 0.9; margin-top: 4px; }
+    .status-dot { height: 8px; width: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+    .status-dot.online { background-color: #4caf50; border: 1px solid white; }
+    .status-dot.offline { background-color: #ff9800; border: 1px solid white; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    @media (max-width: 768px) {
+      body { padding: 0; }
+      .container { border-radius: 0; }
+      .header { padding: 16px; }
+      .patient-table th, .patient-table td { padding: 8px; font-size: 12px; }
+    }
+    @media print {
+      .header-actions, .controls { display: none !important; }
+      .container { box-shadow: none; }
+      body { background: white; }
+    }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+
+  <script type="text/babel">
+    // Firebase Configuration (EUROPE-WEST1)
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTUw2zpoz_lgMrDCt0",
+      authDomain: "unit-e-1d07b.firebaseapp.com",
+      databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "unit-e-1d07b",
+      storageBucket: "unit-e-1d07b.firebasestorage.app",
+      messagingSenderId: "465930916258",
+      appId: "1:465930916258:web:0ec4d4",
+      measurementId: "G-6W2X2BBJLQ"
+    };
+
+    // Initialize Firebase
+    let db = null;
+    let firebaseInitialized = false;
+    try {
+      firebase.initializeApp(firebaseConfig);
+      db = firebase.database();
+      firebaseInitialized = true;
+
+      // ✅ Anonymous sign-in so rules can be auth != null
+      firebase.auth().signInAnonymously().catch(console.error);
+    } catch (error) {
+      console.log('Firebase not configured, using localStorage', error);
+    }
+
+    const { useState, useEffect } = React;
+
+    const STATUS_COLORS = {
+      'New admission': 'status-new-admission',
+      'Long stay': 'status-long-stay',
+      'Stable': 'status-stable',
+      'Critical': 'status-critical',
+      'Discharge': 'status-discharge'
+    };
+
+    function normalizePatient(raw) {
+      // Backwards compatibility:
+      // - old data might have ward instead of location
+      // - keep both, but UI uses location
+      const location = raw.location || raw.ward || '';
+      return {
+        ...raw,
+        location,
+        ward: location // keep ward mirrored so older code/data doesn't break anywhere
+      };
+    }
+
+    function WardRoundsApp() {
+      const [patients, setPatients] = useState([]);
+      const [showModal, setShowModal] = useState(false);
+      const [editingPatient, setEditingPatient] = useState(null);
+
+      const [searchTerm, setSearchTerm] = useState('');
+      const [filterLocation, setFilterLocation] = useState('');
+      const [filterDoctor, setFilterDoctor] = useState('');
+      const [filterStatus, setFilterStatus] = useState('New admission'); // ✅ auto start with New admission
+      const [listType, setListType] = useState('active');
+      const [showDischarged, setShowDischarged] = useState(false);
+
+      const [loading, setLoading] = useState(true);
+      const [lastSync, setLastSync] = useState(null);
+      const [connectionStatus, setConnectionStatus] = useState(firebaseInitialized ? 'connecting' : 'offline');
+
+      const loadFromLocalStorage = () => {
+        const saved = localStorage.getItem('unit-e-patients');
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            setPatients(Array.isArray(parsed) ? parsed.map(normalizePatient) : []);
+          } catch (e) {
+            setPatients([]);
+          }
+        }
+        setLastSync(new Date());
+      };
+
+      useEffect(() => {
+        let patientsRef = null;
+        let safetyTimeout = null;
+
+        if (firebaseInitialized) {
+          safetyTimeout = setTimeout(() => {
+            if (loading) {
+              console.warn("Firebase connection timed out.");
+              if (patients.length === 0) alert("Connection timed out. Switching to offline mode.");
+              loadFromLocalStorage();
+              setConnectionStatus('offline');
+              setLoading(false);
+            }
+          }, 5000);
+
+          try {
+            patientsRef = db.ref('patients');
+            patientsRef.on('value',
+              (snapshot) => {
+                clearTimeout(safetyTimeout);
+                const data = snapshot.val();
+                const arr = data ? Object.values(data).map(normalizePatient) : [];
+                setPatients(arr);
+                setLastSync(new Date());
+                setConnectionStatus('online');
+                setLoading(false);
+              },
+              (error) => {
+                clearTimeout(safetyTimeout);
+                console.error("Firebase Error:", error);
+                alert(`Database Error: ${error.message}\n\nSwitching to offline mode.`);
+                loadFromLocalStorage();
+                setConnectionStatus('offline');
+                setLoading(false);
+              }
+            );
+          } catch (err) {
+            clearTimeout(safetyTimeout);
+            loadFromLocalStorage();
+            setConnectionStatus('offline');
+            setLoading(false);
+          }
+
+          return () => {
+            if (patientsRef) patientsRef.off();
+            if (safetyTimeout) clearTimeout(safetyTimeout);
+          };
+        } else {
+          loadFromLocalStorage();
+          setConnectionStatus('offline');
+          setLoading(false);
+        }
+      }, []);
+
+      useEffect(() => {
+        const saveToFirebase = () => {
+          if (!firebaseInitialized || connectionStatus !== 'online') return;
+          const patientsObj = {};
+          patients.forEach(p => {
+            const toSave = { ...p, location: p.location || p.ward || '' };
+            toSave.ward = toSave.location; // keep mirrored
+            patientsObj[p.id] = toSave;
+          });
+          db.ref('patients').set(patientsObj).catch(() => setConnectionStatus('offline'));
+        };
+
+        if (!loading) {
+          localStorage.setItem('unit-e-patients', JSON.stringify(patients));
+          if (firebaseInitialized && connectionStatus === 'online') {
+            saveToFirebase();
+          }
+        }
+      }, [patients, loading, connectionStatus]);
+
+      const addOrUpdatePatient = (patient) => {
+        const normalized = normalizePatient(patient);
+        if (editingPatient) {
+          setPatients(patients.map(p => p.id === editingPatient.id ? { ...normalized, id: p.id } : p));
+        } else {
+          setPatients([...patients, { ...normalized, id: Date.now() }]);
+        }
+        setShowModal(false);
+        setEditingPatient(null);
+      };
+
+      const deletePatient = (id) => {
+        if (confirm('Permanently delete patient?')) {
+          setPatients(patients.filter(p => p.id !== id));
+        }
+      };
+
+      const dischargePatient = (id) => {
+        if (confirm('Mark patient as DISCHARGED?')) {
+          setPatients(patients.map(p =>
+            p.id === id ? { ...p, status: 'Discharge', dischargedDate: new Date().toISOString() } : p
+          ));
+        }
+      };
+
+      const getFilteredPatients = () => {
+        return patients.filter(p => {
+          const name = (p.patientName || '').toLowerCase();
+          const diag = (p.diagnosis || '').toLowerCase();
+          const room = ((p.room || '') + '').toLowerCase();
+          const loc = (p.location || p.ward || '');
+
+          const matchesSearch = searchTerm === '' ||
+            name.includes(searchTerm.toLowerCase()) ||
+            diag.includes(searchTerm.toLowerCase()) ||
+            room.includes(searchTerm.toLowerCase());
+
+          const matchesLocation = filterLocation === '' || loc === filterLocation;
+          const matchesDoctor = filterDoctor === '' || p.assignedDoctor === filterDoctor;
+          const matchesType = p.listType === listType;
+
+          const matchesStatus = filterStatus === '' || p.status === filterStatus;
+
+          const matchesDischarged = showDischarged || p.status !== 'Discharge';
+
+          return matchesSearch && matchesLocation && matchesDoctor && matchesType && matchesStatus && matchesDischarged;
+        });
+      };
+
+      const filteredPatients = getFilteredPatients();
+
+      // ✅ ER separate
+      const erPatients = filteredPatients.filter(p => (p.location || p.ward || '') === 'ER');
+      const wardPatients = filteredPatients.filter(p => (p.location || p.ward || '') !== 'ER');
+
+      const patientsByLocation = wardPatients.reduce((acc, patient) => {
+        const loc = patient.location || patient.ward || 'Unassigned';
+        if (!acc[loc]) acc[loc] = [];
+        acc[loc].push(patient);
+        return acc;
+      }, {});
+
+      const locations = [...new Set(patients.map(p => (p.location || p.ward || '')).filter(Boolean))].sort((a,b) => {
+        if (a === 'ER') return -1;
+        if (b === 'ER') return 1;
+        return a.localeCompare(b);
+      });
+
+      const doctors = [...new Set(patients.map(p => p.assignedDoctor).filter(Boolean))].sort();
+
+      const exportToExcel = () => {
+        const dataToExport = filteredPatients.map(p => ({
+          Location: (p.location || p.ward || ''),
+          Room: p.room,
+          "Patient Name": p.patientName,
+          Diagnosis: p.diagnosis,
+          "Assigned Doctor": p.assignedDoctor,
+          Status: p.status,
+          "List Type": p.listType,
+          Notes: p.notes,
+          "Discharged Date": p.dischargedDate ? new Date(p.dischargedDate).toLocaleDateString() : ''
+        }));
+
+        if (dataToExport.length === 0) {
+          alert("No patients to export!");
+          return;
+        }
+
+        const ws = XLSX.utils.json_to_sheet(dataToExport);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "Patient List");
+        const dateStr = new Date().toISOString().split('T')[0];
+        XLSX.writeFile(wb, `Unit_E_Rounds_${dateStr}.xlsx`);
+      };
+
+      const importData = (event) => {
+        const file = event.target.files[0];
+        if (file) {
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            try {
+              const data = JSON.parse(e.target.result);
+              const arr = Array.isArray(data) ? data.map(normalizePatient) : [];
+              setPatients(arr);
+              alert(`Imported ${arr.length} patients.`);
+            } catch (error) {
+              alert('Error importing file.');
+            }
+          };
+          reader.readAsText(file);
+        }
+        event.target.value = '';
+      };
+
+      return (
+        <div className="container">
+          <div className="header">
+            <div>
+              <h1>📋 Unit E Ward Rounds</h1>
+              <div className="connection-status">
+                <span className={`status-dot ${connectionStatus === 'online' ? 'online' : 'offline'}`}></span>
+                {connectionStatus === 'online' ? 'Real-time sync active' : 'Offline mode'}
+              </div>
+            </div>
+
+            <div className="header-actions">
+              <button className="btn btn-primary" onClick={() => { setEditingPatient(null); setShowModal(true); }}>
+                + Add Patient
+              </button>
+              <button className="btn btn-success" onClick={exportToExcel}>
+                📊 Export Excel
+              </button>
+              <label className="btn btn-secondary" style={{cursor: 'pointer'}}>
+                📥 Import JSON
+                <input type="file" accept=".json" style={{display: 'none'}} onChange={importData} />
+              </label>
+              <button className="btn btn-secondary" onClick={() => window.print()}>
+                🖨️ Print
+              </button>
+            </div>
+          </div>
+
+          <div className="controls">
+            <div className="shared-info">
+              <span>🌐</span>
+              <span>{connectionStatus === 'online' ? 'Changes are syncing live.' : 'Using local storage only.'}</span>
+            </div>
+
+            <div className="list-type-tabs">
+              <div className={`tab ${listType === 'active' ? 'active' : ''}`} onClick={() => setListType('active')}>Active List</div>
+              <div className={`tab ${listType === 'chronic' ? 'active' : ''}`} onClick={() => setListType('chronic')}>Chronic List</div>
+
+              {/* ✅ quick toggle: start on New admission but allow “All statuses” */}
+              <div className={`tab ${filterStatus === 'New admission' ? 'active' : ''}`} onClick={() => setFilterStatus('New admission')}>
+                New admissions
+              </div>
+              <div className={`tab ${filterStatus === '' ? 'active' : ''}`} onClick={() => setFilterStatus('')}>
+                All statuses
+              </div>
+            </div>
+
+            <div className="search-filter">
+              <input
+                type="text"
+                placeholder="Search name / diagnosis / room..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+              />
+
+              <select value={filterLocation} onChange={(e) => setFilterLocation(e.target.value)}>
+                <option value="">All Locations</option>
+                {locations.map(loc => <option key={loc} value={loc}>{loc}</option>)}
+              </
