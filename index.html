@@ -42,8 +42,20 @@
     .search-bar:focus{ border-color:var(--green); ring:2px solid var(--green); }
 
     /* WARD & CARDS */
-    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .ward-header{ background:var(--blue); color:white; padding:8px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; letter-spacing: 0.5px; }
+    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; }
+    
+    /* COLLAPSIBLE HEADER STYLE */
+    .ward-header{ 
+        background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; letter-spacing: 0.5px; cursor: pointer; user-select: none;
+    }
+    .ward-header:hover { background: #1e3a8a; }
+    .arrow { transition: transform 0.2s; display: inline-block; }
+    .arrow.down { transform: rotate(90deg); }
+    
+    .ward-body { display: block; }
+    .ward-body.collapsed { display: none; }
+
+    .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
     
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
     .p-card:last-child{ border-bottom:none; }
@@ -177,6 +189,9 @@
       const [addModal, setAddModal] = useState(false);
       const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
       
+      // COLLAPSED STATE for Wards
+      const [collapsed, setCollapsed] = useState({});
+
       useEffect(() => {
         if(!db) return;
         const ref = db.ref('patients');
@@ -206,15 +221,23 @@
         }
       };
 
+      // Toggle Ward Collapse
+      const toggleWard = (ward) => {
+          setCollapsed(prev => ({...prev, [ward]: !prev[ward]}));
+      };
+
+      // --- EXCEL EXPORT (ORGANIZED) ---
       const exportWellOrganizedExcel = () => {
           const wb = XLSX.utils.book_new();
           let dataRows = [];
 
           // Headers
-          dataRows.push(["Ward", "Bed", "Name", "MRN", "Diagnosis", "Doctor", "Status", "Plan"]);
+          dataRows.push(["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"]);
 
           groups.sortedKeys.forEach(ward => {
-             // Separator Row
+             // Spacer
+             dataRows.push(["", "", "", "", "", "", "", ""]);
+             // Ward Header Row
              dataRows.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
 
              groups.g[ward].forEach(p => {
@@ -229,12 +252,22 @@
                    p.plan
                 ]);
              });
-             dataRows.push([]); // Spacer
           });
 
           const ws = XLSX.utils.aoa_to_sheet(dataRows);
-          ws['!cols'] = [{wch:15}, {wch:8}, {wch:20}, {wch:10}, {wch:25}, {wch:15}, {wch:12}, {wch:30}];
-          XLSX.utils.book_append_sheet(wb, ws, "Unit E Rounds");
+          // Set Column Widths (Compressibility/Organization for Excel)
+          ws['!cols'] = [
+            {wch:15}, // Ward
+            {wch:8},  // Bed
+            {wch:20}, // Name
+            {wch:10}, // MRN
+            {wch:25}, // Diagnosis
+            {wch:15}, // Doctor
+            {wch:12}, // Status
+            {wch:40}  // Plan
+          ];
+
+          XLSX.utils.book_append_sheet(wb, ws, "Rounds Report");
           XLSX.writeFile(wb, "UnitE_Rounds_Report.xlsx");
       };
 
@@ -300,38 +333,48 @@
 
           {groups.sortedKeys.map(ward => (
             <div key={ward} className="ward-section">
-              <div className="ward-header"><span>{ward}</span><span className="ward-count">{groups.g[ward].length}</span></div>
-              {groups.g[ward].map(p => (
-                <div className="p-card" key={p.id}>
-                  <div className="mobile-row col-1">
-                    <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
-                    <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
+              {/* COLLAPSIBLE HEADER (Compressibility Effect) */}
+              <div className="ward-header" onClick={() => toggleWard(ward)}>
+                  <div style={{display:'flex', alignItems:'center', gap:8}}>
+                      <span className={`arrow ${!collapsed[ward] ? 'down' : ''}`}>▶</span>
+                      <span>{ward}</span>
                   </div>
-                  <div className="col-2">
-                    <div style={{display:'flex', gap:8}}>
-                         <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
-                         <input className="inp" style={{width:'90px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
+                  <span className="ward-count">{groups.g[ward].length}</span>
+              </div>
+
+              <div className={`ward-body ${collapsed[ward] ? 'collapsed' : ''}`}>
+                  {groups.g[ward].map(p => (
+                    <div className="p-card" key={p.id}>
+                      <div className="mobile-row col-1">
+                        <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
+                        <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
+                      </div>
+                      <div className="col-2">
+                        <div style={{display:'flex', gap:8}}>
+                             <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
+                             <input className="inp" style={{width:'90px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
+                        </div>
+                        <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
+                      </div>
+                      <div className="col-3">
+                           <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                      </div>
+                      <div className="card-actions">
+                           <select className={`status-select ${getStatusClass(p.status)}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}>
+                              <option value="">- Status -</option>
+                              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                           </select>
+                           <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                       </div>
                     </div>
-                    <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
-                  </div>
-                  <div className="col-3">
-                       <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
-                  </div>
-                  <div className="card-actions">
-                       <select className={`status-select ${getStatusClass(p.status)}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}>
-                          <option value="">- Status -</option>
-                          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                       </select>
-                       <button className="btn-del" onClick={()=>del(p.id)}>×</button>
-                   </div>
-                </div>
-              ))}
+                  ))}
+              </div>
             </div>
           ))}
 
           {patients.length > 0 && groups.totalCount === 0 && (
              <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
-              No patients found matching your search.
+              No patients found in "{viewFilter}" category matching search.
             </div>
           )}
 
