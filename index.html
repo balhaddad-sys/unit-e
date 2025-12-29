@@ -5,29 +5,30 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <title>Unit E Ward Rounds</title>
 
-  <script crossorigin="anonymous" src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin="anonymous" src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script crossorigin="anonymous" src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-  <script crossorigin="anonymous" src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-  <script crossorigin="anonymous" src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
-
-  <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script crossorigin="anonymous" src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  <script crossorigin src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
+  <script crossorigin src="https://unpkg.com/tesseract.js@5.0.2/dist/tesseract.min.js"></script>
+  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
 
   <style>
+    /* CSS STYLING */
     :root{ --green:#2e7d32; --green2:#1b5e20; --bg:#f0f2f5; --card:#fff; --border:#e5e7eb; --red:#d32f2f; --blue:#1976d2; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:#111827; padding-bottom:60px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:12px; }
     .app{ background:var(--card); border-radius:12px; box-shadow:0 4px 10px rgba(0,0,0,0.05); overflow:hidden; min-height:85vh; display:flex; flex-direction:column; }
 
+    /* Topbar */
     .topbar{ background:linear-gradient(135deg, var(--green), var(--green2)); color:#fff; padding:14px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; }
     .title h1{ margin:0; font-size:20px; font-weight:700; }
     .subtitle{ font-size:12px; opacity:0.9; display:flex; align-items:center; gap:6px; }
     .dot{ width:8px; height:8px; border-radius:50%; background:#ffb300; border:2px solid rgba(255,255,255,0.8); }
     .dot.online{ background:#22c55e; }
 
+    /* Controls */
     .actions{ display:flex; gap:8px; }
     .btn{ border:none; border-radius:8px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:inline-flex; align-items:center; gap:4px; }
     .btn-primary{ background:#fff; color:var(--green); }
@@ -40,6 +41,7 @@
     .pill{ border:1px solid var(--border); background:#fff; padding:6px 12px; border-radius:20px; font-size:12px; font-weight:600; cursor:pointer; white-space:nowrap; color:#666; }
     .pill.active{ background:var(--green); color:#fff; border-color:var(--green); }
 
+    /* Content & Table */
     .content-area{ flex:1; overflow-x:auto; padding:10px; }
     .section{ margin-bottom:16px; border:1px solid var(--border); border-radius:10px; background:#fff; overflow:hidden; }
     .section-header{ background:#f8fafc; padding:10px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--border); }
@@ -48,18 +50,22 @@
     th{ text-align:left; padding:10px; background:#fff; border-bottom:2px solid var(--border); color:#64748b; font-size:11px; text-transform:uppercase; }
     td{ padding:10px; border-bottom:1px solid var(--border); vertical-align:top; }
 
+    /* Specific Input Classes (Replaces inline styles) */
     .inp { width:100%; border:1px solid transparent; padding:4px; border-radius:4px; background:transparent; font-family:inherit; resize:none; font-size:14px; }
     .inp:focus { border-color:var(--green); background:#f0fdf4; outline:none; }
     .inp-bold { font-weight:700; color:#000; }
     .inp-small { font-size:12px; color:#666; }
     .inp-blue { font-size:11px; color:var(--blue); }
 
+    /* Modal */
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.5); display:flex; align-items:center; justify-content:center; z-index:99; padding:10px; }
     .modal{ background:#fff; width:100%; max-width:900px; max-height:90vh; border-radius:12px; display:flex; flex-direction:column; overflow:hidden; }
     .modalHeader{ padding:12px; background:#1e293b; color:#fff; display:flex; justify-content:space-between; align-items:center; }
     .modalBody{ padding:10px; overflow-y:auto; flex:1; }
     .modalFooter{ padding:12px; background:#f8fafc; display:flex; gap:8px; justify-content:flex-end; border-top:1px solid var(--border); }
+    .loading-text { padding: 20px; text-align: center; font-weight: bold; color: var(--green); }
 
+    /* Mobile */
     @media(max-width:768px){
       table, thead, tbody, th, td, tr { display:block; }
       thead tr { position:absolute; top:-9999px; left:-9999px; }
@@ -68,103 +74,22 @@
       td:last-child { border-bottom:none; text-align:right; background:#f8fafc; }
       .inp { background:#f8fafc; border:1px solid #e2e8f0; margin-top:4px; }
       .inp:focus { background:#fff; }
-
+      
+      /* Mobile Labels */
       td:nth-of-type(1):before { content:"Bed / Location"; font-size:10px; font-weight:800; color:#888; display:block; }
       td:nth-of-type(2):before { content:"Patient Name / MRN"; font-size:10px; font-weight:800; color:#888; display:block; }
       td:nth-of-type(3):before { content:"Diagnosis"; font-size:10px; font-weight:800; color:#888; display:block; }
       td:nth-of-type(4):before { content:"Plan"; font-size:10px; font-weight:800; color:#888; display:block; }
     }
-
-    #bootbox{
-      position:fixed; left:10px; right:10px; bottom:10px;
-      background:rgba(17,24,39,0.92); color:#e5e7eb;
-      padding:10px; border-radius:12px; z-index:9999;
-      font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-      font-size:11px; line-height:1.35;
-      max-height:35vh; overflow:auto;
-      box-shadow:0 6px 20px rgba(0,0,0,0.25);
-    }
-    #bootbox .row{ display:flex; gap:8px; align-items:center; justify-content:space-between; }
-    #bootbox button{
-      border:none; border-radius:8px; padding:6px 10px; cursor:pointer;
-      background:#111827; color:#e5e7eb; font-weight:700; font-size:11px;
-    }
-    #bootlog{ margin-top:8px; white-space:pre-wrap; }
   </style>
 </head>
 
 <body>
-  <div id="root" style="padding:40px; text-align:center; color:#666; font-family:sans-serif;">
-    <h2>Loading App…</h2>
-    <p>If this stays, something crashed.</p>
+  <div id="root">
+    <div style="padding:40px; text-align:center; color:#666; font-family:sans-serif;">
+      <h2>Loading...</h2>
+    </div>
   </div>
-
-  <script>
-    (function(){
-      const boot = { lines: [] };
-
-      function ensureUI(){
-        if (document.getElementById('bootbox')) return;
-        const div = document.createElement('div');
-        div.id = 'bootbox';
-        div.innerHTML = `
-          <div class="row">
-            <div><b>Boot Log</b> <span id="bootstatus" style="opacity:.8">starting…</span></div>
-            <button id="boottoggle">Hide</button>
-          </div>
-          <div id="bootlog"></div>
-        `;
-        document.body.appendChild(div);
-        document.getElementById('boottoggle').onclick = () => {
-          const log = document.getElementById('bootlog');
-          const btn = document.getElementById('boottoggle');
-          const hidden = log.style.display === 'none';
-          log.style.display = hidden ? 'block' : 'none';
-          btn.textContent = hidden ? 'Hide' : 'Show';
-        };
-      }
-
-      boot.push = (msg) => {
-        boot.lines.push(`[${new Date().toLocaleTimeString()}] ${msg}`);
-        ensureUI();
-        document.getElementById('bootlog').textContent = boot.lines.slice(-250).join('\n');
-      };
-      boot.status = (msg) => {
-        ensureUI();
-        document.getElementById('bootstatus').textContent = msg;
-      };
-
-      window.__boot = boot;
-
-      window.showFatal = function(msg) {
-        boot.push("FATAL: " + msg);
-        const root = document.getElementById("root");
-        if (root) {
-          root.innerHTML = `
-            <div style="max-width:900px;margin:20px auto;padding:14px;border:1px solid #ef4444;background:#fff1f2;border-radius:10px;font-family:system-ui">
-              <h3 style="margin:0 0 8px 0;color:#b91c1c">App crashed</h3>
-              <pre style="white-space:pre-wrap;margin:0;color:#111827">${String(msg)}</pre>
-            </div>
-          `;
-        }
-      };
-
-      window.addEventListener("error", (e) => {
-        showFatal((e && e.message) ? (e.message + " @ " + (e.lineno||"?") + ":" + (e.colno||"?")) : "Unknown error");
-      });
-      window.addEventListener("unhandledrejection", (e) => {
-        showFatal(e?.reason?.message || e?.reason || "Unhandled promise rejection");
-      });
-
-      document.addEventListener("DOMContentLoaded", () => {
-        boot.push("Boot logger ready");
-        boot.push("React? " + (!!window.React));
-        boot.push("ReactDOM? " + (!!window.ReactDOM));
-        boot.push("Babel? " + (!!window.Babel));
-        boot.push("firebase? " + (!!window.firebase));
-      });
-    })();
-  </script>
 
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
@@ -179,17 +104,16 @@
       appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
     };
 
+    // Safe Firebase Initialization
     let db;
     try {
       if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
       db = firebase.database();
-      __boot.push("Firebase init OK");
-    } catch(e) {
-      console.error(e);
-      showFatal("Firebase Init Error: " + e.message);
-    }
+    } catch(e) { console.error(e); }
 
     const clean = v => (v ?? "").toString().trim();
+    
+    // Bed Sorter
     const sortBed = (a, b) => {
       const na = parseInt(a.bed), nb = parseInt(b.bed);
       return (!isNaN(na) && !isNaN(nb)) ? na - nb : clean(a.bed).localeCompare(clean(b.bed));
@@ -198,64 +122,38 @@
     const App = () => {
       const [patients, setPatients] = useState([]);
       const [loading, setLoading] = useState(true);
-      const [online, setOnline] = useState(navigator.onLine);
+      const [online, setOnline] = useState(true);
       const [search, setSearch] = useState("");
       const [filter, setFilter] = useState("All");
-
+      
       const [modalOpen, setModalOpen] = useState(false);
       const [importData, setImportData] = useState([]);
       const [ocrProgress, setOcrProgress] = useState(null);
       const fileRef = useRef(null);
 
       useEffect(() => {
-        const handleStatus = () => setOnline(navigator.onLine);
-        window.addEventListener('online', handleStatus);
-        window.addEventListener('offline', handleStatus);
+        setOnline(navigator.onLine);
+        window.addEventListener('online', () => setOnline(true));
+        window.addEventListener('offline', () => setOnline(false));
 
-        if (!db) { setLoading(false); return; }
-
-        if (firebase?.auth) {
-          firebase.auth().signInAnonymously()
-            .then(() => __boot.push("Auth: anonymous OK"))
-            .catch(err => __boot.push("Auth FAILED: " + err.message));
-        }
-
-        const ref = db.ref('patients');
-        ref.on(
-          'value',
-          snap => {
+        if (db) {
+          const ref = db.ref('patients');
+          ref.on('value', snap => {
             const val = snap.val();
-            const list = val ? Object.keys(val).map(k => ({ id:k, ...val[k] })) : [];
+            const list = val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : [];
             setPatients(list);
             setLoading(false);
-            __boot.status("running ✅");
-          },
-          err => {
-            console.error(err);
-            showFatal("Firebase DB Error: " + err.message);
-            setLoading(false);
-          }
-        );
-
-        return () => {
-          ref.off();
-          window.removeEventListener('online', handleStatus);
-          window.removeEventListener('offline', handleStatus);
-        };
+          });
+        } else {
+          setLoading(false); 
+        }
       }, []);
 
-      const update = (id, field, val) => db && db.ref(`patients/${id}`).update({ [field]: val });
-      const add = (loc) => db && db.ref('patients').push({
-        location: clean(loc),
-        bed:"",
-        name:"",
-        mrn:"",
-        diagnosis:"",
-        plan:"",
-        timestamp: Date.now()
-      });
+      // Database Actions
+      const update = (id, field, val) => db && db.ref(`patients/${id}`).update({[field]:val});
+      const add = (loc) => db && db.ref('patients').push({ location:clean(loc), bed:"", name:"", mrn:"", diagnosis:"", plan:"", timestamp:Date.now() });
       const del = (id) => confirm("Delete?") && db && db.ref(`patients/${id}`).remove();
-
+      
       const exportExcel = () => {
         const data = patients.map(({id, timestamp, ...rest}) => rest);
         const ws = XLSX.utils.json_to_sheet(data);
@@ -264,19 +162,20 @@
         XLSX.writeFile(wb, "Rounds.xlsx");
       };
 
+      // Import Logic
       const handleFile = async (e) => {
         const file = e.target.files?.[0];
         if(!file) return;
         const name = file.name.toLowerCase();
-
+        
         try {
+          // EXCEL
           if(name.endsWith('.xlsx') || name.endsWith('.xls')) {
             const reader = new FileReader();
             reader.onload = (evt) => {
               const wb = XLSX.read(evt.target.result, {type:'binary'});
               const ws = wb.Sheets[wb.SheetNames[0]];
               const json = XLSX.utils.sheet_to_json(ws);
-
               const mapped = json.map(r => {
                 const k = Object.keys(r).reduce((acc, key) => ({...acc, [key.toLowerCase()]: r[key]}), {});
                 return {
@@ -289,63 +188,36 @@
                   timestamp: Date.now()
                 };
               }).filter(p => p.name || p.bed);
-
               setImportData(mapped);
               setModalOpen(true);
               setOcrProgress(null);
             };
             reader.readAsBinaryString(file);
-          } else if(name.match(/\.(jpg|jpeg|png|webp)$/)) {
+          } 
+          // IMAGE OCR
+          else if(name.match(/\.(jpg|jpeg|png|webp)$/)) {
             setModalOpen(true);
             setOcrProgress(0);
             setImportData([]);
-
             const res = await Tesseract.recognize(file, 'eng', {
               logger: m => m.status === 'recognizing text' && setOcrProgress(m.progress)
             });
-
             const lines = res.data.text.split('\n').filter(l => l.trim().length > 4);
-            setImportData(lines.map(l => ({
-              name: l,
-              bed: "?",
-              mrn: "",
-              diagnosis: "",
-              plan: "",
-              location: "",
-              timestamp: Date.now()
-            })));
+            setImportData(lines.map(l => ({ name:l, bed:"?", diagnosis:"", plan:"", timestamp:Date.now() })));
             setOcrProgress(null);
           }
-        } catch(err) {
-          showFatal("Import Error: " + err.message);
-        }
-
-        e.target.value = null;
-      };
-
-      const confirmImport = () => {
-        if(!db) return;
-        importData.forEach(p => db.ref('patients').push(p));
-        setModalOpen(false);
-        setImportData([]);
-        setOcrProgress(null);
+        } catch(err) { alert("Import Error: " + err.message); }
+        e.target.value = null; 
       };
 
       const groups = useMemo(() => {
         const g = {};
-        const s = search.toLowerCase();
-
-        const filtered = patients.filter(p => {
-          const hay = (p.name + " " + (p.mrn||"") + " " + (p.bed||"") + " " + (p.location||"") + " " + (p.diagnosis||"") + " " + (p.plan||"")).toLowerCase();
-          return hay.includes(s);
-        });
-
+        const filtered = patients.filter(p => (p.name+p.mrn+p.bed).toLowerCase().includes(search.toLowerCase()));
         filtered.forEach(p => {
           const loc = p.location || "Unassigned";
           if(!g[loc]) g[loc] = [];
           g[loc].push(p);
         });
-
         Object.keys(g).forEach(k => g[k].sort(sortBed));
         return g;
       }, [patients, search]);
@@ -353,7 +225,7 @@
       return (
         <div className="wrap">
           <div className="app">
-
+            
             <div className="topbar">
               <div className="title">
                 <h1>Unit E Ward Rounds</h1>
@@ -361,10 +233,9 @@
                   <span className={`dot ${online?'online':''}`}></span> {online?'Online':'Offline'}
                 </div>
               </div>
-
               <div className="actions">
-                <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls,.jpg,.png,.jpeg,.webp" />
-                <button className="btn btn-ghost" onClick={() => fileRef.current && fileRef.current.click()}>📷 / 📂 Import</button>
+                <input type="file" ref={fileRef} hidden onChange={handleFile} accept=".xlsx,.xls,.jpg,.png" />
+                <button className="btn btn-ghost" onClick={() => fileRef.current.click()}>📷 / 📂 Import</button>
                 <button className="btn btn-ghost" onClick={exportExcel}>📥 Export</button>
                 <button className="btn btn-primary" onClick={() => add("")}>+ Add</button>
               </div>
@@ -381,25 +252,15 @@
 
             <div className="content-area">
               {loading && <div style={{padding:20}}>Loading Data...</div>}
-
+              
               {!loading && Object.keys(groups).sort().map(loc => (
                 <div key={loc} className="section">
                   <div className="section-header">
                     <span>{loc} ({groups[loc].length})</span>
                     <button className="btn btn-ghost" style={{color:'#000', padding:'4px 8px'}} onClick={()=>add(loc==='Unassigned'?'':loc)}>+ Add</button>
                   </div>
-
                   <table>
-                    <thead>
-                      <tr>
-                        <th width="80">Bed</th>
-                        <th>Patient</th>
-                        <th>Diagnosis</th>
-                        <th>Plan</th>
-                        <th width="30"></th>
-                      </tr>
-                    </thead>
-
+                    <thead><tr><th width="80">Bed</th><th>Patient</th><th>Diagnosis</th><th>Plan</th><th width="30"></th></tr></thead>
                     <tbody>
                       {groups[loc].map(p => (
                         <tr key={p.id}>
@@ -409,20 +270,16 @@
                               <input className="inp inp-blue" value={p.location || ""} placeholder="Loc?" onChange={e=>update(p.id, 'location', e.target.value)} />
                             )}
                           </td>
-
                           <td>
                             <input className="inp inp-bold" value={p.name || ""} placeholder="Name" onChange={e=>update(p.id, 'name', e.target.value)} />
                             <input className="inp inp-small" value={p.mrn || ""} placeholder="MRN" onChange={e=>update(p.id, 'mrn', e.target.value)} />
                           </td>
-
                           <td>
                             <textarea className="inp" rows={2} value={p.diagnosis || ""} placeholder="..." onChange={e=>update(p.id, 'diagnosis', e.target.value)} />
                           </td>
-
                           <td>
                             <textarea className="inp" rows={2} value={p.plan || ""} placeholder="..." onChange={e=>update(p.id, 'plan', e.target.value)} />
                           </td>
-
                           <td>
                             <button className="btn btn-danger" onClick={()=>del(p.id)}>×</button>
                           </td>
@@ -432,13 +289,45 @@
                   </table>
                 </div>
               ))}
-
-              {!loading && patients.length === 0 && (
-                <div style={{padding:20, color:'#999', textAlign:'center'}}>No patients found. Click + Add</div>
-              )}
+              
+              {!loading && patients.length === 0 && <div style={{padding:20, color:'#999', textAlign:'center'}}>No patients found. Click + Add</div>}
             </div>
 
             {modalOpen && (
               <div className="modalOverlay">
                 <div className="modal">
-             
+                  <div className="modalHeader">
+                    <span>Import Preview</span>
+                    <button className="btn btn-danger" onClick={()=>{setModalOpen(false); setOcrProgress(null);}}>×</button>
+                  </div>
+                  <div className="modalBody">
+                    {ocrProgress !== null ? (
+                      <div className="loading-text">Reading Image... {Math.round(ocrProgress*100)}%</div>
+                    ) : (
+                      <table>
+                        <thead><tr><th>Bed</th><th>Name</th><th>Diagnosis</th></tr></thead>
+                        <tbody>
+                          {importData.map((r,i) => (
+                            <tr key={i}><td>{r.bed}</td><td>{r.name}</td><td>{r.diagnosis}</td></tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                  <div className="modalFooter">
+                     <button className="btn btn-primary" onClick={() => { importData.forEach(p => db && db.ref('patients').push(p)); setModalOpen(false); }}>Confirm</button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+          </div>
+        </div>
+      );
+    };
+
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<App />);
+  </script>
+</body>
+</html>
