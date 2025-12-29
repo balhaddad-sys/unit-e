@@ -70,11 +70,6 @@
     .inp-doc { font-size:12px; color:#64748b; font-weight:600; width:110px; }
     .inp-area { min-height:60px; }
 
-    /* BADGES */
-    .badge { padding: 4px 8px; border-radius: 4px; font-size: 11px; font-weight: 700; text-transform: uppercase; }
-    .badge-crit { background: #fee2e2; color: #b91c1c; }
-    .badge-stable { background: #ecfccb; color: #3f6212; }
-
     /* DELETE BUTTON */
     .btn-del { width:32px; height:32px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; display:flex; align-items:center; justify-content:center; }
     .btn-del:hover { background: #fee2e2; }
@@ -90,7 +85,7 @@
     .form-group select, .form-group input { width:100%; padding:10px; border:1px solid #cbd5e1; border-radius:6px; font-size:14px; background: #fff; }
     .modal-foot { padding:16px; background:#f8fafc; border-top:1px solid #eee; display:flex; justify-content:flex-end; gap:10px; }
 
-    /* DESKTOP LAYOUT */
+    /* RESPONSIVE LAYOUT */
     @media(min-width: 768px) {
       .p-card { flex-direction:row; align-items:flex-start; gap: 20px; }
       .col-1 { width: 140px; display:flex; flex-direction:column; gap:8px; }
@@ -112,7 +107,7 @@
   <script type="text/babel">
     const { useState, useEffect, useRef, useMemo } = React;
 
-    // --- MASTER LIST DATA (From your JSON) ---
+    // --- 1. YOUR MASTER LIST DATA (Embedded) ---
     const MASTER_LIST = [
       { id:1, ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"", plan:"" },
       { id:2, ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"", plan:"" },
@@ -183,15 +178,24 @@
 
       // --- LOAD DATA ---
       useEffect(() => {
-        if (!db) { setLoading(false); return; }
+        // SAFETY TIMER: If Firebase is slow, force loading to finish in 2 seconds
+        const timer = setTimeout(() => setLoading(false), 2000);
+
+        if (!db) return;
+        
         const ref = db.ref('patients');
         ref.on('value', snap => {
           const val = snap.val();
           const list = val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : [];
           setPatients(list);
-          setLoading(false);
+          setLoading(false); // Success load
+          clearTimeout(timer);
         });
-        return () => ref.off();
+
+        return () => {
+          ref.off();
+          clearTimeout(timer);
+        };
       }, []);
 
       // --- ACTIONS ---
@@ -212,8 +216,9 @@
         }
       };
 
+      // FUNCTION TO LOAD YOUR SPECIFIC LIST
       const loadDefaults = () => {
-        if(confirm(`Add ${MASTER_LIST.length} patients from Master Shifu's list?`)) {
+        if(confirm(`Load ${MASTER_LIST.length} patients from Master Shifu's list?`)) {
            MASTER_LIST.forEach(p => db && db.ref('patients').push({ ...p, timestamp:Date.now() }));
         }
       };
@@ -236,29 +241,26 @@
           try {
             const wb = XLSX.read(evt.target.result, {type:'binary'});
             const ws = wb.Sheets[wb.SheetNames[0]];
-            // Get raw data (array of arrays) to handle merged headers
             const rawData = XLSX.utils.sheet_to_json(ws, {header:1});
             
             let currentWard = "Unassigned";
             const processed = [];
 
-            // Skip row 0 (headers) usually
-            for(let i=1; i<rawData.length; i++) {
+            for(let i=0; i<rawData.length; i++) {
                const row = rawData[i];
                if(!row || row.length === 0) continue;
 
-               // Check if it's a Ward Header Row (e.g., just "Ward 19" in first column, empty others)
+               // Check if row is a Ward Header
                const firstCell = clean(row[0]);
-               const hasData = row.slice(1).some(c => clean(c) !== "");
-               
-               if(firstCell.toLowerCase().includes("ward") && !hasData) {
-                  currentWard = firstCell;
-                  continue; 
+               if(firstCell.toLowerCase().includes("ward") || firstCell.toLowerCase().includes("icu") || firstCell.toLowerCase() === "er") {
+                  // Only treat as header if other cells are mostly empty
+                  if(!row[1]) {
+                    currentWard = firstCell;
+                    continue;
+                  }
                }
 
-               // Normal Data Row
-               // Map columns based on your excel screenshot roughly:
-               // [0]Bed, [1]Name, [2]Diagnosis, [3]Doctor, [4]Status
+               // Treat as Data if it has a Bed or Name
                if(row.length > 1) {
                  processed.push({
                    ward: currentWard,
@@ -298,10 +300,9 @@
           (p.name+p.mrn+p.bed+p.diagnosis+p.doctor+p.ward).toLowerCase().includes(s)
         );
 
-        // Normalize Ward Names
         filtered.forEach(p => {
           let w = p.ward || "Unassigned";
-          // Simple fuzzy match to group "Ward 19 (EXT...)" as "Ward 19"
+          // Fuzzy match wards to keep them together
           if(w.toLowerCase().includes("ward 19")) w = "Ward 19";
           else if(w.toLowerCase().includes("ward 20")) w = "Ward 20";
           else if(w.toLowerCase().includes("ward 21")) w = "Ward 21";
@@ -313,10 +314,8 @@
           groups[w].push(p);
         });
 
-        // Sort inside groups
         Object.keys(groups).forEach(k => groups[k].sort(sortPatients));
         
-        // Sort Wards
         const sortedKeys = Object.keys(groups).sort((a,b) => {
           const ia = WARD_ORDER.indexOf(a);
           const ib = WARD_ORDER.indexOf(b);
@@ -347,7 +346,7 @@
             </div>
           </div>
 
-          <div style={{marginTop:10}}>
+          <div style={{marginBottom:10}}>
             <input className="search-bar" placeholder="Search name, bed, diagnosis..." value={search} onChange={e=>setSearch(e.target.value)} />
           </div>
 
@@ -364,13 +363,13 @@
                 {groupedPatients.groups[ward].map(p => (
                   <div className="p-card" key={p.id}>
                     
-                    {/* MOBILE: Flex Row 1 */}
+                    {/* MOBILE: Row 1 (Bed, Doc) */}
                     <div className="mobile-row col-1">
                        <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
                        <input className="inp inp-doc" value={p.doctor} placeholder="Dr..." onChange={e=>update(p.id,'doctor',e.target.value)} />
                     </div>
 
-                    {/* MOBILE: Flex Row 2 (Name) */}
+                    {/* MOBILE: Row 2 (Name, Diagnosis) */}
                     <div className="col-2">
                        <div style={{display:'flex', gap:8}}>
                           <input className="inp inp-name" value={p.name} placeholder="Patient Name" onChange={e=>update(p.id,'name',e.target.value)} />
@@ -379,7 +378,10 @@
                        <input className="inp" style={{color:'#334155'}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
                     </div>
 
-                    {/* MOBILE: Flex Row 3 (Plan & Action) */}
+                    {/* MOBILE: Row 3 (Plan) */}
                     <div className="col-3">
                        <div style={{display:'flex', gap:10, alignItems:'flex-start'}}>
-                         <textarea
+                         <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                         <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                       </div>
+           
