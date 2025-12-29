@@ -8,7 +8,8 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -32,7 +33,7 @@
     .btn-red{ background:#fee2e2; color:#b91c1c; }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
 
-    /* FILTERS & SEARCH */
+    /* FILTERS */
     .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
     .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
     .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -42,19 +43,16 @@
     .search-bar:focus{ border-color:var(--green); ring:2px solid var(--green); }
 
     /* WARD & CARDS */
-    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); transition: all 0.2s; }
+    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     
-    /* COLLAPSIBLE HEADER STYLE */
     .ward-header{ 
-        background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; letter-spacing: 0.5px; cursor: pointer; user-select: none;
+        background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none;
     }
     .ward-header:hover { background: #1e3a8a; }
     .arrow { transition: transform 0.2s; display: inline-block; }
     .arrow.down { transform: rotate(90deg); }
-    
     .ward-body { display: block; }
     .ward-body.collapsed { display: none; }
-
     .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
     
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
@@ -119,7 +117,6 @@
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef } = React;
 
-    // --- MASTER DATA ---
     const MASTER_DATA = [
       { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"New", plan:"" },
       { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"Chronic", plan:"" },
@@ -188,8 +185,6 @@
       const [viewFilter, setViewFilter] = useState("All"); 
       const [addModal, setAddModal] = useState(false);
       const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
-      
-      // COLLAPSED STATE for Wards
       const [collapsed, setCollapsed] = useState({});
 
       useEffect(() => {
@@ -206,13 +201,11 @@
       const update = (id, f, v) => db && db.ref(`patients/${id}`).update({[f]:v});
       const del = (id) => confirm("Delete patient?") && db && db.ref(`patients/${id}`).remove();
       const resetDB = () => confirm("⚠️ RESET DATABASE: Delete ALL patients?") && db && db.ref('patients').remove();
-      
       const loadMaster = () => {
-        if(confirm("Load Master List (24 patients)?")) {
+        if(confirm("Load Master List?")) {
           MASTER_DATA.forEach(p => db && db.ref('patients').push({...p, timestamp:Date.now()}));
         }
       };
-
       const saveNew = () => {
         if(newP.name) {
           if(db) db.ref('patients').push({...newP, mrn:"", timestamp:Date.now()});
@@ -220,66 +213,80 @@
           setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
         }
       };
+      const toggleWard = (ward) => setCollapsed(prev => ({...prev, [ward]: !prev[ward]}));
 
-      // Toggle Ward Collapse
-      const toggleWard = (ward) => {
-          setCollapsed(prev => ({...prev, [ward]: !prev[ward]}));
-      };
-
-      // --- EXCEL EXPORT (ORGANIZED) ---
-      const exportWellOrganizedExcel = () => {
+      // --- STYLED EXCEL EXPORT ---
+      const exportFancyExcel = () => {
           const wb = XLSX.utils.book_new();
-          let dataRows = [];
+          const wsData = [];
+          
+          // 1. Title Row
+          wsData.push(["UNIT E WARD ROUNDS REPORT"]);
+          wsData.push(["Generated: " + new Date().toLocaleString()]);
+          wsData.push([]); // Spacer
 
-          // Headers
-          dataRows.push(["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"]);
+          // 2. Headers
+          const headers = ["WARD", "BED", "NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"];
+          wsData.push(headers);
 
+          // 3. Data Loop
           groups.sortedKeys.forEach(ward => {
-             // Spacer
-             dataRows.push(["", "", "", "", "", "", "", ""]);
              // Ward Header Row
-             dataRows.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
+             wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
 
+             // Patient Rows
              groups.g[ward].forEach(p => {
-                dataRows.push([
-                   p.ward,
-                   p.bed,
-                   p.name,
-                   p.mrn || "",
-                   p.diagnosis,
-                   p.doctor,
-                   p.status || "-",
-                   p.plan
+                wsData.push([
+                   p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan
                 ]);
              });
           });
 
-          const ws = XLSX.utils.aoa_to_sheet(dataRows);
-          // Set Column Widths (Compressibility/Organization for Excel)
-          ws['!cols'] = [
-            {wch:15}, // Ward
-            {wch:8},  // Bed
-            {wch:20}, // Name
-            {wch:10}, // MRN
-            {wch:25}, // Diagnosis
-            {wch:15}, // Doctor
-            {wch:12}, // Status
-            {wch:40}  // Plan
-          ];
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
 
-          XLSX.utils.book_append_sheet(wb, ws, "Rounds Report");
-          XLSX.writeFile(wb, "UnitE_Rounds_Report.xlsx");
+          // 4. APPLY STYLES
+          // Define standard styles
+          const headerStyle = { font: { bold: true, color: { rgb: "000000" } }, fill: { fgColor: { rgb: "E2E8F0" } }, border: { bottom: { style: "thin" } } };
+          const wardStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E40AF" } } }; // Blue
+          const cellStyle = { border: { top: {style:'thin', color:{rgb:"CCCCCC"}}, bottom: {style:'thin', color:{rgb:"CCCCCC"}}, left: {style:'thin', color:{rgb:"CCCCCC"}}, right: {style:'thin', color:{rgb:"CCCCCC"}} } };
+          
+          // Apply Column Widths
+          ws['!cols'] = [{wch:15}, {wch:8}, {wch:22}, {wch:12}, {wch:30}, {wch:15}, {wch:12}, {wch:40}];
+
+          // Loop through cells to apply styles
+          // Note: Row 0 = Title, Row 1 = Date, Row 2 = Empty, Row 3 = Headers
+          Object.keys(ws).forEach(cellAddr => {
+             if(cellAddr.startsWith('!')) return;
+             const cell = ws[cellAddr];
+             const row = parseInt(cellAddr.replace(/[A-Z]/g, '')) - 1; // 0-indexed
+
+             // Title Styling
+             if(row === 0) { cell.s = { font: { bold: true, sz: 16 } }; }
+             
+             // Header Row (Row 3)
+             else if(row === 3) { cell.s = headerStyle; }
+
+             // Data Rows
+             else if(row > 3) {
+                // If it's a Ward Header Row (Value matches a known ward name in uppercase)
+                if(typeof cell.v === 'string' && groups.sortedKeys.map(k=>k.toUpperCase()).includes(cell.v)) {
+                    cell.s = wardStyle;
+                } else {
+                    // Normal Cell
+                    cell.s = cellStyle;
+                }
+             }
+          });
+
+          XLSX.utils.book_append_sheet(wb, ws, "Rounds");
+          XLSX.writeFile(wb, "UnitE_Rounds_Organized.xlsx");
       };
 
       const groups = useMemo(() => {
         const g = {};
         const s = search.toLowerCase();
-        
         let filteredByView = patients;
-        if(viewFilter !== 'All') {
-            filteredByView = patients.filter(p => (p.status || "") === viewFilter);
-        }
-
+        if(viewFilter !== 'All') filteredByView = patients.filter(p => (p.status || "") === viewFilter);
         const finalFiltered = filteredByView.filter(p => (p.name+p.bed+p.ward+p.diagnosis+p.doctor).toLowerCase().includes(s));
 
         finalFiltered.forEach(p => {
@@ -292,7 +299,6 @@
           else if(w.toLowerCase().includes("ward 5")) w = "Ward 5";
           else if(w.toLowerCase().includes("er")) w = "ER";
           else if(w.toLowerCase().includes("icu")) w = "ICU";
-          
           if(!g[w]) g[w] = [];
           g[w].push(p);
         });
@@ -316,7 +322,7 @@
               <button className="btn btn-blue" onClick={loadMaster}>📥 Load Master List</button>
               <button className="btn btn-red" onClick={resetDB}>⚠️ Reset DB</button>
               <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
-              <button className="btn btn-white" onClick={exportWellOrganizedExcel}>📤 Export Excel</button>
+              <button className="btn btn-white" onClick={exportFancyExcel}>📤 Export Excel</button>
             </div>
           </div>
 
@@ -333,7 +339,6 @@
 
           {groups.sortedKeys.map(ward => (
             <div key={ward} className="ward-section">
-              {/* COLLAPSIBLE HEADER (Compressibility Effect) */}
               <div className="ward-header" onClick={() => toggleWard(ward)}>
                   <div style={{display:'flex', alignItems:'center', gap:8}}>
                       <span className={`arrow ${!collapsed[ward] ? 'down' : ''}`}>▶</span>
@@ -341,7 +346,6 @@
                   </div>
                   <span className="ward-count">{groups.g[ward].length}</span>
               </div>
-
               <div className={`ward-body ${collapsed[ward] ? 'collapsed' : ''}`}>
                   {groups.g[ward].map(p => (
                     <div className="p-card" key={p.id}>
@@ -354,89 +358,4 @@
                              <input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
                              <input className="inp" style={{width:'90px', fontSize:12}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
                         </div>
-                        <input className="inp" style={{color:'#334155', fontWeight:500}} value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
-                      </div>
-                      <div className="col-3">
-                           <textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
-                      </div>
-                      <div className="card-actions">
-                           <select className={`status-select ${getStatusClass(p.status)}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}>
-                              <option value="">- Status -</option>
-                              {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                           </select>
-                           <button className="btn-del" onClick={()=>del(p.id)}>×</button>
-                       </div>
-                    </div>
-                  ))}
-              </div>
-            </div>
-          ))}
-
-          {patients.length > 0 && groups.totalCount === 0 && (
-             <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
-              No patients found in "{viewFilter}" category matching search.
-            </div>
-          )}
-
-          {patients.length === 0 && (
-            <div style={{textAlign:'center', padding:40, color:'#94a3b8'}}>
-              Database empty.<br/><br/>
-              <button className="btn btn-blue" onClick={loadMaster}>Load Master List Now</button>
-            </div>
-          )}
-
-          {addModal && (
-            <div className="modalOverlay">
-              <div className="modal">
-                <div className="modal-head">Add Patient</div>
-                <div className="modal-body">
-                  <div className="form-row">
-                      <div className="form-group">
-                        <label>Ward</label>
-                        <select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>
-                          {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
-                        </select>
-                      </div>
-                      <div className="form-group">
-                        <label>Status</label>
-                        <select className="inp" value={newP.status} onChange={e=>setNewP({...newP, status:e.target.value})}>
-                          {STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}
-                        </select>
-                      </div>
-                  </div>
-                  <div className="form-row">
-                    <div className="form-group">
-                      <label>Bed</label>
-                      <input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} />
-                    </div>
-                    <div className="form-group">
-                      <label>Doctor</label>
-                      <input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Name</label>
-                    <input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} />
-                  </div>
-                  <div className="form-group">
-                    <label>Diagnosis</label>
-                    <input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} />
-                  </div>
-                </div>
-                <div className="modal-foot">
-                  <button className="btn btn-ghost" style={{color:'#333'}} onClick={()=>setAddModal(false)}>Cancel</button>
-                  <button className="btn btn-white" style={{background: 'var(--green)', color:'white'}} onClick={saveNew}>Save</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-        </div>
-      );
-    };
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<App />);
-  </script>
-</body>
-</html>
+                        <in
