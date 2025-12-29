@@ -63,6 +63,7 @@
     if(!firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
+    // LINK UPDATED BY MASTER SHIFU
     const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwH18Yk5D6Ko7c2jiOn721jJ4v-dQFSoLI10FOp6DnDY27L1BFOD-jzSLxwUactSTDw/exec"; 
 
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
@@ -96,24 +97,24 @@
             }
           });
           alert("Sync Complete!");
-        } catch (e) { alert("Sync Error: " + e.message); }
+        } catch (e) { alert("Sync Error: Check Google Script Permissions."); }
       };
 
       const pushToGoogle = async (patientName, field, value) => {
         try {
-          await fetch(GOOGLE_SCRIPT_URL, {
+          fetch(GOOGLE_SCRIPT_URL, {
             method: 'POST',
             mode: 'no-cors',
             body: JSON.stringify({ name: patientName, field: field, value: value })
           });
-        } catch (e) { console.error("Google Push Failed", e); }
+        } catch (e) { console.error("Push Error"); }
       };
 
-      const handleUpdate = (id, patientName, field, value) => {
-        db.ref(`patients/${id}`).update({[field]: value});
-        // Only push identity fields to Google, not clinical plans
+      const handleUpdate = (id, pName, field, val) => {
+        db.ref(`patients/${id}`).update({[field]: val});
+        // Push updates to Google for specific fields
         if(['ward', 'bed', 'doctor', 'status'].includes(field)) {
-          pushToGoogle(patientName, field, value);
+          pushToGoogle(pName, field, val);
         }
       };
 
@@ -164,8 +165,8 @@
                         <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>handleUpdate(p.id, p.name, 'doctor', e.target.value)} />
                       </div>
                       <div className="col-2">
-                        <input className="inp inp-name" value={p.name} placeholder="Name" readOnly />
-                        <input className="inp" value={p.diagnosis} placeholder="Diagnosis" onChange={e=>handleUpdate(p.id, p.name, 'diagnosis', e.target.value)} />
+                        <input className="inp inp-name" value={p.name} readOnly />
+                        <input className="inp" value={p.diagnosis} placeholder="Diagnosis" onChange={e=>db.ref(`patients/${p.id}`).update({diagnosis: e.target.value})} />
                       </div>
                       <div className="col-3"><textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>db.ref(`patients/${p.id}`).update({plan: e.target.value})} /></div>
                       <div style={{display:'flex', gap:6, alignItems:'center'}}><select className="status-select" value={p.status || ""} onChange={e=>handleUpdate(p.id, p.name, 'status', e.target.value)}><option value="">- Status -</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="btn-del" onClick={()=>del(p.id)}>×</button></div>
