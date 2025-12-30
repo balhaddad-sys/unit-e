@@ -27,6 +27,7 @@
     .btn-white{ background:white; color:var(--green); }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
     .btn-red{ background:#fee2e2; color:#dc2626; }
+    .btn-green{ background:#d1fae5; color:var(--green); }
 
     .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
     .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
@@ -103,6 +104,8 @@
     const db = firebase.database();
 
     const SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
+    const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
     const pingSheets = () => {
       const url = `${SHEETS_SYNC_URL}?t=${Date.now()}`;
@@ -307,6 +310,10 @@
         setTimeout(() => setSyncing(false), 2000);
       };
 
+      const openSheet = () => {
+        window.open(SHEET_URL, '_blank');
+      };
+
       const exportExcel = () => {
         const wb = XLSX.utils.book_new();
         const wsData = [
@@ -356,6 +363,7 @@
             </div>
             <div className="actions">
               <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
+              <button className="btn btn-green" onClick={openSheet}>📊 Sheet</button>
               <button className="btn btn-white" onClick={exportExcel}>📤</button>
               <button className="btn btn-blue" onClick={manualSync}>🔄</button>
               <button className="btn btn-red" onClick={cleanupDuplicates}>🧹</button>
