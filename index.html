@@ -8,9 +8,7 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
@@ -21,6 +19,7 @@
 
     .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
     .title h1{ margin:0; font-size:18px; font-weight:800; }
+    .title-row { display: flex; align-items: center; gap: 10px; }
 
     .actions{ display:flex; gap:8px; flex-wrap:wrap; }
     .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
@@ -46,7 +45,7 @@
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
     .p-card:last-child{ border-bottom:none; }
 
-    .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; }
+    .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
     .inp-bed{ width:70px; font-weight:800; text-align:center; color:var(--blue); background:#eff6ff; }
     .inp-name{ font-weight:700; font-size:15px; }
@@ -67,10 +66,14 @@
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); background:#fff; }
     .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
 
-    .sync-indicator { font-size: 11px; padding: 2px 8px; border-radius: 10px; margin-left: 10px; }
-    .sync-indicator.idle { background: rgba(255,255,255,0.2); color: white; }
-    .sync-indicator.syncing { background: #fef08a; color: #854d0e; animation: pulse 1s infinite; }
-    @keyframes pulse { 0%,100%{ opacity:1; } 50%{ opacity:0.6; } }
+    .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
+    .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
+    .sync-badge.syncing { background: #fef08a; color: #854d0e; }
+    
+    .debug-panel { background: #1e293b; color: #94a3b8; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; margin-bottom: 10px; max-height: 100px; overflow-y: auto; }
+    .debug-panel .log { margin: 2px 0; }
+    .debug-panel .log.success { color: #4ade80; }
+    .debug-panel .log.error { color: #f87171; }
 
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
@@ -97,18 +100,17 @@
       appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
     };
 
-    if(window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    if (window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
     const db = firebase.database();
 
     const SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
 
-    // Fast ping - fire and forget
     const pingSheets = () => {
       const url = `${SHEETS_SYNC_URL}?t=${Date.now()}`;
       if (navigator.sendBeacon) {
         navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
       } else {
-        fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(()=>{});
+        fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {});
       }
     };
 
@@ -120,71 +122,71 @@
       const [search, setSearch] = useState("");
       const [viewFilter, setViewFilter] = useState("All");
       const [addModal, setAddModal] = useState(false);
-      const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New", mrn:""});
+      const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
       const [collapsedWards, setCollapsedWards] = useState({});
       const [syncing, setSyncing] = useState(false);
+      const [logs, setLogs] = useState([]);
+      const [showDebug, setShowDebug] = useState(false);
 
-      // Track pending changes for batch sync
-      const pendingSync = useRef(false);
       const syncTimer = useRef(null);
 
-      // Debounced sheet sync - 400ms after last change
+      const log = (msg, type = "info") => {
+        const time = new Date().toLocaleTimeString();
+        setLogs(prev => [...prev.slice(-20), { time, msg, type }]);
+        console.log(`[${time}] ${msg}`);
+      };
+
       const scheduleSheetSync = useCallback(() => {
-        pendingSync.current = true;
         setSyncing(true);
         if (syncTimer.current) clearTimeout(syncTimer.current);
         syncTimer.current = setTimeout(() => {
+          log("Pinging Google Sheet...");
           pingSheets();
-          pendingSync.current = false;
-          setTimeout(() => setSyncing(false), 500);
-        }, 400);
-      }, []);
-
-      // Immediate sync (on blur or critical actions)
-      const immediateSync = useCallback(() => {
-        if (syncTimer.current) clearTimeout(syncTimer.current);
-        pingSheets();
-        pendingSync.current = false;
-        setTimeout(() => setSyncing(false), 500);
+          setTimeout(() => setSyncing(false), 1000);
+        }, 500);
       }, []);
 
       useEffect(() => {
         const ref = db.ref('patients');
+        log("Connecting to Firebase...");
         ref.on('value', snap => {
           const val = snap.val();
-          setPatients(val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : []);
+          const list = val ? Object.keys(val).map(k => ({ id: k, ...val[k] })) : [];
+          setPatients(list);
+          log(`Loaded ${list.length} patients from Firebase`, "success");
         });
         return () => ref.off();
       }, []);
 
-      // Update field in Firebase with timestamp
+      // *** CRITICAL: Update with timestamp ***
       const update = useCallback((id, field, value) => {
-        setSyncing(true);
+        const now = Date.now();
+        log(`Updating ${field} for ${id}, timestamp: ${now}`);
+        
         db.ref(`patients/${id}`).update({
           [field]: value,
-          timestamp: Date.now()
+          timestamp: now
+        }).then(() => {
+          log(`Firebase updated successfully`, "success");
+          scheduleSheetSync();
+        }).catch(err => {
+          log(`Firebase error: ${err.message}`, "error");
         });
-        scheduleSheetSync();
       }, [scheduleSheetSync]);
 
-      // Blur handler - sync immediately when user leaves field
-      const handleBlur = useCallback(() => {
-        if (pendingSync.current) {
-          immediateSync();
-        }
-      }, [immediateSync]);
-
       const del = (id) => {
-        if(!confirm("Delete?")) return;
-        setSyncing(true);
+        if (!confirm("Delete this patient?")) return;
+        log(`Deleting patient ${id}`);
         db.ref(`patients/${id}`).remove().then(() => {
-          immediateSync();
+          log("Deleted from Firebase", "success");
+          pingSheets();
         });
       };
 
-      const toggleWard = (ward) => setCollapsedWards(prev => ({...prev, [ward]: !prev[ward]}));
+      const toggleWard = (ward) => setCollapsedWards(prev => ({ ...prev, [ward]: !prev[ward] }));
 
       const saveNew = () => {
+        const now = Date.now();
         const cleaned = {
           ward: (newP.ward || "Unassigned").trim(),
           bed: (newP.bed || "").trim(),
@@ -194,7 +196,7 @@
           status: (newP.status || "New").trim(),
           plan: (newP.plan || "").trim(),
           mrn: (newP.mrn || "").trim(),
-          timestamp: Date.now()
+          timestamp: now
         };
 
         if (!cleaned.name) {
@@ -202,88 +204,92 @@
           return;
         }
 
-        setSyncing(true);
+        log(`Adding new patient: ${cleaned.name}, timestamp: ${now}`);
         db.ref("patients").push(cleaned).then(() => {
           setAddModal(false);
-          setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status:"New", mrn:""});
-          immediateSync();
+          setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+          log("Patient added to Firebase", "success");
+          pingSheets();
         });
       };
 
-      const exportExcelReport = () => {
+      const manualSync = () => {
+        log("Manual sync triggered");
+        setSyncing(true);
+        pingSheets();
+        setTimeout(() => setSyncing(false), 2000);
+      };
+
+      const exportExcel = () => {
         const wb = XLSX.utils.book_new();
         const wsData = [
           ["UNIT E ROUNDS REPORT"],
           ["DATE: " + new Date().toLocaleDateString()],
           [],
-          ["WARD", "BED", "PATIENT NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN / NOTES"]
+          ["WARD", "BED", "PATIENT NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"]
         ];
-
         groups.sortedKeys.forEach(ward => {
           wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
           groups.g[ward].forEach(p => {
-            wsData.push([p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan]);
+            wsData.push([p.ward, p.bed, p.name, p.mrn || "", p.diagnosis, p.doctor, p.status || "-", p.plan]);
           });
           wsData.push([]);
         });
-
         const ws = XLSX.utils.aoa_to_sheet(wsData);
-        ws['!cols'] = [{wch:15}, {wch:8}, {wch:25}, {wch:12}, {wch:30}, {wch:15}, {wch:15}, {wch:50}];
+        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, { wch: 25 }, { wch: 12 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 50 }];
         XLSX.utils.book_append_sheet(wb, ws, "Rounds");
-        XLSX.writeFile(wb, "UnitE_Rounds_Report.xlsx");
+        XLSX.writeFile(wb, "UnitE_Rounds.xlsx");
       };
 
       const groups = useMemo(() => {
         const g = {};
         let filtered = patients;
-        if(viewFilter !== 'All') filtered = patients.filter(p => p.status === viewFilter);
+        if (viewFilter !== 'All') filtered = patients.filter(p => p.status === viewFilter);
         filtered
-          .filter(p => (String(p.name||"")+String(p.bed||"")+String(p.ward||"")+String(p.diagnosis||"")).toLowerCase().includes(search.toLowerCase()))
+          .filter(p => (String(p.name || "") + String(p.bed || "") + String(p.ward || "") + String(p.diagnosis || "")).toLowerCase().includes(search.toLowerCase()))
           .forEach(p => {
             let w = p.ward || "Unassigned";
-            if(!g[w]) g[w] = [];
+            if (!g[w]) g[w] = [];
             g[w].push(p);
           });
-
-        const sortedKeys = Object.keys(g).sort((a,b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
+        const sortedKeys = Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
         return { g, sortedKeys, totalCount: filtered.length };
       }, [patients, search, viewFilter]);
-
-      // Input component with blur sync
-      const SyncInput = ({ className, value, placeholder, onChange, type = "input" }) => {
-        const props = {
-          className: `inp ${className || ''}`,
-          value: value || '',
-          placeholder,
-          onChange,
-          onBlur: handleBlur
-        };
-        return type === "textarea" ? <textarea {...props} /> : <input {...props} />;
-      };
 
       return (
         <div className="wrap">
           <div className="topbar">
             <div className="title">
-              <h1>Unit E Ward Rounds</h1>
-              <span className={`sync-indicator ${syncing ? 'syncing' : 'idle'}`}>
-                {syncing ? '⏳ Syncing' : '✓ Live'}
-              </span>
+              <div className="title-row">
+                <h1>Unit E Ward Rounds</h1>
+                <span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>
+                  {syncing ? '⏳ Syncing' : '✓ Live'}
+                </span>
+              </div>
             </div>
             <div className="actions">
-              <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add</button>
-              <button className="btn btn-white" onClick={exportExcelReport}>📤 Excel</button>
-              <button className="btn btn-blue" onClick={immediateSync}>🔄 Sync</button>
+              <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
+              <button className="btn btn-white" onClick={exportExcel}>📤 Excel</button>
+              <button className="btn btn-blue" onClick={manualSync}>🔄 Sync</button>
+              <button className="btn btn-white" onClick={() => setShowDebug(!showDebug)}>🐛</button>
             </div>
           </div>
+
+          {showDebug && (
+            <div className="debug-panel">
+              {logs.slice(-10).map((l, i) => (
+                <div key={i} className={`log ${l.type}`}>[{l.time}] {l.msg}</div>
+              ))}
+            </div>
+          )}
 
           <div className="controls-container">
             <div className="filter-row">
               {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
-                <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>{f}</button>
+                <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>
               ))}
             </div>
-            <input className="search-bar" placeholder="Search patients..." value={search} onChange={e=>setSearch(e.target.value)} />
+            <input className="search-bar" placeholder="Search patients..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
           {groups.sortedKeys.map(ward => (
@@ -296,30 +302,29 @@
                 {groups.g[ward].map(p => (
                   <div className="p-card" key={p.id}>
                     <div className="mobile-row col-1">
-                      <SyncInput className="inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
-                      <SyncInput className="inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
+                      <input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
+                      <input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} />
                     </div>
                     <div className="col-2">
-                      <div style={{display:'flex', gap:8}}>
-                        <SyncInput className="inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} />
-                        <SyncInput className="" style={{width:'90px'}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} />
+                      <div style={{ display: 'flex', gap: 8 }}>
+                        <input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} />
+                        <input className="inp" style={{ width: '90px' }} value={p.mrn || ''} placeholder="MRN" onChange={e => update(p.id, 'mrn', e.target.value)} />
                       </div>
-                      <SyncInput value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
+                      <input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} />
                     </div>
                     <div className="col-3">
-                      <SyncInput type="textarea" className="inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} />
+                      <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
                     </div>
-                    <div style={{display:'flex', gap:6, alignItems:'center'}}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
                       <select
-                        className={`status-select status-${(p.status||"").toLowerCase().split('-')[0]}`}
+                        className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`}
                         value={p.status || ""}
-                        onChange={e=>{update(p.id, 'status', e.target.value); immediateSync();}}
-                        onBlur={handleBlur}
+                        onChange={e => update(p.id, 'status', e.target.value)}
                       >
                         <option value="">-</option>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
-                      <button className="btn-del" onClick={()=>del(p.id)}>×</button>
+                      <button className="btn-del" onClick={() => del(p.id)}>×</button>
                     </div>
                   </div>
                 ))}
@@ -334,47 +339,47 @@
                 <div className="modal-body">
                   <div className="form-group">
                     <label>Ward</label>
-                    <select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>
+                    <select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>
                       {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
                     </select>
                   </div>
-                  <div style={{display:'flex', gap:10}}>
-                    <div className="form-group" style={{flex:1}}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div className="form-group" style={{ flex: 1 }}>
                       <label>Bed</label>
-                      <input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} />
+                      <input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} />
                     </div>
-                    <div className="form-group" style={{flex:1}}>
+                    <div className="form-group" style={{ flex: 1 }}>
                       <label>Doctor</label>
-                      <input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} />
+                      <input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} />
                     </div>
                   </div>
                   <div className="form-group">
                     <label>Name</label>
-                    <input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} />
+                    <input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} />
                   </div>
-                  <div style={{display:'flex', gap:10}}>
-                    <div className="form-group" style={{flex:1}}>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div className="form-group" style={{ flex: 1 }}>
                       <label>MRN</label>
-                      <input className="inp" value={newP.mrn} onChange={e=>setNewP({...newP, mrn:e.target.value})} />
+                      <input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} />
                     </div>
-                    <div className="form-group" style={{flex:1}}>
+                    <div className="form-group" style={{ flex: 1 }}>
                       <label>Status</label>
-                      <select className="inp" value={newP.status} onChange={e=>setNewP({...newP, status:e.target.value})}>
+                      <select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
                     </div>
                   </div>
                   <div className="form-group">
                     <label>Diagnosis</label>
-                    <input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} />
+                    <input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} />
                   </div>
                   <div className="form-group">
                     <label>Plan / Notes</label>
-                    <textarea className="inp inp-area" value={newP.plan} onChange={e=>setNewP({...newP, plan:e.target.value})} />
+                    <textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} />
                   </div>
                 </div>
                 <div className="modal-foot">
-                  <button className="btn btn-white" onClick={()=>setAddModal(false)}>Cancel</button>
+                  <button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button>
                   <button className="btn btn-blue" onClick={saveNew}>Save</button>
                 </div>
               </div>
