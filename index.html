@@ -72,6 +72,10 @@
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); background:#fff; }
     .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
 
+    /* Sync indicator */
+    .sync-indicator { font-size: 11px; color: rgba(255,255,255,0.8); }
+    .sync-indicator.syncing { color: #fef08a; }
+
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
       .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
@@ -112,7 +116,7 @@
     // === YOUR GOOGLE APPS SCRIPT WEB APP URL (Sheets Bridge) ===
     const SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
 
-    // Trigger Apps Script without CORS issues (we don't need to read the response)
+    // Trigger Apps Script sync
     function pingSheets(action = "pull") {
       const url = `${SHEETS_SYNC_URL}?action=${encodeURIComponent(action)}&t=${Date.now()}`;
       try {
@@ -140,12 +144,16 @@
       const [addModal, setAddModal] = useState(false);
       const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New", mrn:""});
       const [collapsedWards, setCollapsedWards] = useState({});
+      const [syncing, setSyncing] = useState(false);
 
-      // Debounce sheet sync so we DON'T spam Apps Script on every keystroke
+      // Debounce sheet sync
       const sheetPullTimer = useRef(null);
       const scheduleSheetPull = () => {
         if (sheetPullTimer.current) clearTimeout(sheetPullTimer.current);
-        sheetPullTimer.current = setTimeout(() => pingSheets("pull"), 1200);
+        sheetPullTimer.current = setTimeout(() => {
+          pingSheets("pull");
+          setSyncing(false);
+        }, 1500);
       };
 
       useEffect(() => {
@@ -157,30 +165,37 @@
         return () => ref.off();
       }, []);
 
-      const update = (id, f, v) => {
-        return db.ref(`patients/${id}`).update({[f]:v}).then(() => {
-          // Let Firebase update instantly; also refresh Google Sheet (debounced)
+      // *** KEY FIX: Update timestamp on EVERY field change ***
+      const update = (id, field, value) => {
+        setSyncing(true);
+        return db.ref(`patients/${id}`).update({
+          [field]: value,
+          timestamp: Date.now()  // Always update timestamp!
+        }).then(() => {
           scheduleSheetPull();
         });
       };
 
       const del = (id) => {
         if(!confirm("Delete?")) return;
+        setSyncing(true);
         db.ref(`patients/${id}`).remove().then(() => {
-          pingSheets("pull"); // immediate
+          pingSheets("pull");
+          setSyncing(false);
         });
       };
 
       const toggleWard = (ward) => setCollapsedWards(prev => ({...prev, [ward]: !prev[ward]}));
 
       const loadMaster = () => {
+        setSyncing(true);
         const writes = MASTER_DATA.map(p => db.ref('patients').push({...p, timestamp:Date.now()}));
         Promise.all(writes).then(() => {
           pingSheets("pull");
+          setSyncing(false);
         });
       };
 
-      // Save new patient (this was missing in your code)
       const saveNew = () => {
         const cleaned = {
           ward: (newP.ward || "Unassigned").trim(),
@@ -199,14 +214,22 @@
           return;
         }
 
+        setSyncing(true);
         db.ref("patients").push(cleaned).then(() => {
           setAddModal(false);
           setNewP({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status:"New", mrn:""});
           pingSheets("pull");
+          setSyncing(false);
         });
       };
 
-      // --- IMPROVED EXCEL EXPORT ---
+      const manualSync = () => {
+        setSyncing(true);
+        pingSheets("pull");
+        setTimeout(() => setSyncing(false), 2000);
+      };
+
+      // --- EXCEL EXPORT ---
       const exportExcelReport = () => {
         const wb = XLSX.utils.book_new();
         const wsData = [
@@ -265,12 +288,17 @@
       return (
         <div className="wrap">
           <div className="topbar">
-            <div className="title"><h1>Unit E Ward Rounds</h1></div>
+            <div className="title">
+              <h1>Unit E Ward Rounds</h1>
+              <span className={`sync-indicator ${syncing ? 'syncing' : ''}`}>
+                {syncing ? '⏳ Syncing...' : '✓ Synced'}
+              </span>
+            </div>
             <div className="actions">
               <button className="btn btn-blue" onClick={loadMaster}>📥 Master List</button>
               <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
               <button className="btn btn-white" onClick={exportExcelReport}>📤 Export Excel</button>
-              <button className="btn btn-white" onClick={()=>pingSheets("pull")}>🔄 Sync Sheet</button>
+              <button className="btn btn-white" onClick={manualSync}>🔄 Sync Sheet</button>
             </div>
           </div>
 
