@@ -26,13 +26,14 @@
     .btn:active{ transform:translateY(1px); }
     .btn-white{ background:white; color:var(--green); }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
+    .btn-red{ background:#fee2e2; color:#dc2626; }
 
     .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
     .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
     .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
 
-    .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
+    .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; box-sizing: border-box; }
 
     .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none; }
@@ -69,11 +70,9 @@
     .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
     .sync-badge.syncing { background: #fef08a; color: #854d0e; }
-    
-    .debug-panel { background: #1e293b; color: #94a3b8; padding: 10px; border-radius: 8px; font-family: monospace; font-size: 11px; margin-bottom: 10px; max-height: 100px; overflow-y: auto; }
-    .debug-panel .log { margin: 2px 0; }
-    .debug-panel .log.success { color: #4ade80; }
-    .debug-panel .log.error { color: #f87171; }
+
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
@@ -117,6 +116,27 @@
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
+    // Check if value looks like a timestamp
+    const isTimestamp = (val) => {
+      const s = String(val || "");
+      return s.match(/^\d{4}-\d{2}-\d{2}/) || 
+             s.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i) ||
+             s.match(/^\d{13,}$/) ||
+             s.match(/T\d{2}:\d{2}/) ||
+             s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
+    };
+
+    // Clean bed value
+    const cleanBed = (val) => {
+      if (isTimestamp(val)) return "";
+      return String(val || "").trim();
+    };
+
+    // Create dedupe key
+    const makeKey = (ward, name) => {
+      return `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
+    };
+
     const App = () => {
       const [patients, setPatients] = useState([]);
       const [search, setSearch] = useState("");
@@ -125,22 +145,19 @@
       const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
       const [collapsedWards, setCollapsedWards] = useState({});
       const [syncing, setSyncing] = useState(false);
-      const [logs, setLogs] = useState([]);
-      const [showDebug, setShowDebug] = useState(false);
+      const [toast, setToast] = useState(null);
 
       const syncTimer = useRef(null);
 
-      const log = (msg, type = "info") => {
-        const time = new Date().toLocaleTimeString();
-        setLogs(prev => [...prev.slice(-20), { time, msg, type }]);
-        console.log(`[${time}] ${msg}`);
+      const showToast = (msg) => {
+        setToast(msg);
+        setTimeout(() => setToast(null), 3000);
       };
 
       const scheduleSheetSync = useCallback(() => {
         setSyncing(true);
         if (syncTimer.current) clearTimeout(syncTimer.current);
         syncTimer.current = setTimeout(() => {
-          log("Pinging Google Sheet...");
           pingSheets();
           setTimeout(() => setSyncing(false), 1000);
         }, 500);
@@ -148,37 +165,66 @@
 
       useEffect(() => {
         const ref = db.ref('patients');
-        log("Connecting to Firebase...");
         ref.on('value', snap => {
           const val = snap.val();
-          const list = val ? Object.keys(val).map(k => ({ id: k, ...val[k] })) : [];
+          let list = val ? Object.keys(val).map(k => ({ id: k, ...val[k] })) : [];
+          
+          // Clean bed values on load
+          list = list.map(p => ({
+            ...p,
+            bed: cleanBed(p.bed)
+          }));
+          
           setPatients(list);
-          log(`Loaded ${list.length} patients from Firebase`, "success");
         });
         return () => ref.off();
       }, []);
 
-      // *** CRITICAL: Update with timestamp ***
+      // Check for duplicate
+      const isDuplicate = (ward, name, excludeId = null) => {
+        const key = makeKey(ward, name);
+        return patients.some(p => {
+          if (excludeId && p.id === excludeId) return false;
+          return makeKey(p.ward, p.name) === key;
+        });
+      };
+
       const update = useCallback((id, field, value) => {
-        const now = Date.now();
-        log(`Updating ${field} for ${id}, timestamp: ${now}`);
+        // If updating name, check for duplicates
+        if (field === 'name') {
+          const patient = patients.find(p => p.id === id);
+          if (patient && isDuplicate(patient.ward, value, id)) {
+            showToast("⚠️ Patient with this name already exists in this ward");
+            return;
+          }
+        }
         
+        // If updating ward, check for duplicates
+        if (field === 'ward') {
+          const patient = patients.find(p => p.id === id);
+          if (patient && isDuplicate(value, patient.name, id)) {
+            showToast("⚠️ Patient with this name already exists in target ward");
+            return;
+          }
+        }
+
+        // Clean bed values
+        if (field === 'bed') {
+          value = cleanBed(value);
+        }
+
         db.ref(`patients/${id}`).update({
           [field]: value,
-          timestamp: now
+          timestamp: Date.now()
         }).then(() => {
-          log(`Firebase updated successfully`, "success");
           scheduleSheetSync();
-        }).catch(err => {
-          log(`Firebase error: ${err.message}`, "error");
         });
-      }, [scheduleSheetSync]);
+      }, [patients, scheduleSheetSync]);
 
       const del = (id) => {
         if (!confirm("Delete this patient?")) return;
-        log(`Deleting patient ${id}`);
         db.ref(`patients/${id}`).remove().then(() => {
-          log("Deleted from Firebase", "success");
+          showToast("✓ Patient deleted");
           pingSheets();
         });
       };
@@ -186,17 +232,16 @@
       const toggleWard = (ward) => setCollapsedWards(prev => ({ ...prev, [ward]: !prev[ward] }));
 
       const saveNew = () => {
-        const now = Date.now();
         const cleaned = {
           ward: (newP.ward || "Unassigned").trim(),
-          bed: (newP.bed || "").trim(),
+          bed: cleanBed(newP.bed),
           name: (newP.name || "").trim(),
           diagnosis: (newP.diagnosis || "").trim(),
           doctor: (newP.doctor || "").trim(),
           status: (newP.status || "New").trim(),
           plan: (newP.plan || "").trim(),
           mrn: (newP.mrn || "").trim(),
-          timestamp: now
+          timestamp: Date.now()
         };
 
         if (!cleaned.name) {
@@ -204,19 +249,61 @@
           return;
         }
 
-        log(`Adding new patient: ${cleaned.name}, timestamp: ${now}`);
+        // Check for duplicate
+        if (isDuplicate(cleaned.ward, cleaned.name)) {
+          alert("⚠️ A patient with this name already exists in " + cleaned.ward);
+          return;
+        }
+
         db.ref("patients").push(cleaned).then(() => {
           setAddModal(false);
           setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-          log("Patient added to Firebase", "success");
+          showToast("✓ Patient added");
           pingSheets();
         });
       };
 
+      // Cleanup duplicates
+      const cleanupDuplicates = async () => {
+        if (!confirm("This will remove duplicate patients (keeping the most recent). Continue?")) return;
+        
+        setSyncing(true);
+        showToast("🔄 Cleaning up duplicates...");
+
+        const byKey = {};
+        const toDelete = [];
+
+        patients.forEach(p => {
+          const key = makeKey(p.ward, p.name);
+          if (!byKey[key]) {
+            byKey[key] = p;
+          } else {
+            // Keep newer one
+            const existingTs = Number(byKey[key].timestamp || 0);
+            const newTs = Number(p.timestamp || 0);
+            if (newTs > existingTs) {
+              toDelete.push(byKey[key].id);
+              byKey[key] = p;
+            } else {
+              toDelete.push(p.id);
+            }
+          }
+        });
+
+        // Delete duplicates
+        for (const id of toDelete) {
+          await db.ref(`patients/${id}`).remove();
+        }
+
+        showToast(`✓ Removed ${toDelete.length} duplicates`);
+        pingSheets();
+        setSyncing(false);
+      };
+
       const manualSync = () => {
-        log("Manual sync triggered");
         setSyncing(true);
         pingSheets();
+        showToast("🔄 Syncing with Google Sheet...");
         setTimeout(() => setSyncing(false), 2000);
       };
 
@@ -231,7 +318,7 @@
         groups.sortedKeys.forEach(ward => {
           wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
           groups.g[ward].forEach(p => {
-            wsData.push([p.ward, p.bed, p.name, p.mrn || "", p.diagnosis, p.doctor, p.status || "-", p.plan]);
+            wsData.push([p.ward, cleanBed(p.bed), p.name, p.mrn || "", p.diagnosis, p.doctor, p.status || "-", p.plan]);
           });
           wsData.push([]);
         });
@@ -261,27 +348,19 @@
           <div className="topbar">
             <div className="title">
               <div className="title-row">
-                <h1>Unit E Ward Rounds</h1>
+                <h1>Unit E</h1>
                 <span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>
-                  {syncing ? '⏳ Syncing' : '✓ Live'}
+                  {syncing ? '⏳' : '✓'} {patients.length}
                 </span>
               </div>
             </div>
             <div className="actions">
               <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
-              <button className="btn btn-white" onClick={exportExcel}>📤 Excel</button>
-              <button className="btn btn-blue" onClick={manualSync}>🔄 Sync</button>
-              <button className="btn btn-white" onClick={() => setShowDebug(!showDebug)}>🐛</button>
+              <button className="btn btn-white" onClick={exportExcel}>📤</button>
+              <button className="btn btn-blue" onClick={manualSync}>🔄</button>
+              <button className="btn btn-red" onClick={cleanupDuplicates}>🧹</button>
             </div>
           </div>
-
-          {showDebug && (
-            <div className="debug-panel">
-              {logs.slice(-10).map((l, i) => (
-                <div key={i} className={`log ${l.type}`}>[{l.time}] {l.msg}</div>
-              ))}
-            </div>
-          )}
 
           <div className="controls-container">
             <div className="filter-row">
@@ -302,7 +381,7 @@
                 {groups.g[ward].map(p => (
                   <div className="p-card" key={p.id}>
                     <div className="mobile-row col-1">
-                      <input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
+                      <input className="inp inp-bed" value={cleanBed(p.bed)} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
                       <input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} />
                     </div>
                     <div className="col-2">
@@ -346,7 +425,7 @@
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div className="form-group" style={{ flex: 1 }}>
                       <label>Bed</label>
-                      <input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} />
+                      <input className="inp" value={newP.bed} placeholder="e.g. 12-2" onChange={e => setNewP({ ...newP, bed: e.target.value })} />
                     </div>
                     <div className="form-group" style={{ flex: 1 }}>
                       <label>Doctor</label>
@@ -385,6 +464,8 @@
               </div>
             </div>
           )}
+
+          {toast && <div className="toast">{toast}</div>}
         </div>
       );
     };
