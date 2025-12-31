@@ -3,14 +3,17 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Unit E Ward Rounds</title>
+  <title>Unit E Ward Rounds - OCR Enabled</title>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  
+  <script src='https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js'></script>
 
   <style>
     :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --red:#dc2626; }
@@ -81,18 +84,14 @@
     .modal-head{ background:var(--purple); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); }
-    .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
-
+    
     .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
     .sync-badge.syncing { background: #fef08a; color: #854d0e; }
 
-    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; }
-
     /* Lab Image Styles */
     .add-lab-area { border: 2px dashed var(--purple); border-radius: 12px; padding: 24px; text-align: center; background: #faf5ff; cursor: pointer; transition: all 0.2s; }
     .add-lab-area:hover { background: #f3e8ff; border-color: #a855f7; }
-    .add-lab-area.dragging { background: #e9d5ff; border-color: #9333ea; }
     .add-lab-icon { font-size: 32px; margin-bottom: 8px; }
     .add-lab-text { font-weight: 600; color: var(--purple); margin-bottom: 4px; }
     .add-lab-hint { font-size: 12px; color: #a855f7; }
@@ -100,36 +99,16 @@
     .lab-images-grid { display: flex; flex-direction: column; gap: 12px; }
     .lab-image-card { background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
     .lab-image-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color: white; }
-    .lab-image-date { font-size: 12px; font-weight: 600; }
-    .lab-image-time { font-size: 11px; opacity: 0.8; }
-    .lab-image-actions { display: flex; gap: 8px; }
     .lab-image-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px; }
-    .lab-image-btn:hover { background: rgba(255,255,255,0.3); }
     .lab-image-btn.delete:hover { background: rgba(239,68,68,0.8); }
-    .lab-image-container { position: relative; cursor: pointer; }
-    .lab-image-container img { width: 100%; display: block; }
-    .lab-image-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
-    .lab-image-container:hover .lab-image-overlay { opacity: 1; }
-    .lab-image-overlay span { color: white; font-weight: 600; font-size: 14px; background: rgba(0,0,0,0.5); padding: 8px 16px; border-radius: 20px; }
-    .lab-image-note { padding: 10px 12px; border-top: 1px solid var(--border); }
-    .lab-image-note input { width: 100%; border: none; background: transparent; font-size: 13px; color: var(--text); }
-    .lab-image-note input::placeholder { color: #94a3b8; }
 
-    /* Fullscreen Image Viewer */
+    /* Image Viewer */
     .image-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: flex; flex-direction: column; }
     .image-viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; color: white; }
-    .image-viewer-title { font-weight: 600; }
-    .image-viewer-close { background: rgba(255,255,255,0.1); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; }
     .image-viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; }
     .image-viewer-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
     .image-viewer-nav { display: flex; justify-content: center; gap: 12px; padding: 16px; }
     .image-viewer-nav button { background: rgba(255,255,255,0.1); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-    .image-viewer-nav button:hover { background: rgba(255,255,255,0.2); }
-    .image-viewer-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
-
-    .empty-labs { text-align: center; padding: 40px 20px; color: #94a3b8; }
-    .empty-labs-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
-    .empty-labs-text { font-size: 14px; }
 
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
@@ -137,7 +116,6 @@
       .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
       .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
     }
-    @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } }
   </style>
 </head>
 <body>
@@ -160,9 +138,6 @@
     const db = firebase.database();
 
     const SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
-    const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
-    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
-
     const pingSheets = () => {
       const url = `${SHEETS_SYNC_URL}?t=${Date.now()}`;
       if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
@@ -171,10 +146,7 @@
 
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
-
     const isTimestamp = (val) => String(val || "").match(/^\d{4}-\d{2}-\d{2}|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s|\d{13,}|T\d{2}:\d{2}/);
-    const cleanBed = (val) => isTimestamp(val) ? "" : String(val || "").trim();
-    const makeKey = (ward, name) => `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
     
     const formatDateTime = (ts) => {
       if (!ts) return { date: "", time: "" };
@@ -185,7 +157,6 @@
       };
     };
 
-    // FIX 1: Aggressive compression for RTDB
     const compressImage = (file, maxWidth = 800) => {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -193,18 +164,10 @@
           const img = new Image();
           img.onload = () => {
             const canvas = document.createElement('canvas');
-            let width = img.width;
-            let height = img.height;
-            
-            if (width > maxWidth) {
-              height = (height * maxWidth) / width;
-              width = maxWidth;
-            }
-            
-            canvas.width = width;
-            canvas.height = height;
+            let width = img.width, height = img.height;
+            if (width > maxWidth) { height = (height * maxWidth) / width; width = maxWidth; }
+            canvas.width = width; canvas.height = height;
             const ctx = canvas.getContext('2d');
-            // Lower quality to 0.5 to prevent "Payload too large" errors
             ctx.drawImage(img, 0, 0, width, height);
             resolve(canvas.toDataURL('image/jpeg', 0.5));
           };
@@ -214,449 +177,496 @@
       });
     };
 
-    // Image Viewer Component
-    const ImageViewer = ({ images, currentIndex, onClose, onNavigate }) => {
-      const current = images[currentIndex];
-      if (!current) return null;
-
-      return (
-        <div className="image-viewer" onClick={onClose}>
-          <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
-            <div className="image-viewer-title">
-              {formatDateTime(current.timestamp).date} • {formatDateTime(current.timestamp).time}
-              {current.note && ` • ${current.note}`}
-            </div>
-            <button className="image-viewer-close" onClick={onClose}>×</button>
-          </div>
-          <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
-            <img src={current.image} alt="Lab result" />
-          </div>
-          {images.length > 1 && (
-            <div className="image-viewer-nav" onClick={e => e.stopPropagation()}>
-              <button onClick={() => onNavigate(currentIndex - 1)} disabled={currentIndex === 0}>
-                ← Previous
-              </button>
-              <span style={{ color: 'white', padding: '10px' }}>{currentIndex + 1} / {images.length}</span>
-              <button onClick={() => onNavigate(currentIndex + 1)} disabled={currentIndex === images.length - 1}>
-                Next →
-              </button>
-            </div>
-          )}
-        </div>
-      );
+    // --- NEW: IMAGE PRE-PROCESSING (Binzarization) ---
+    const preprocessImage = (imageFile) => {
+      return new Promise((resolve) => {
+        const img = new Image();
+        img.src = URL.createObjectURL(imageFile);
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const ctx = canvas.getContext('2d');
+          canvas.width = img.width;
+          canvas.height = img.height;
+          ctx.drawImage(img, 0, 0);
+          
+          const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+          const data = imgData.data;
+          
+          // Make image Black & White for better OCR reading
+          for (let i = 0; i < data.length; i += 4) {
+            const r = data[i], g = data[i + 1], b = data[i + 2];
+            const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+            const val = brightness > 130 ? 255 : 0; 
+            data[i] = data[i + 1] = data[i + 2] = val;
+          }
+          
+          ctx.putImageData(imgData, 0, 0);
+          resolve(canvas.toDataURL('image/jpeg'));
+        };
+      });
     };
 
-    // Lab Modal Component - UPDATED FIX
+    // --- NEW: ROBUST TEXT PARSER ---
+    const robustParse = (text) => {
+      const clean = text.replace(/\|/g, 'I').replace(/O/g, '0').replace(/o/g, '0');
+      const results = {};
+      
+      const patterns = [
+        { key: 'WBC', regex: /(?:WBC|W8C|VBC|Leukocytes).*?(\d+[.,]?\d*)/i },
+        { key: 'Hb',  regex: /(?:Hb|HGB|Hemoglobin|H6B|H8).*?(\d+[.,]?\d*)/i },
+        { key: 'Plt', regex: /(?:PLT|P1T|Platelets).*?(\d{2,})/i },
+        { key: 'Cr',  regex: /(?:Cre|Creatinine|Cr).*?(\d+[.,]?\d*)/i }
+      ];
+
+      patterns.forEach(p => {
+        const lines = clean.split('\n');
+        let found = null;
+        for(let line of lines) {
+          const match = line.match(p.regex);
+          if (match && match[1]) {
+            found = match[1].replace(',', '.');
+            break; 
+          }
+        }
+        if (!found) {
+            const match = clean.match(p.regex);
+            if(match && match[1]) found = match[1].replace(',', '.');
+        }
+        if (found) results[p.key] = found;
+      });
+      return results;
+    };
+
+    // --- UPDATED LAB MODAL WITH OCR ---
     const LabModal = ({ patient, onClose, onSave }) => {
-      // FIX 2: Handle Firebase sparse arrays (Objects) by forcing them into Arrays
       const [labImages, setLabImages] = useState(() => {
         const data = patient.labImages;
         if (!data) return [];
-        if (Array.isArray(data)) return data; 
-        return Object.values(data); 
+        return Array.isArray(data) ? data : Object.values(data); 
       });
-      
-      const [dragging, setDragging] = useState(false);
-      const [viewerIndex, setViewerIndex] = useState(null);
-      const [uploading, setUploading] = useState(false);
-      const [saving, setSaving] = useState(false); // New saving state
-      const fileRef = useRef(null);
-      const cameraRef = useRef(null);
 
-      const handleFile = async (file) => {
-        if (!file || !file.type.startsWith('image/')) return;
+      const [labValues, setLabValues] = useState(() => patient.labValues || []);
+      const [viewMode, setViewMode] = useState('images'); 
+      const [processing, setProcessing] = useState(false);
+      const [statusMsg, setStatusMsg] = useState("");
+      const [saving, setSaving] = useState(false);
+      const fileRef = useRef(null);
+
+      const handleFile = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        setProcessing(true);
+        setStatusMsg("Cleaning image...");
         
-        setUploading(true);
         try {
           const compressed = await compressImage(file);
-          const newImage = {
-            id: Date.now().toString(),
-            image: compressed,
-            timestamp: Date.now(),
-            note: ""
-          };
+          const cleanImageBase64 = await preprocessImage(file);
+          
+          setStatusMsg("Reading numbers...");
+          let extracted = {};
+          try {
+            const worker = await Tesseract.createWorker('eng');
+            await worker.setParameters({
+              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,: '
+            });
+            const ret = await worker.recognize(cleanImageBase64);
+            extracted = robustParse(ret.data.text);
+            await worker.terminate();
+          } catch (ocrErr) {
+            console.error(ocrErr);
+          }
+
+          const timestamp = Date.now();
+          const newImage = { id: timestamp.toString(), image: compressed, timestamp: timestamp, note: "" };
+
+          if (Object.keys(extracted).length > 0) {
+             const newValEntry = { id: timestamp.toString(), date: timestamp, ...extracted };
+             setLabValues(prev => [newValEntry, ...prev]);
+             setViewMode('table'); 
+             setStatusMsg(`Found: WBC ${extracted.WBC||'-'}, Hb ${extracted.Hb||'-'}`);
+          } else {
+             setStatusMsg("Could not read values automatically. Please enter manually.");
+             setViewMode('table');
+          }
+
           setLabImages(prev => [newImage, ...prev]);
         } catch (err) {
-          console.error("Error processing image:", err);
+          console.error(err);
+          setStatusMsg("Error processing.");
         }
-        setUploading(false);
+        setProcessing(false);
+        e.target.value = ''; 
       };
 
-      const handleFileInput = (e) => {
-        const file = e.target.files?.[0];
-        if (file) handleFile(file);
-        e.target.value = '';
+      const handleDeleteVal = (id) => {
+        if(confirm("Delete this entry?")) setLabValues(prev => prev.filter(v => v.id !== id));
       };
 
-      const handleDrop = (e) => {
-        e.preventDefault();
-        setDragging(false);
-        const file = e.dataTransfer.files?.[0];
-        if (file) handleFile(file);
-      };
-
-      const handlePaste = useCallback((e) => {
-        const items = e.clipboardData?.items;
-        if (items) {
-          for (const item of items) {
-            if (item.type.startsWith('image/')) {
-              handleFile(item.getAsFile());
-              break;
-            }
-          }
-        }
-      }, []);
-
-      useEffect(() => {
-        document.addEventListener('paste', handlePaste);
-        return () => document.removeEventListener('paste', handlePaste);
-      }, [handlePaste]);
-
-      const updateNote = (id, note) => {
-        setLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
-      };
-
-      const deleteImage = (id) => {
-        if (confirm("Delete this lab image?")) {
-          setLabImages(prev => prev.filter(img => img.id !== id));
-        }
-      };
-
-      // FIX 3: Wait for save to complete before closing
       const handleSave = async () => {
         setSaving(true);
-        await onSave(patient.id, labImages);
+        await onSave(patient.id, { labImages, labValues });
         setSaving(false);
         onClose();
       };
 
       return (
-        <div className="modalOverlay" onClick={!saving ? onClose : undefined}>
-          <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modalOverlay">
+          <div className="modal">
             <div className="modal-head">
-              <span>🧪 Labs - {patient.name}</span>
-              {!saving && <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>}
+              <span>🧪 Labs: {patient.name}</span>
+              {!saving && <button onClick={onClose} style={{background:'none',border:'none',color:'white',fontSize:'18px'}}>×</button>}
             </div>
+
+            <div style={{display:'flex', padding:'10px', gap:'10px', background:'#f8fafc', borderBottom:'1px solid #e2e8f0'}}>
+              <button onClick={() => setViewMode('images')} className={`btn ${viewMode === 'images' ? 'btn-blue' : 'btn-white'}`} style={{flex:1}}>📷 Photos</button>
+              <button onClick={() => setViewMode('table')} className={`btn ${viewMode === 'table' ? 'btn-blue' : 'btn-white'}`} style={{flex:1}}>📊 Flowsheet</button>
+            </div>
+
             <div className="modal-body">
-              {/* Add New Lab Image */}
-              <div 
-                className={`add-lab-area ${dragging ? 'dragging' : ''}`}
-                onClick={() => !saving && fileRef.current?.click()}
-                onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                onDragLeave={() => setDragging(false)}
-                onDrop={handleDrop}
-                style={{ opacity: saving ? 0.5 : 1, pointerEvents: saving ? 'none' : 'auto' }}
-              >
-                {uploading ? (
-                  <>
-                    <div className="add-lab-icon">⏳</div>
-                    <div className="add-lab-text">Processing...</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="add-lab-icon">📷</div>
-                    <div className="add-lab-text">Add Lab Image</div>
-                    <div className="add-lab-hint">Tap to take photo, upload, or paste (Ctrl+V)</div>
-                  </>
-                )}
-              </div>
-              
-              <div style={{ display: 'flex', gap: 8, justifyContent: 'center', opacity: saving ? 0.5 : 1 }}>
-                <button className="btn btn-blue" onClick={() => cameraRef.current?.click()} disabled={saving}>
-                  📸 Camera
-                </button>
-                <button className="btn btn-white" onClick={() => fileRef.current?.click()} disabled={saving}>
-                  📁 Gallery
-                </button>
-              </div>
+              {statusMsg && <div style={{padding:'8px', background:'#f0fdf4', color:'#166534', fontSize:'13px', borderRadius:'6px', marginBottom:'10px', border:'1px solid #bbf7d0'}}>{statusMsg}</div>}
 
-              <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-              <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
-
-              {/* Lab Images List */}
-              {labImages.length === 0 ? (
-                <div className="empty-labs">
-                  <div className="empty-labs-icon">🔬</div>
-                  <div className="empty-labs-text">No lab images yet.<br/>Take a photo or upload a screenshot.</div>
-                </div>
-              ) : (
-                <div className="lab-images-grid">
-                  {labImages.map((lab, idx) => {
-                    const { date, time } = formatDateTime(lab.timestamp);
-                    return (
-                      <div key={lab.id} className="lab-image-card">
+              {viewMode === 'images' && (
+                <>
+                  <div className="add-lab-area" onClick={() => !processing && fileRef.current?.click()} style={{opacity: processing?0.5:1}}>
+                    <input type="file" ref={fileRef} hidden accept="image/*" onChange={handleFile} />
+                    {processing ? <div className="add-lab-text">⏳ Scanning...</div> : 
+                    <><div className="add-lab-icon">📸</div><div className="add-lab-text">Add Lab Photo</div></>}
+                  </div>
+                  <div className="lab-images-grid">
+                    {labImages.map((img) => (
+                      <div key={img.id} className="lab-image-card">
                         <div className="lab-image-header">
-                          <div>
-                            <div className="lab-image-date">{date}</div>
-                            <div className="lab-image-time">{time}</div>
-                          </div>
-                          <div className="lab-image-actions">
-                            <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)} disabled={saving}>🗑️</button>
-                          </div>
+                           <span>{formatDateTime(img.timestamp).date}</span>
+                           <button className="lab-image-btn delete" onClick={() => {
+                             if(confirm('Delete?')) setLabImages(prev => prev.filter(i => i.id !== img.id));
+                           }}>×</button>
                         </div>
-                        <div className="lab-image-container" onClick={() => setViewerIndex(idx)}>
-                          <img src={lab.image} alt="Lab result" />
-                          <div className="lab-image-overlay">
-                            <span>👆 Tap to enlarge</span>
-                          </div>
-                        </div>
-                        <div className="lab-image-note">
-                          <input 
-                            type="text" 
-                            placeholder="Add a note (e.g., CBC, Renal panel...)"
-                            value={lab.note || ""}
-                            onChange={e => updateNote(lab.id, e.target.value)}
-                            onClick={e => e.stopPropagation()}
-                            disabled={saving}
-                          />
-                        </div>
+                        <img src={img.image} style={{width:'100%', display:'block'}} />
                       </div>
-                    );
-                  })}
+                    ))}
+                  </div>
+                </>
+              )}
+
+              {viewMode === 'table' && (
+                <div>
+                  <table style={{width:'100%', borderCollapse:'collapse', fontSize:'13px'}}>
+                    <thead>
+                      <tr style={{background:'#f1f5f9', color:'#475569'}}>
+                        <th style={{padding:'8px', textAlign:'left'}}>Date</th>
+                        <th style={{padding:'8px', textAlign:'left'}}>WBC</th>
+                        <th style={{padding:'8px', textAlign:'left'}}>Hb</th>
+                        <th style={{padding:'8px', textAlign:'left'}}>Plt</th>
+                        <th></th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {labValues.map((val) => (
+                        <tr key={val.id} style={{borderBottom:'1px solid #cbd5e1'}}>
+                          <td style={{padding:'8px', color:'#64748b'}}>{formatDateTime(val.date).date}</td>
+                          <td style={{padding:'4px'}}><input className="inp" style={{width:'50px', fontWeight:'bold'}} value={val.WBC||''} onChange={(e)=> {
+                             const v = e.target.value; setLabValues(prev => prev.map(p => p.id === val.id ? {...p, WBC: v} : p))
+                          }} /></td>
+                          <td style={{padding:'4px'}}><input className="inp" style={{width:'50px', fontWeight:'bold'}} value={val.Hb||''} onChange={(e)=> {
+                             const v = e.target.value; setLabValues(prev => prev.map(p => p.id === val.id ? {...p, Hb: v} : p))
+                          }} /></td>
+                          <td style={{padding:'4px'}}><input className="inp" style={{width:'50px', fontWeight:'bold'}} value={val.Plt||''} onChange={(e)=> {
+                             const v = e.target.value; setLabValues(prev => prev.map(p => p.id === val.id ? {...p, Plt: v} : p))
+                          }} /></td>
+                           <td><button className="btn-del" onClick={()=>handleDeleteVal(val.id)}>×</button></td>
+                        </tr>
+                      ))}
+                      <tr>
+                         <td colSpan="5" style={{padding:'10px', textAlign:'center'}}>
+                           <button className="btn btn-white" style={{fontSize:'12px', width:'100%', justifyContent:'center'}} onClick={()=>{
+                             setLabValues(prev => [{id: Date.now().toString(), date: Date.now(), WBC:'', Hb:'', Plt:''}, ...prev])
+                           }}>+ Add Manual Row</button>
+                         </td>
+                      </tr>
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
             <div className="modal-foot">
-              <button className="btn btn-white" onClick={onClose} disabled={saving}>Cancel</button>
-              <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave} disabled={saving}>
-                {saving ? 'Saving...' : `Save (${labImages.length} img)`}
-              </button>
+              <button className="btn btn-green" onClick={handleSave} disabled={saving}>{saving?'Saving...':'Save Changes'}</button>
             </div>
           </div>
-
-          {/* Fullscreen Image Viewer */}
-          {viewerIndex !== null && (
-            <ImageViewer 
-              images={labImages}
-              currentIndex={viewerIndex}
-              onClose={() => setViewerIndex(null)}
-              onNavigate={setViewerIndex}
-            />
-          )}
         </div>
       );
     };
 
-    // Notice Banner
-    const NoticeBanner = ({ notice, onSave }) => {
-      const [editing, setEditing] = useState(false);
-      const [collapsed, setCollapsed] = useState(false);
-      const [text, setText] = useState(notice?.text || "");
-      useEffect(() => setText(notice?.text || ""), [notice?.text]);
-
-      if (collapsed) {
-        return (
-          <div className="notice-banner notice-collapsed" onClick={() => setCollapsed(false)}>
-            <div className="notice-header">
-              <span className="notice-title">📢 Notice</span>
-              <span style={{ fontSize: '11px', color: '#a16207' }}>▼</span>
-            </div>
-          </div>
-        );
-      }
-
+    const ImageViewer = ({ images, currentIndex, onClose, onNavigate }) => {
+      const current = images[currentIndex];
+      if (!current) return null;
       return (
-        <div className="notice-banner">
-          <div className="notice-header">
-            <span className="notice-title">📢 Notice</span>
-            <div className="notice-actions">
-              {editing ? (
-                <>
-                  <button className="notice-btn" onClick={() => { setText(notice?.text || ""); setEditing(false); }}>Cancel</button>
-                  <button className="notice-btn save" onClick={() => { onSave(text); setEditing(false); }}>Save</button>
-                </>
-              ) : (
-                <>
-                  <button className="notice-btn" onClick={() => setCollapsed(true)}>▲</button>
-                  <button className="notice-btn" onClick={() => setEditing(true)}>Edit</button>
-                </>
-              )}
+        <div className="image-viewer" onClick={onClose}>
+          <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
+            <div className="image-viewer-title">
+              {formatDateTime(current.timestamp).date} {formatDateTime(current.timestamp).time}
             </div>
+            <button style={{background:'none', border:'none', color:'white', fontSize:'24px', cursor:'pointer'}} onClick={onClose}>×</button>
           </div>
-          {editing ? (
-            <textarea className="notice-textarea" value={text} onChange={e => setText(e.target.value)} autoFocus />
-          ) : (
-            <div className={`notice-content ${!notice?.text ? 'empty' : ''}`}>{notice?.text || "No notices"}</div>
+          <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
+            <img src={current.image} />
+          </div>
+          {images.length > 1 && (
+            <div className="image-viewer-nav" onClick={e => e.stopPropagation()}>
+              <button onClick={() => onNavigate(currentIndex - 1)} disabled={currentIndex === 0}>←</button>
+              <span style={{color:'white'}}>{currentIndex + 1} / {images.length}</span>
+              <button onClick={() => onNavigate(currentIndex + 1)} disabled={currentIndex === images.length - 1}>→</button>
+            </div>
           )}
         </div>
       );
     };
 
-    // Main App
-    const App = () => {
+    const UnitWardRounds = () => {
       const [patients, setPatients] = useState([]);
-      const [notice, setNotice] = useState({ text: "", updatedAt: null });
+      const [notice, setNotice] = useState("");
+      const [noticeCollapsed, setNoticeCollapsed] = useState(false);
       const [search, setSearch] = useState("");
-      const [viewFilter, setViewFilter] = useState("All");
-      const [addModal, setAddModal] = useState(false);
-      const [labModal, setLabModal] = useState(null);
-      const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+      const [statusFilter, setStatusFilter] = useState("All");
       const [collapsedWards, setCollapsedWards] = useState({});
-      const [syncing, setSyncing] = useState(false);
-      const [toast, setToast] = useState(null);
-      const syncTimer = useRef(null);
-
-      const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-      
-      const scheduleSync = useCallback(() => {
-        setSyncing(true);
-        if (syncTimer.current) clearTimeout(syncTimer.current);
-        syncTimer.current = setTimeout(() => { pingSheets(); setTimeout(() => setSyncing(false), 1000); }, 500);
-      }, []);
+      const [isSyncing, setIsSyncing] = useState(false);
+      const [viewingLabsFor, setViewingLabsFor] = useState(null);
 
       useEffect(() => {
-        db.ref('notice').on('value', snap => setNotice(snap.val() || { text: "" }));
-        db.ref('patients').on('value', snap => {
+        setIsSyncing(true);
+        const pRef = db.ref('patients');
+        const nRef = db.ref('notice');
+        
+        pRef.on('value', (snap) => {
           const val = snap.val();
-          setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []);
+          if (val) {
+            const arr = Object.keys(val).map(k => ({ id: k, ...val[k] }));
+            setPatients(arr);
+          } else {
+            setPatients([]);
+          }
+          setIsSyncing(false);
         });
-        return () => { db.ref('notice').off(); db.ref('patients').off(); };
+
+        nRef.on('value', (snap) => {
+          setNotice(snap.val() || "");
+        });
+
+        return () => { pRef.off(); nRef.off(); };
       }, []);
 
-      const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved"));
-      
-      // FIX 4: Return promise for the Modal to await
-      const saveLabImages = (patientId, labImages) => {
-        return db.ref(`patients/${patientId}/labImages`).set(labImages).then(() => {
-          showToast(`✓ ${labImages.length} lab image${labImages.length !== 1 ? 's' : ''} saved`);
-          scheduleSync();
+      const updatePatient = (id, field, value) => {
+        const pIndex = patients.findIndex(p => p.id === id);
+        if (pIndex === -1) return;
+        const newPatients = [...patients];
+        newPatients[pIndex] = { ...newPatients[pIndex], [field]: value };
+        setPatients(newPatients);
+        
+        db.ref(`patients/${id}`).update({ [field]: value });
+        if(field === 'status' || field === 'ward') pingSheets();
+      };
+
+      const addPatient = () => {
+        const newRef = db.ref('patients').push();
+        const newP = { id: newRef.key, ward: "Unassigned", bed: "", name: "", status: "New", diagnosis: "", plan: "", labs: 0, labImages: [] };
+        newRef.set(newP);
+      };
+
+      const deletePatient = (id) => {
+        if (confirm("Delete patient?")) {
+          db.ref(`patients/${id}`).remove();
+        }
+      };
+
+      // --- UPDATED SAVE FUNCTION ---
+      const saveLabs = async (patientId, data) => {
+        const pIndex = patients.findIndex(p => p.id === patientId);
+        if (pIndex === -1) return;
+
+        // data = { labImages: [], labValues: [] }
+        const updatedPatient = { 
+            ...patients[pIndex], 
+            labImages: data.labImages, 
+            labValues: data.labValues 
+        };
+        const updatedPatients = [...patients];
+        updatedPatients[pIndex] = updatedPatient;
+        setPatients(updatedPatients);
+        
+        await db.ref(`patients/${patientId}`).update({ 
+            labImages: data.labImages,
+            labValues: data.labValues 
         });
       };
-      
-      const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
 
-      const update = useCallback((id, field, value) => {
-        const p = patients.find(x => x.id === id);
-        if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠️ Duplicate"); return; }
-        if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠️ Duplicate"); return; }
-        db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync);
-      }, [patients, scheduleSync]);
-
-      const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
-
-      const saveNew = () => {
-        const c = { ward: newP.ward || "Unassigned", bed: cleanBed(newP.bed), name: newP.name.trim(), diagnosis: newP.diagnosis, doctor: newP.doctor, status: newP.status || "New", plan: newP.plan, mrn: newP.mrn, timestamp: Date.now() };
-        if (!c.name) { alert("Enter name"); return; }
-        if (isDup(c.ward, c.name)) { alert("Duplicate"); return; }
-        db.ref("patients").push(c).then(() => { setAddModal(false); setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); showToast("✓ Added"); pingSheets(); });
+      const saveNotice = () => {
+        db.ref('notice').set(notice);
       };
 
-      const groups = useMemo(() => {
-        const g = {};
-        (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter))
-          .filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase()))
-          .forEach(p => { const w = p.ward || "Unassigned"; (g[w] = g[w] || []).push(p); });
-        return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) };
-      }, [patients, search, viewFilter]);
-
-      const getLabCount = (p) => {
-         // Handle both Array and Object formats for the counter
-         const imgs = p.labImages;
-         if (!imgs) return 0;
-         if (Array.isArray(imgs)) return imgs.length;
-         return Object.keys(imgs).length;
+      const toggleWard = (w) => {
+        setCollapsedWards(prev => ({...prev, [w]: !prev[w]}));
       };
+
+      const filtered = patients.filter(p => {
+        const s = search.toLowerCase();
+        const matchSearch = (p.name || "").toLowerCase().includes(s) || (p.diagnosis || "").toLowerCase().includes(s);
+        const matchFilter = statusFilter === "All" || p.status === statusFilter;
+        return matchSearch && matchFilter;
+      });
+
+      const byWard = useMemo(() => {
+        const grp = {};
+        WARD_ORDER.forEach(w => grp[w] = []);
+        filtered.forEach(p => {
+          const w = p.ward && WARD_ORDER.includes(p.ward) ? p.ward : "Unassigned";
+          if (!grp[w]) grp[w] = [];
+          grp[w].push(p);
+        });
+        return grp;
+      }, [filtered]);
+
+      const getCounts = () => {
+        const c = { New: 0, Chronic: 0, "Non-Chronic": 0 };
+        patients.forEach(p => { if (c[p.status] !== undefined) c[p.status]++; });
+        return c;
+      };
+      const counts = getCounts();
 
       return (
         <div className="wrap">
           <div className="topbar">
-            <div className="title">
-              <div className="title-row">
-                <h1>Unit E</h1>
-                <span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>{syncing ? '⏳' : '✓'} {patients.length}</span>
+            <div className="title-row">
+              <div className="title">
+                <h1>Unit E Rounds</h1>
               </div>
+              <span className={`sync-badge ${isSyncing ? 'syncing' : 'idle'}`}>
+                {isSyncing ? 'Syncing...' : 'Live'}
+              </span>
             </div>
             <div className="actions">
-              <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
-              <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
-              <button className="btn btn-blue" onClick={() => { setSyncing(true); pingSheets(); showToast("🔄 Syncing..."); setTimeout(() => setSyncing(false), 2000); }}>🔄</button>
+              <button className="btn btn-white" onClick={addPatient}>+ Patient</button>
+              <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>
+                <img src="https://img.icons8.com/color/48/google-sheets.png" width="16" alt="sheets"/> Sheet
+              </button>
             </div>
           </div>
 
-          <NoticeBanner notice={notice} onSave={saveNotice} />
+          <div className={`notice-banner ${noticeCollapsed ? 'notice-collapsed' : ''}`} onClick={() => noticeCollapsed && setNoticeCollapsed(false)}>
+            <div className="notice-header">
+              <span className="notice-title">Team Announcement</span>
+              <div className="notice-actions">
+                {!noticeCollapsed && <button className="notice-btn save" onClick={(e) => { e.stopPropagation(); saveNotice(); }}>Save</button>}
+                <button className="notice-btn" onClick={(e) => { e.stopPropagation(); setNoticeCollapsed(!noticeCollapsed); }}>
+                  {noticeCollapsed ? 'Expand' : 'Hide'}
+                </button>
+              </div>
+            </div>
+            {!noticeCollapsed && (
+              <textarea 
+                className="notice-textarea" 
+                placeholder="Write handover notes, instructions, or meeting times here..." 
+                value={notice} 
+                onChange={e => setNotice(e.target.value)}
+              />
+            )}
+            {noticeCollapsed && (
+               <div className={`notice-content ${!notice ? 'empty' : ''}`}>
+                 {notice || "No announcements."}
+               </div>
+            )}
+          </div>
 
           <div className="controls-container">
             <div className="filter-row">
-              {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
-                <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>
+              <button className={`filter-btn ${statusFilter === 'All' ? 'active' : ''}`} onClick={() => setStatusFilter('All')}>
+                All ({patients.length})
+              </button>
+              {STATUS_OPTIONS.map(s => (
+                <button key={s} className={`filter-btn ${statusFilter === s ? 'active' : ''}`} onClick={() => setStatusFilter(s)}>
+                  {s} ({counts[s]})
+                </button>
               ))}
             </div>
-            <input className="search-bar" placeholder="Search..." value={search} onChange={e => setSearch(e.target.value)} />
+            <input 
+              className="search-bar" 
+              placeholder="Search patient name or diagnosis..." 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+            />
           </div>
 
-          {groups.keys.map(ward => (
-            <div key={ward} className="ward-section">
-              <div className="ward-header" onClick={() => setCollapsedWards(p => ({ ...p, [ward]: !p[ward] }))}>
-                <div><span className={`arrow ${collapsedWards[ward] ? 'collapsed' : ''}`}>▼</span> {ward}</div>
-                <span className="ward-count">{groups.g[ward].length}</span>
-              </div>
-              <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
-                {groups.g[ward].map(p => (
-                  <div className="p-card" key={p.id}>
-                    <div className="mobile-row col-1">
-                      <input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
-                      <input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} />
-                    </div>
-                    <div className="col-2">
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} />
-                        <input className="inp" style={{ width: '90px' }} value={p.mrn || ''} placeholder="MRN" onChange={e => update(p.id, 'mrn', e.target.value)} />
-                      </div>
-                      <input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} />
-                    </div>
-                    <div className="col-3">
-                      <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>
-                        🧪 Labs
-                        {getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}
-                      </button>
-                      <select className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e => update(p.id, 'status', e.target.value)}>
-                        <option value="">-</option>
-                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <button className="btn-del" onClick={() => del(p.id)}>×</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
+          {WARD_ORDER.map(ward => {
+            const list = byWard[ward] || [];
+            if (list.length === 0) return null;
+            const isCollapsed = collapsedWards[ward];
 
-          {addModal && (
-            <div className="modalOverlay">
-              <div className="modal" style={{ maxWidth: '450px' }}>
-                <div className="modal-head" style={{ background: 'var(--green)' }}>Add Patient</div>
-                <div className="modal-body">
-                  <div className="form-group"><label>Ward</label><select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1 }}><label>Bed</label><input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} /></div>
-                    <div className="form-group" style={{ flex: 1 }}><label>Doctor</label><input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} /></div>
-                  </div>
-                  <div className="form-group"><label>Name</label><input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} /></div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1 }}><label>MRN</label><input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} /></div>
-                    <div className="form-group" style={{ flex: 1 }}><label>Status</label><select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
-                  </div>
-                  <div className="form-group"><label>Diagnosis</label><input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} /></div>
-                  <div className="form-group"><label>Plan</label><textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} /></div>
+            return (
+              <div key={ward} className="ward-section">
+                <div className="ward-header" onClick={() => toggleWard(ward)}>
+                  <span>{ward}</span>
+                  <span className="ward-count">{list.length}</span>
+                  <span className={`arrow ${isCollapsed ? 'collapsed' : ''}`}>▼</span>
                 </div>
-                <div className="modal-foot">
-                  <button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button>
-                  <button className="btn btn-blue" onClick={saveNew}>Save</button>
+                <div className={`ward-body ${isCollapsed ? 'is-hidden' : ''}`}>
+                  {list.map(p => (
+                    <div key={p.id} className="p-card">
+                      <div className="col-1">
+                        <input className="inp inp-bed" placeholder="Bed" value={p.bed} onChange={(e) => updatePatient(p.id, 'bed', e.target.value)} />
+                        <select className="inp" value={p.ward} onChange={(e) => updatePatient(p.id, 'ward', e.target.value)}>
+                          {WARD_ORDER.map(w => <option key={w} value={w}>{w}</option>)}
+                        </select>
+                        <select 
+                          className={`status-select ${p.status === 'New' ? 'status-new' : p.status === 'Chronic' ? 'status-chronic' : 'status-non'}`} 
+                          value={p.status} 
+                          onChange={(e) => updatePatient(p.id, 'status', e.target.value)}
+                        >
+                          {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      </div>
+                      
+                      <div className="col-2">
+                        <input className="inp inp-name" placeholder="Patient Name" value={p.name} onChange={(e) => updatePatient(p.id, 'name', e.target.value)} />
+                        <textarea className="inp inp-area" placeholder="Diagnosis / Active Issues" value={p.diagnosis} onChange={(e) => updatePatient(p.id, 'diagnosis', e.target.value)} />
+                      </div>
+                      
+                      <div className="col-3">
+                         <textarea className="inp inp-area" placeholder="Plan" value={p.plan} onChange={(e) => updatePatient(p.id, 'plan', e.target.value)} />
+                         <div style={{display:'flex', justifyContent:'space-between'}}>
+                           <button 
+                             className={`btn-lab ${p.labImages && (Array.isArray(p.labImages) ? p.labImages.length : Object.keys(p.labImages).length) > 0 ? 'has-labs' : ''}`}
+                             onClick={() => setViewingLabsFor(p)}
+                           >
+                             🧪 View Labs
+                             {p.labImages && (Array.isArray(p.labImages) ? p.labImages.length : Object.keys(p.labImages).length) > 0 && (
+                               <div className="lab-count">
+                                 {Array.isArray(p.labImages) ? p.labImages.length : Object.keys(p.labImages).length}
+                               </div>
+                             )}
+                           </button>
+                           <button className="btn-del" onClick={() => deletePatient(p.id)}>×</button>
+                         </div>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            </div>
+            );
+          })}
+
+          {viewingLabsFor && (
+            <LabModal 
+              patient={viewingLabsFor} 
+              onClose={() => setViewingLabsFor(null)}
+              onSave={saveLabs}
+            />
           )}
 
-          {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabImages} />}
-          {toast && <div className="toast">{toast}</div>}
         </div>
       );
     };
 
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+    const root = ReactDOM.createRoot(document.getElementById('root'));
+    root.render(<UnitWardRounds />);
   </script>
 </body>
 </html>
