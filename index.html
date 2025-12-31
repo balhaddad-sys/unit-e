@@ -7,7 +7,6 @@
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
@@ -65,40 +64,17 @@
       box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3);
     }
     
-    @keyframes gradient-shift { 
-      0% { background-position: 0% 50%; } 
-      50% { background-position: 100% 50%; } 
-      100% { background-position: 0% 50%; } 
-    }
-    
-    @keyframes card-glow { 
-      0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3); } 
-      50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 0 60px rgba(245, 158, 11, 0.5); } 
-    }
+    @keyframes gradient-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
+    @keyframes card-glow { 0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3); } 50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 0 60px rgba(245, 158, 11, 0.5); } }
     
     .new-admission-badge {
-      position: absolute; 
-      top: -12px; 
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(90deg, #dc2626, #b91c1c, #dc2626);
-      background-size: 200% 100%;
+      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
+      background: linear-gradient(90deg, #dc2626, #b91c1c, #dc2626); background-size: 200% 100%;
       animation: badge-pulse 1s ease-in-out infinite;
-      color: white; 
-      padding: 6px 20px; 
-      border-radius: 20px; 
-      font-size: 12px; 
-      font-weight: 900; 
-      letter-spacing: 1px; 
-      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5); 
-      z-index: 10;
-      white-space: nowrap;
+      color: white; padding: 6px 20px; border-radius: 20px; font-size: 12px; font-weight: 900; 
+      letter-spacing: 1px; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5); z-index: 10; white-space: nowrap;
     }
-    
-    @keyframes badge-pulse {
-      0%, 100% { background-position: 0% 50%; transform: translateX(-50%) scale(1); }
-      50% { background-position: 100% 50%; transform: translateX(-50%) scale(1.02); }
-    }
+    @keyframes badge-pulse { 0%, 100% { background-position: 0% 50%; transform: translateX(-50%) scale(1); } 50% { background-position: 100% 50%; transform: translateX(-50%) scale(1.02); } }
 
     .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
@@ -130,22 +106,9 @@
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
     .sync-badge.syncing { background: #fef08a; color: #854d0e; }
 
-    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; }
 
-    .global-alert { 
-      background: linear-gradient(90deg, #dc2626, #f59e0b, #dc2626); 
-      background-size: 200% 100%;
-      animation: alert-scroll 2s linear infinite;
-      color: white; 
-      padding: 10px 16px; 
-      border-radius: 8px; 
-      margin-bottom: 10px; 
-      font-weight: 700; 
-      text-align: center;
-      font-size: 14px;
-      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
-    }
+    .global-alert { background: linear-gradient(90deg, #dc2626, #f59e0b, #dc2626); background-size: 200% 100%; animation: alert-scroll 2s linear infinite; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 10px; font-weight: 700; text-align: center; font-size: 14px; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4); }
     @keyframes alert-scroll { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
 
     .error-box { background: #fee2e2; border: 2px solid #dc2626; padding: 20px; margin: 20px; border-radius: 8px; color: #dc2626; }
@@ -163,50 +126,43 @@
   <div id="root"><div style="padding:20px;">Loading...</div></div>
 
   <script>
-    window.onerror = function(msg, url, line, col, error) {
-      document.getElementById('root').innerHTML = '<div class="error-box"><h2>JavaScript Error</h2><p>' + msg + '</p><p>Line: ' + line + '</p></div>';
-      return false;
+    // Error handler
+    window.onerror = function(msg, url, line) {
+      document.getElementById('root').innerHTML = '<div class="error-box"><h2>Error</h2><p>' + msg + '</p><p>Line: ' + line + '</p></div>';
     };
 
-    // Firebase config
-    var firebaseConfig = {
-      apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
-      authDomain: "unit-e-1d07b.firebaseapp.com",
-      databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "unit-e-1d07b",
-      storageBucket: "unit-e-1d07b.firebasestorage.app",
-      messagingSenderId: "465930916258",
-      appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
-    };
-
+    // Globals
     var db = null;
-    try {
-      if (window.firebase && !firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      db = firebase.database();
-    } catch (e) {
-      console.error("Firebase init error:", e);
-    }
-
     var SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
     var SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
     var SHEET_URL = "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID + "/edit";
     var WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     var STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
+    // Firebase init
+    try {
+      if (window.firebase && !firebase.apps.length) {
+        firebase.initializeApp({
+          apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
+          authDomain: "unit-e-1d07b.firebaseapp.com",
+          databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
+          projectId: "unit-e-1d07b",
+          storageBucket: "unit-e-1d07b.firebasestorage.app",
+          messagingSenderId: "465930916258",
+          appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
+        });
+      }
+      db = firebase.database();
+    } catch (e) { console.error(e); }
+
     function pingSheets() {
       var url = SHEETS_SYNC_URL + "?t=" + Date.now();
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
-      } else {
-        fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(function() {});
-      }
+      try { navigator.sendBeacon(url, new Blob([], { type: "text/plain" })); } catch(e) {}
     }
 
     function isTimestamp(val) {
       var s = String(val || "");
-      return s.match(/^\d{4}-\d{2}-\d{2}/) || s.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i) || s.match(/^\d{13,}$/) || s.match(/T\d{2}:\d{2}/) || s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
+      return s.match(/^\d{4}-\d{2}-\d{2}/) || s.match(/^\d{13,}$/);
     }
 
     function cleanBed(val) {
@@ -217,9 +173,9 @@
     function makeKey(ward, name) {
       return (ward || "").toLowerCase().trim() + "|" + (name || "").toLowerCase().trim();
     }
-  </script>
 
-  <script type="text/babel">
+    // React helpers
+    var h = React.createElement;
     var useState = React.useState;
     var useEffect = React.useEffect;
     var useMemo = React.useMemo;
@@ -227,41 +183,32 @@
     var useCallback = React.useCallback;
 
     function App() {
-      var patientState = useState([]);
-      var patients = patientState[0];
-      var setPatients = patientState[1];
+      var _patients = useState([]);
+      var patients = _patients[0], setPatients = _patients[1];
 
-      var searchState = useState("");
-      var search = searchState[0];
-      var setSearch = searchState[1];
+      var _search = useState("");
+      var search = _search[0], setSearch = _search[1];
 
-      var filterState = useState("All");
-      var viewFilter = filterState[0];
-      var setViewFilter = filterState[1];
+      var _filter = useState("All");
+      var viewFilter = _filter[0], setViewFilter = _filter[1];
 
-      var modalState = useState(false);
-      var addModal = modalState[0];
-      var setAddModal = modalState[1];
+      var _modal = useState(false);
+      var addModal = _modal[0], setAddModal = _modal[1];
 
-      var newPState = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-      var newP = newPState[0];
-      var setNewP = newPState[1];
+      var _newP = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+      var newP = _newP[0], setNewP = _newP[1];
 
-      var collapsedState = useState({});
-      var collapsedWards = collapsedState[0];
-      var setCollapsedWards = collapsedState[1];
+      var _collapsed = useState({});
+      var collapsedWards = _collapsed[0], setCollapsedWards = _collapsed[1];
 
-      var syncState = useState(false);
-      var syncing = syncState[0];
-      var setSyncing = syncState[1];
+      var _syncing = useState(false);
+      var syncing = _syncing[0], setSyncing = _syncing[1];
 
-      var toastState = useState(null);
-      var toast = toastState[0];
-      var setToast = toastState[1];
+      var _toast = useState(null);
+      var toast = _toast[0], setToast = _toast[1];
 
-      var errorState = useState(null);
-      var error = errorState[0];
-      var setError = errorState[1];
+      var _error = useState(null);
+      var error = _error[0], setError = _error[1];
 
       var syncTimer = useRef(null);
 
@@ -270,7 +217,7 @@
         setTimeout(function() { setToast(null); }, 3000);
       }
 
-      var scheduleSheetSync = useCallback(function() {
+      var scheduleSync = useCallback(function() {
         setSyncing(true);
         if (syncTimer.current) clearTimeout(syncTimer.current);
         syncTimer.current = setTimeout(function() {
@@ -280,46 +227,51 @@
       }, []);
 
       useEffect(function() {
-        if (!db) {
-          setError("Firebase not initialized");
-          return;
-        }
+        if (!db) { setError("Firebase not ready"); return; }
         var ref = db.ref('patients');
         ref.on('value', function(snap) {
           var val = snap.val();
-          var list = val ? Object.keys(val).map(function(k) { return Object.assign({ id: k }, val[k]); }) : [];
-          list = list.map(function(p) { return Object.assign({}, p, { bed: cleanBed(p.bed) }); });
+          var list = [];
+          if (val) {
+            var keys = Object.keys(val);
+            for (var i = 0; i < keys.length; i++) {
+              var k = keys[i];
+              var p = val[k];
+              p.id = k;
+              p.bed = cleanBed(p.bed);
+              list.push(p);
+            }
+          }
           setPatients(list);
-        }, function(err) {
-          setError("Firebase error: " + err.message);
-        });
+        }, function(err) { setError("DB error: " + err.message); });
         return function() { ref.off(); };
       }, []);
 
       function isDuplicate(ward, name, excludeId) {
         var key = makeKey(ward, name);
-        return patients.some(function(p) {
-          if (excludeId && p.id === excludeId) return false;
-          return makeKey(p.ward, p.name) === key;
-        });
+        for (var i = 0; i < patients.length; i++) {
+          var p = patients[i];
+          if (excludeId && p.id === excludeId) continue;
+          if (makeKey(p.ward, p.name) === key) return true;
+        }
+        return false;
       }
 
       var update = useCallback(function(id, field, value) {
-        var patient = patients.find(function(p) { return p.id === id; });
+        var patient = null;
+        for (var i = 0; i < patients.length; i++) {
+          if (patients[i].id === id) { patient = patients[i]; break; }
+        }
         if (field === 'name' && patient && isDuplicate(patient.ward, value, id)) {
-          showToast("Patient exists in ward");
-          return;
+          showToast("Name exists"); return;
         }
         if (field === 'ward' && patient && isDuplicate(value, patient.name, id)) {
-          showToast("Patient exists in target ward");
-          return;
+          showToast("Exists in ward"); return;
         }
         if (field === 'bed') value = cleanBed(value);
-        var updateData = {};
-        updateData[field] = value;
-        updateData.timestamp = Date.now();
-        db.ref("patients/" + id).update(updateData).then(function() { scheduleSheetSync(); });
-      }, [patients, scheduleSheetSync]);
+        var data = {}; data[field] = value; data.timestamp = Date.now();
+        db.ref("patients/" + id).update(data).then(scheduleSync);
+      }, [patients, scheduleSync]);
 
       function del(id) {
         if (!confirm("Delete?")) return;
@@ -327,15 +279,14 @@
       }
 
       function toggleWard(ward) {
-        setCollapsedWards(function(prev) {
-          var next = Object.assign({}, prev);
-          next[ward] = !prev[ward];
-          return next;
-        });
+        var next = {};
+        for (var k in collapsedWards) next[k] = collapsedWards[k];
+        next[ward] = !collapsedWards[ward];
+        setCollapsedWards(next);
       }
 
       function saveNew() {
-        var cleaned = {
+        var c = {
           ward: (newP.ward || "Unassigned").trim(),
           bed: cleanBed(newP.bed),
           name: (newP.name || "").trim(),
@@ -346,56 +297,54 @@
           mrn: (newP.mrn || "").trim(),
           timestamp: Date.now()
         };
-        if (!cleaned.name) { alert("Enter name"); return; }
-        if (isDuplicate(cleaned.ward, cleaned.name)) { alert("Patient exists"); return; }
-        db.ref("patients").push(cleaned).then(function() {
+        if (!c.name) { alert("Enter name"); return; }
+        if (isDuplicate(c.ward, c.name)) { alert("Exists"); return; }
+        db.ref("patients").push(c).then(function() {
           setAddModal(false);
           setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-          showToast("Added");
-          pingSheets();
+          showToast("Added"); pingSheets();
         });
       }
 
-      function cleanupDuplicates() {
-        if (!confirm("Remove duplicates?")) return;
+      function cleanupDupes() {
+        if (!confirm("Remove dupes?")) return;
         setSyncing(true);
-        showToast("Cleaning...");
-        var byKey = {};
-        var toDelete = [];
-        patients.forEach(function(p) {
+        var byKey = {}, toDelete = [];
+        for (var i = 0; i < patients.length; i++) {
+          var p = patients[i];
           var key = makeKey(p.ward, p.name);
           if (!byKey[key]) { byKey[key] = p; }
           else {
             if (Number(p.timestamp || 0) > Number(byKey[key].timestamp || 0)) {
-              toDelete.push(byKey[key].id);
-              byKey[key] = p;
+              toDelete.push(byKey[key].id); byKey[key] = p;
             } else { toDelete.push(p.id); }
           }
-        });
-        Promise.all(toDelete.map(function(id) { return db.ref("patients/" + id).remove(); })).then(function() {
-          showToast("Removed " + toDelete.length);
-          pingSheets();
-          setSyncing(false);
+        }
+        var promises = [];
+        for (var j = 0; j < toDelete.length; j++) {
+          promises.push(db.ref("patients/" + toDelete[j]).remove());
+        }
+        Promise.all(promises).then(function() {
+          showToast("Removed " + toDelete.length); pingSheets(); setSyncing(false);
         });
       }
 
-      function manualSync() {
-        setSyncing(true);
-        pingSheets();
-        showToast("Syncing...");
-        setTimeout(function() { setSyncing(false); }, 2000);
-      }
-
+      function manualSync() { setSyncing(true); pingSheets(); showToast("Syncing"); setTimeout(function() { setSyncing(false); }, 2000); }
       function openSheet() { window.open(SHEET_URL, '_blank'); }
 
       function exportExcel() {
         var wb = XLSX.utils.book_new();
         var wsData = [["UNIT E"], ["DATE: " + new Date().toLocaleDateString()], [], ["WARD", "BED", "NAME", "MRN", "DX", "DR", "STATUS", "PLAN"]];
-        groups.sortedKeys.forEach(function(ward) {
+        for (var i = 0; i < groups.sortedKeys.length; i++) {
+          var ward = groups.sortedKeys[i];
           wsData.push([ward.toUpperCase()]);
-          groups.g[ward].forEach(function(p) { wsData.push([p.ward, p.bed, p.name, p.mrn || "", p.diagnosis, p.doctor, p.status, p.plan]); });
+          var pts = groups.g[ward];
+          for (var j = 0; j < pts.length; j++) {
+            var p = pts[j];
+            wsData.push([p.ward, p.bed, p.name, p.mrn || "", p.diagnosis, p.doctor, p.status, p.plan]);
+          }
           wsData.push([]);
-        });
+        }
         var ws = XLSX.utils.aoa_to_sheet(wsData);
         XLSX.utils.book_append_sheet(wb, ws, "Rounds");
         XLSX.writeFile(wb, "UnitE.xlsx");
@@ -403,25 +352,52 @@
 
       var groups = useMemo(function() {
         var g = {};
-        var filtered = viewFilter === 'All' ? patients : patients.filter(function(p) { return p.status === viewFilter; });
-        filtered.filter(function(p) {
-          return (p.name + p.bed + p.ward + p.diagnosis).toLowerCase().indexOf(search.toLowerCase()) >= 0;
-        }).forEach(function(p) {
+        var filtered = [];
+        for (var i = 0; i < patients.length; i++) {
+          var p = patients[i];
+          if (viewFilter !== 'All' && p.status !== viewFilter) continue;
+          var str = ((p.name || "") + (p.bed || "") + (p.ward || "") + (p.diagnosis || "")).toLowerCase();
+          if (str.indexOf(search.toLowerCase()) < 0) continue;
           var w = p.ward || "Unassigned";
           if (!g[w]) g[w] = [];
           g[w].push(p);
-        });
-        Object.keys(g).forEach(function(ward) {
-          g[ward].sort(function(a, b) {
+        }
+        // Sort each ward
+        var wards = Object.keys(g);
+        for (var j = 0; j < wards.length; j++) {
+          var wardName = wards[j];
+          g[wardName].sort(function(a, b) {
             var aNew = (a.status || "").toLowerCase() === "new";
             var bNew = (b.status || "").toLowerCase() === "new";
             if (aNew && !bNew) return -1;
             if (!aNew && bNew) return 1;
             return String(a.bed || "").localeCompare(String(b.bed || ""));
           });
-        });
-        var sortedKeys = Object.keys(g).sort(function(a, b) { return WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b); });
+        }
+        var sortedKeys = wards.sort(function(a, b) { return WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b); });
         var newCounts = {};
         var totalNew = 0;
-        Object.keys(g).forEach(function(ward) {
-          var c = g[ward].filter(function(p) { return (p.status || "").toLowerCase() === "new"; }).length;
+        for (var k = 0; k < sortedKeys.length; k++) {
+          var wrd = sortedKeys[k];
+          var count = 0;
+          for (var m = 0; m < g[wrd].length; m++) {
+            if ((g[wrd][m].status || "").toLowerCase() === "new") count++;
+          }
+          newCounts[wrd] = count;
+          totalNew += count;
+        }
+        return { g: g, sortedKeys: sortedKeys, newCounts: newCounts, totalNew: totalNew };
+      }, [patients, search, viewFilter]);
+
+      if (error) return h('div', { className: 'error-box' }, error);
+
+      // Build UI
+      var children = [];
+
+      // Global alert
+      if (groups.totalNew > 0) {
+        children.push(h('div', { key: 'alert', className: 'global-alert' }, 'NEW ADMISSIONS: ' + groups.totalNew));
+      }
+
+      // Topbar
+      children.push(h('di
