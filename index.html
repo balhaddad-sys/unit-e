@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Unit E Ward Rounds - Enhanced OCR v2</title>
+  <title>Unit E Ward Rounds - Enhanced OCR v2 (Max Accuracy)</title>
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -187,35 +187,25 @@
     // ============ FIXED OCR ENGINE v2 ============
     let _ocrWorker = null;
     let _ocrWorkerReady = false;
-    
+
     const getOcrWorker = async (loggerFn) => {
-      // If worker exists and is ready, return it
-      if (_ocrWorker && _ocrWorkerReady) {
-        return _ocrWorker;
-      }
-      
-      // If worker exists but not ready, terminate and recreate
+      if (_ocrWorker && _ocrWorkerReady) return _ocrWorker;
+
       if (_ocrWorker) {
-        try {
-          await _ocrWorker.terminate();
-        } catch (e) {
-          console.warn("Error terminating old worker:", e);
-        }
+        try { await _ocrWorker.terminate(); } catch (e) { console.warn("Error terminating old worker:", e); }
         _ocrWorker = null;
         _ocrWorkerReady = false;
       }
-      
+
       loggerFn && loggerFn({ status: "initializing", progress: 0 });
-      
+
       try {
-        // Tesseract.js v5 API - createWorker with language as first argument
         _ocrWorker = await Tesseract.createWorker('eng', 1, {
           logger: (m) => {
             console.log("Tesseract:", m);
             loggerFn && loggerFn(m);
           }
         });
-        
         _ocrWorkerReady = true;
         console.log("OCR Worker ready!");
         return _ocrWorker;
@@ -284,9 +274,9 @@
       ESR: { unit: "mm/hr", refLow: 0, refHigh: 20, critLow: 0, critHigh: 120, aliases: ["SED RATE"] },
     };
 
-    // Image preprocessing
+    // Image preprocessing base
     const clamp01 = (x) => Math.max(0, Math.min(1, x));
-    
+
     const applyCropToCanvas = (img, crop) => {
       const c = { top: clamp01(crop?.top ?? 0), bottom: clamp01(crop?.bottom ?? 0), left: clamp01(crop?.left ?? 0), right: clamp01(crop?.right ?? 0) };
       const sx = Math.floor(img.width * c.left), sy = Math.floor(img.height * c.top);
@@ -297,95 +287,189 @@
       return canvas;
     };
 
+    // ========= ACCURACY HELPERS (NEW) =========
+    const rotateCanvas = (srcCanvas, degrees) => {
+      const rad = (degrees * Math.PI) / 180;
+      const w = srcCanvas.width, h = srcCanvas.height;
+      const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
+      const nw = Math.ceil(w * cos + h * sin);
+      const nh = Math.ceil(w * sin + h * cos);
+
+      const c = document.createElement("canvas");
+      c.width = nw; c.height = nh;
+      const ctx = c.getContext("2d", { willReadFrequently: true });
+
+      ctx.translate(nw / 2, nh / 2);
+      ctx.rotate(rad);
+      ctx.drawImage(srcCanvas, -w / 2, -h / 2);
+      return c;
+    };
+
+    const clamp255 = (x) => Math.max(0, Math.min(255, x));
+
+    const unsharpMask = (ctx, width, height, amount = 0.6) => {
+      const img = ctx.getImageData(0, 0, width, height);
+      const d = img.data;
+
+      const blur = new Uint8ClampedArray(d.length);
+      const idx = (x, y) => (y * width + x) * 4;
+
+      for (let y = 1; y < height - 1; y++) {
+        for (let x = 1; x < width - 1; x++) {
+          let r = 0, g = 0, b = 0;
+          for (let yy = -1; yy <= 1; yy++) {
+            for (let xx = -1; xx <= 1; xx++) {
+              const i = idx(x + xx, y + yy);
+              r += d[i]; g += d[i + 1]; b += d[i + 2];
+            }
+          }
+          const i0 = idx(x, y);
+          blur[i0] = (r / 9) | 0;
+          blur[i0 + 1] = (g / 9) | 0;
+          blur[i0 + 2] = (b / 9) | 0;
+          blur[i0 + 3] = d[i0 + 3];
+        }
+      }
+
+      for (let i = 0; i < d.length; i += 4) {
+        d[i]     = clamp255(d[i]     + amount * (d[i]     - blur[i]));
+        d[i + 1] = clamp255(d[i + 1] + amount * (d[i + 1] - blur[i + 1]));
+        d[i + 2] = clamp255(d[i + 2] + amount * (d[i + 2] - blur[i + 2]));
+      }
+      ctx.putImageData(img, 0, 0);
+    };
+
+    const otsuThreshold = (gray) => {
+      const hist = new Array(256).fill(0);
+      for (let i = 0; i < gray.length; i++) hist[gray[i]]++;
+
+      const total = gray.length;
+      let sum = 0;
+      for (let t = 0; t < 256; t++) sum += t * hist[t];
+
+      let sumB = 0, wB = 0, wF = 0;
+      let varMax = 0, threshold = 127;
+
+      for (let t = 0; t < 256; t++) {
+        wB += hist[t];
+        if (wB === 0) continue;
+        wF = total - wB;
+        if (wF === 0) break;
+
+        sumB += t * hist[t];
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+        const varBetween = wB * wF * (mB - mF) * (mB - mF);
+
+        if (varBetween > varMax) {
+          varMax = varBetween;
+          threshold = t;
+        }
+      }
+      return threshold;
+    };
+
+    const binarizeOtsuOnCanvas = (ctx, width, height, invert = false) => {
+      const img = ctx.getImageData(0, 0, width, height);
+      const d = img.data;
+      const gray = new Uint8ClampedArray(width * height);
+
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+        const g = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) | 0;
+        gray[j] = g;
+      }
+
+      const thr = otsuThreshold(gray);
+
+      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
+        const g = gray[j];
+        let v = g > thr ? 255 : 0;
+        if (invert) v = 255 - v;
+        d[i] = d[i + 1] = d[i + 2] = v;
+      }
+      ctx.putImageData(img, 0, 0);
+      return thr;
+    };
+
+    const normalizeNumericText = (s) =>
+      String(s || "")
+        .replace(/(\d),(\d)/g, "$1.$2")
+        .replace(/[^\S\r\n]+/g, " ")
+        .trim();
+
+    // ========= PREPROCESS (UPGRADED) =========
     const preprocessForOCR = async (dataUrl, options = {}) => {
-      const { mode = "CBC", smartCrop = true, manualCrop = null } = options;
-      const img = new Image(); 
+      const {
+        mode = "CBC",
+        smartCrop = true,
+        manualCrop = null,
+        scale = 2.4,
+        makeVariants = true,
+      } = options;
+
+      const img = new Image();
       img.src = dataUrl;
-      await new Promise((res, rej) => { 
-        img.onload = res; 
-        img.onerror = () => rej(new Error("Failed to load image")); 
+      await new Promise((res, rej) => {
+        img.onload = res;
+        img.onerror = () => rej(new Error("Failed to load image"));
       });
-      
+
       const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
       const crop = manualCrop || (smartCrop ? modeConfig.crop : { top: 0, bottom: 0, left: 0, right: 0 });
       const croppedCanvas = applyCropToCanvas(img, crop);
-      
-      // Scale up for better OCR
-      const scale = 2.0;
+
       const upCanvas = document.createElement("canvas");
       upCanvas.width = Math.floor(croppedCanvas.width * scale);
       upCanvas.height = Math.floor(croppedCanvas.height * scale);
+
       const upCtx = upCanvas.getContext("2d", { willReadFrequently: true });
-      upCtx.imageSmoothingEnabled = true; 
+      upCtx.imageSmoothingEnabled = true;
       upCtx.imageSmoothingQuality = "high";
       upCtx.drawImage(croppedCanvas, 0, 0, upCanvas.width, upCanvas.height);
-      
-      // Convert to grayscale with contrast enhancement
+
+      // grayscale + strong contrast
       const imageData = upCtx.getImageData(0, 0, upCanvas.width, upCanvas.height);
       const d = imageData.data;
       for (let i = 0; i < d.length; i += 4) {
-        // Grayscale
         let g = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) | 0;
-        // Contrast enhancement
-        g = Math.min(255, Math.max(0, (g - 128) * 1.3 + 128));
+        g = clamp255((g - 128) * 1.35 + 128);
         d[i] = d[i + 1] = d[i + 2] = g;
       }
       upCtx.putImageData(imageData, 0, 0);
-      
-      return { 
-        processed: upCanvas.toDataURL("image/png"), 
-        cropUsed: crop 
-      };
-    };
 
-    const runOCR = async (dataUrl, options = {}, setProgress, setStage) => {
-      const { mode = "CBC", smartCrop = true, manualCrop = null } = options;
-      
-      try {
-        setStage && setStage("Preprocessing image...");
-        setProgress && setProgress(5);
-        
-        const pre = await preprocessForOCR(dataUrl, { mode, smartCrop, manualCrop });
-        
-        setStage && setStage("Initializing OCR engine...");
-        setProgress && setProgress(10);
-        
-        const worker = await getOcrWorker((m) => {
-          if (m?.status === "recognizing text" && typeof m.progress === "number") {
-            setProgress && setProgress(10 + Math.round(m.progress * 80));
-          }
-        });
-        
-        setStage && setStage("Recognizing text...");
-        
-        // Set parameters for better lab result recognition
-        await worker.setParameters({
-          tessedit_pageseg_mode: '6', // Assume uniform block of text
-          preserve_interword_spaces: '1'
-        });
-        
-        const result = await worker.recognize(pre.processed);
-        
-        setProgress && setProgress(95);
-        setStage && setStage("Processing results...");
-        
-        const text = result?.data?.text || "";
-        const confidence = Number(result?.data?.confidence || 0);
-        
-        console.log("OCR Result:", { text, confidence });
-        
-        setProgress && setProgress(100);
-        
-        return { 
-          text, 
-          confidence, 
-          pass: "PSM6", 
-          cropUsed: pre.cropUsed 
-        };
-      } catch (err) {
-        console.error("OCR Error:", err);
-        throw err;
+      // sharpen
+      unsharpMask(upCtx, upCanvas.width, upCanvas.height, 0.7);
+
+      const base = upCanvas.toDataURL("image/png");
+
+      if (!makeVariants) {
+        return { variants: [{ name: "gray+sharp", dataUrl: base }], cropUsed: crop };
       }
+
+      // Otsu binarized
+      const bin1 = document.createElement("canvas");
+      bin1.width = upCanvas.width; bin1.height = upCanvas.height;
+      const b1 = bin1.getContext("2d", { willReadFrequently: true });
+      b1.drawImage(upCanvas, 0, 0);
+      const thr1 = binarizeOtsuOnCanvas(b1, bin1.width, bin1.height, false);
+      const v1 = bin1.toDataURL("image/png");
+
+      // inverted Otsu
+      const bin2 = document.createElement("canvas");
+      bin2.width = upCanvas.width; bin2.height = upCanvas.height;
+      const b2 = bin2.getContext("2d", { willReadFrequently: true });
+      b2.drawImage(upCanvas, 0, 0);
+      const thr2 = binarizeOtsuOnCanvas(b2, bin2.width, bin2.height, true);
+      const v2 = bin2.toDataURL("image/png");
+
+      return {
+        variants: [
+          { name: "gray+sharp", dataUrl: base },
+          { name: `otsu(${thr1})`, dataUrl: v1 },
+          { name: `otsu-inv(${thr2})`, dataUrl: v2 },
+        ],
+        cropUsed: crop
+      };
     };
 
     // Enhanced Parser with fuzzy matching
@@ -393,8 +477,8 @@
       const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
       for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
       for (let i = 1; i <= b.length; i++) {
-        for (let j = 1; j <= a.length; j++) { 
-          matrix[i][j] = b[i - 1] === a[j - 1] ? matrix[i - 1][j - 1] : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1); 
+        for (let j = 1; j <= a.length; j++) {
+          matrix[i][j] = b[i - 1] === a[j - 1] ? matrix[i - 1][j - 1] : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
         }
       }
       return matrix[b.length][a.length];
@@ -404,8 +488,8 @@
       const s = String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
       for (const [test, def] of Object.entries(TEST_DEFINITIONS)) {
         if (s === test.toUpperCase().replace(/[^A-Z0-9]/g, '')) return test;
-        for (const alias of (def.aliases || [])) { 
-          if (s === alias.toUpperCase().replace(/[^A-Z0-9]/g, '')) return test; 
+        for (const alias of (def.aliases || [])) {
+          if (s === alias.toUpperCase().replace(/[^A-Z0-9]/g, '')) return test;
         }
       }
       if (s.length >= 2 && s.length <= 12) {
@@ -413,14 +497,14 @@
         for (const [test, def] of Object.entries(TEST_DEFINITIONS)) {
           const testNorm = test.toUpperCase().replace(/[^A-Z0-9]/g, '');
           const dist = levenshtein(s, testNorm);
-          if (dist < bestDist && dist <= Math.max(1, Math.floor(testNorm.length / 3))) { 
-            bestDist = dist; bestMatch = test; 
+          if (dist < bestDist && dist <= Math.max(1, Math.floor(testNorm.length / 3))) {
+            bestDist = dist; bestMatch = test;
           }
           for (const alias of (def.aliases || [])) {
             const aliasNorm = alias.toUpperCase().replace(/[^A-Z0-9]/g, '');
             const aDist = levenshtein(s, aliasNorm);
-            if (aDist < bestDist && aDist <= Math.max(1, Math.floor(aliasNorm.length / 3))) { 
-              bestDist = aDist; bestMatch = test; 
+            if (aDist < bestDist && aDist <= Math.max(1, Math.floor(aliasNorm.length / 3))) {
+              bestDist = aDist; bestMatch = test;
             }
           }
         }
@@ -450,55 +534,50 @@
     };
 
     const parseLabsFromText = (text, mode = "CBC") => {
-      const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
+      // (UPGRADED) normalize numeric commas/spaces first
+      const lines = normalizeNumericText(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
       const values = [], seen = new Set();
       const rangePattern = /(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)/;
-      
-      console.log("Parsing lines:", lines);
-      
+
       for (const line of lines) {
-        // Skip header/footer lines
         if (/^(date|time|patient|name|id|mrn|dob|specimen|collected|received|printed|page|lab|hospital|report)/i.test(line)) continue;
-        
-        // Match pattern: TestName followed by number
+
         const match = line.match(/^([A-Za-z][A-Za-z0-9%\/\-\(\)\+\s]{1,25}?)\s*[:\.]?\s*([<>]?\d+\.?\d*)/i);
         if (!match) continue;
-        
+
         const testRaw = match[1], value = match[2];
         const test = normalizeTestName(testRaw);
-        
-        // Skip invalid values
+
         if (!test || value.length > 8 || /^\d{4}$/.test(value) || /^\d{2}:\d{2}/.test(value)) continue;
-        
+
         const def = TEST_DEFINITIONS[test];
         const unit = def?.unit || '';
-        
+
         let flag = 'N';
         if (/\bH\b|\bHIGH\b|\*H\*/i.test(line)) flag = 'H';
         else if (/\bL\b|\bLOW\b|\*L\*/i.test(line)) flag = 'L';
         if (def) flag = determineFlag(test, value, flag);
-        
+
         let refLow = '', refHigh = '';
         const rangeMatch = line.match(rangePattern);
         if (rangeMatch) { refLow = rangeMatch[1]; refHigh = rangeMatch[2]; }
         else if (def) { refLow = String(def.refLow); refHigh = String(def.refHigh); }
-        
+
         const validation = def ? validateValue(test, value) : { status: 'unknown' };
-        
+
         let confidence = 70;
         if (def) confidence += 15;
         if (flag !== 'N') confidence += 5;
         if (validation.status === 'invalid') confidence -= 30;
         confidence = Math.max(10, Math.min(100, confidence));
-        
+
         const key = `${test}|${value}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        
+
         values.push({ test, value, flag, unit, refLow, refHigh, validation, confidence, raw: line });
       }
-      
-      // Sort by expected order for mode
+
       const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
       const expectedOrder = modeConfig.expectedTests;
       values.sort((a, b) => {
@@ -508,8 +587,155 @@
         if (bIdx === -1) return -1;
         return aIdx - bIdx;
       });
-      
+
       return values;
+    };
+
+    // ========= MULTI-PASS OCR (NEW) =========
+    const scoreOcrResult = (text, confidence, mode) => {
+      const parsed = parseLabsFromText(text, mode);
+      const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
+      const expected = new Set(modeConfig.expectedTests || []);
+
+      const foundExpected = parsed.filter(v => expected.has(v.test)).length;
+      const invalid = parsed.filter(v => v.validation?.status === "invalid").length;
+      const abnormal = parsed.filter(v => v.flag && v.flag !== "N").length;
+
+      const avgValConf = parsed.length
+        ? parsed.reduce((s, v) => s + (v.confidence || 0), 0) / parsed.length
+        : 0;
+
+      const score =
+        (foundExpected * 25) +
+        (parsed.length * 5) +
+        (abnormal * 1.5) +
+        (avgValConf * 0.6) +
+        (confidence * 0.4) -
+        (invalid * 30);
+
+      return { score, parsed, foundExpected, invalid, avgValConf };
+    };
+
+    const runOCR = async (dataUrl, options = {}, setProgress, setStage) => {
+      const {
+        mode = "CBC",
+        smartCrop = true,
+        manualCrop = null,
+        accuracy = "Max", // "Balanced" | "Max"
+      } = options;
+
+      try {
+        setStage && setStage("Preprocessing image...");
+        setProgress && setProgress(5);
+
+        const makeVariants = accuracy === "Max";
+        const pre = await preprocessForOCR(dataUrl, { mode, smartCrop, manualCrop, makeVariants });
+
+        setStage && setStage("Initializing OCR engine...");
+        setProgress && setProgress(10);
+
+        const worker = await getOcrWorker((m) => {
+          if (m?.status === "recognizing text" && typeof m.progress === "number") {
+            // soft signal only
+          }
+        });
+
+        await worker.setParameters({
+          preserve_interword_spaces: "1",
+          tessedit_char_whitelist: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.%/+-()[]<>:= \n",
+        });
+
+        if (accuracy !== "Max") {
+          setStage && setStage("Recognizing (balanced)...");
+          await worker.setParameters({ tessedit_pageseg_mode: "6" });
+
+          const result = await worker.recognize(pre.variants[0].dataUrl);
+          const text = normalizeNumericText(result?.data?.text || "");
+          const confidence = Number(result?.data?.confidence || 0);
+
+          setProgress && setProgress(100);
+
+          return {
+            text,
+            confidence,
+            pass: "PSM6",
+            cropUsed: pre.cropUsed,
+            variant: pre.variants[0]?.name || "default",
+          };
+        }
+
+        const PSM_LIST = ["6", "4", "11"];
+        const ANGLES = [0, -2, 2, -4, 4];
+
+        let best = null;
+        let attempts = 0;
+        const totalAttempts = pre.variants.length * PSM_LIST.length * ANGLES.length;
+
+        for (const variant of pre.variants) {
+          const baseImg = new Image();
+          baseImg.src = variant.dataUrl;
+          await new Promise((res, rej) => { baseImg.onload = res; baseImg.onerror = () => rej(new Error("Variant load failed")); });
+
+          const baseCanvas = document.createElement("canvas");
+          baseCanvas.width = baseImg.width; baseCanvas.height = baseImg.height;
+          baseCanvas.getContext("2d", { willReadFrequently: true }).drawImage(baseImg, 0, 0);
+
+          for (const deg of ANGLES) {
+            const rotated = deg === 0 ? baseCanvas : rotateCanvas(baseCanvas, deg);
+            const rotatedUrl = rotated.toDataURL("image/png");
+
+            for (const psm of PSM_LIST) {
+              attempts++;
+              setStage && setStage(`Recognizing (max) • ${variant.name} • ${deg}° • PSM${psm}`);
+              setProgress && setProgress(10 + Math.round((attempts / totalAttempts) * 85));
+
+              await worker.setParameters({ tessedit_pageseg_mode: psm });
+
+              const result = await worker.recognize(rotatedUrl);
+              const text = normalizeNumericText(result?.data?.text || "");
+              const conf = Number(result?.data?.confidence || 0);
+
+              const s = scoreOcrResult(text, conf, mode);
+
+              if (!best || s.score > best.score) {
+                best = {
+                  score: s.score,
+                  text,
+                  confidence: conf,
+                  pass: `PSM${psm}`,
+                  variant: variant.name,
+                  angle: deg,
+                  parsedMeta: s,
+                };
+
+                if (s.foundExpected >= 6 && s.invalid === 0 && s.avgValConf >= 80) {
+                  setProgress && setProgress(100);
+                  return {
+                    text: best.text,
+                    confidence: best.confidence,
+                    pass: best.pass,
+                    cropUsed: pre.cropUsed,
+                    variant: `${best.variant} • ${best.angle}°`,
+                  };
+                }
+              }
+            }
+          }
+        }
+
+        setProgress && setProgress(100);
+
+        return {
+          text: best?.text || "",
+          confidence: best?.confidence || 0,
+          pass: best?.pass || "—",
+          cropUsed: pre.cropUsed,
+          variant: best ? `${best.variant} • ${best.angle}°` : "—",
+        };
+      } catch (err) {
+        console.error("OCR Error:", err);
+        throw err;
+      }
     };
 
     const compressImage = (file, maxWidth = 1400) => {
@@ -586,53 +812,59 @@
       const [ocrError, setOcrError] = useState(null);
       const [defaultOcrMode, setDefaultOcrMode] = useState("CBC");
       const [defaultSmartCrop, setDefaultSmartCrop] = useState(true);
+
+      // (NEW) Accuracy toggle
+      const [defaultAccuracy, setDefaultAccuracy] = useState("Max");
+
       const [cropModal, setCropModal] = useState(null);
       const fileRef = useRef(null);
       const cameraRef = useRef(null);
 
       const runOcrOnImage = async (imgObj) => {
-        setOcrBusyId(imgObj.id); 
-        setOcrProgress(0); 
+        setOcrBusyId(imgObj.id);
+        setOcrProgress(0);
         setOcrStage("Starting...");
         setOcrError(null);
-        
+
         try {
           const best = await runOCR(
-            imgObj.image, 
-            { 
-              mode: imgObj.ocrMode || defaultOcrMode, 
-              smartCrop: imgObj.smartCrop !== false, 
-              manualCrop: imgObj.manualCrop || null 
-            }, 
-            setOcrProgress, 
+            imgObj.image,
+            {
+              mode: imgObj.ocrMode || defaultOcrMode,
+              smartCrop: imgObj.smartCrop !== false,
+              manualCrop: imgObj.manualCrop || null,
+              accuracy: imgObj.accuracy || defaultAccuracy,
+            },
+            setOcrProgress,
             setOcrStage
           );
-          
+
           const values = parseLabsFromText(best.text, imgObj.ocrMode || defaultOcrMode);
-          const avgConfidence = values.length > 0 
-            ? values.reduce((sum, v) => sum + v.confidence, 0) / values.length 
+          const avgConfidence = values.length > 0
+            ? values.reduce((sum, v) => sum + v.confidence, 0) / values.length
             : best.confidence;
-          
-          setLabImages(prev => prev.map(x => x.id === imgObj.id ? { 
-            ...x, 
-            ocr: { 
-              text: best.text, 
-              values, 
-              confidence: best.confidence, 
-              avgValueConfidence: avgConfidence, 
-              pass: best.pass, 
-              cropUsed: best.cropUsed || null, 
-              updatedAt: Date.now() 
-            } 
+
+          setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
+            ...x,
+            ocr: {
+              text: best.text,
+              values,
+              confidence: best.confidence,
+              avgValueConfidence: avgConfidence,
+              pass: best.pass,
+              variant: best.variant || "",
+              cropUsed: best.cropUsed || null,
+              updatedAt: Date.now()
+            }
           } : x));
-          
-        } catch (e) { 
-          console.error("OCR ERROR:", e); 
+
+        } catch (e) {
+          console.error("OCR ERROR:", e);
           setOcrError(e?.message || "OCR failed");
         }
-        
-        setOcrBusyId(null); 
-        setOcrProgress(0); 
+
+        setOcrBusyId(null);
+        setOcrProgress(0);
         setOcrStage("");
       };
 
@@ -640,26 +872,26 @@
         if (!file || !file.type.startsWith('image/')) return;
         setUploading(true);
         setOcrError(null);
-        
+
         try {
           const compressed = await compressImage(file);
-          const newImage = { 
-            id: Date.now().toString(), 
-            image: compressed, 
-            timestamp: Date.now(), 
-            note: "", 
-            ocrMode: defaultOcrMode, 
-            smartCrop: defaultSmartCrop, 
-            manualCrop: null, 
-            ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, pass: "", updatedAt: null, cropUsed: null } 
+          const newImage = {
+            id: Date.now().toString(),
+            image: compressed,
+            timestamp: Date.now(),
+            note: "",
+            ocrMode: defaultOcrMode,
+            smartCrop: defaultSmartCrop,
+            manualCrop: null,
+            accuracy: defaultAccuracy, // (NEW)
+            ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, pass: "", variant: "", updatedAt: null, cropUsed: null }
           };
           setLabImages(prev => [newImage, ...prev]);
           setUploading(false);
-          
-          // Run OCR after a small delay
+
           setTimeout(() => runOcrOnImage(newImage), 300);
-        } catch (err) { 
-          console.error(err); 
+        } catch (err) {
+          console.error(err);
           setOcrError("Failed to process image");
           setUploading(false);
         }
@@ -677,9 +909,9 @@
           const vals = (o.values || []).map(v => {
             if (v.test !== test) return v;
             const updated = { ...v, [field]: newVal };
-            if (field === 'value') { 
-              updated.flag = determineFlag(test, newVal, v.flag); 
-              updated.validation = validateValue(test, newVal); 
+            if (field === 'value') {
+              updated.flag = determineFlag(test, newVal, v.flag);
+              updated.validation = validateValue(test, newVal);
             }
             return updated;
           });
@@ -688,16 +920,17 @@
       };
 
       const valuesFeed = useMemo(() => {
-        return (labImages || []).slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).map(img => ({ 
-          id: img.id, 
-          timestamp: img.timestamp, 
-          note: img.note, 
-          ocrMode: img.ocrMode, 
-          confidence: img.ocr?.confidence || 0, 
-          avgValueConfidence: img.ocr?.avgValueConfidence || 0, 
-          pass: img.ocr?.pass || "", 
-          values: img.ocr?.values || [], 
-          rawText: img.ocr?.text || "" 
+        return (labImages || []).slice().sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0)).map(img => ({
+          id: img.id,
+          timestamp: img.timestamp,
+          note: img.note,
+          ocrMode: img.ocrMode,
+          confidence: img.ocr?.confidence || 0,
+          avgValueConfidence: img.ocr?.avgValueConfidence || 0,
+          pass: img.ocr?.pass || "",
+          variant: img.ocr?.variant || "",
+          values: img.ocr?.values || [],
+          rawText: img.ocr?.text || ""
         }));
       }, [labImages]);
 
@@ -713,7 +946,7 @@
                 <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
                 <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼️ Images</button>
               </div>
-              
+
               <div className="ocr-settings-panel">
                 <div className="ocr-settings-title">⚙️ OCR Settings</div>
                 <div className="ocr-settings-grid">
@@ -723,21 +956,31 @@
                       {Object.entries(OCR_MODES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
                     </select>
                   </div>
+
                   <div className="ocr-setting">
                     <div className="ocr-setting-label">Smart Crop</div>
                     <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
-                      <input type="checkbox" checked={defaultSmartCrop} onChange={e => setDefaultSmartCrop(e.target.checked)} /> 
+                      <input type="checkbox" checked={defaultSmartCrop} onChange={e => setDefaultSmartCrop(e.target.checked)} />
                       Auto-trim
                     </label>
                   </div>
+
+                  {/* (NEW) Accuracy */}
+                  <div className="ocr-setting">
+                    <div className="ocr-setting-label">Accuracy</div>
+                    <select className="inp" value={defaultAccuracy} onChange={(e) => setDefaultAccuracy(e.target.value)} style={{ background: "white" }}>
+                      <option value="Balanced">Balanced (faster)</option>
+                      <option value="Max">Max (more accurate)</option>
+                    </select>
+                  </div>
                 </div>
               </div>
-              
-              <div 
-                className={`add-lab-area ${dragging ? 'dragging' : ''}`} 
-                onClick={() => fileRef.current?.click()} 
-                onDragOver={e => { e.preventDefault(); setDragging(true); }} 
-                onDragLeave={() => setDragging(false)} 
+
+              <div
+                className={`add-lab-area ${dragging ? 'dragging' : ''}`}
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
               >
                 {uploading ? (
@@ -753,27 +996,27 @@
                   </>
                 )}
               </div>
-              
+
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                 <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
                 <button className="btn btn-white" onClick={() => fileRef.current?.click()}>📁 Gallery</button>
               </div>
-              
+
               <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
               <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
-              
+
               {ocrError && (
                 <div className="ocr-error">
                   ⚠️ {ocrError}
-                  <button 
-                    onClick={() => setOcrError(null)} 
+                  <button
+                    onClick={() => setOcrError(null)}
                     style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}
                   >
                     ×
                   </button>
                 </div>
               )}
-              
+
               {ocrBusyId && (
                 <div className="ocr-progress">
                   <div className="ocr-progress-bar">
@@ -785,7 +1028,7 @@
                   </div>
                 </div>
               )}
-              
+
               {tab === "Values" && (valuesFeed.length === 0 ? (
                 <div className="empty-labs">
                   <div className="empty-labs-icon">🔬</div>
@@ -802,7 +1045,11 @@
                         <div className="lab-values-head">
                           <div>
                             <div className="lab-values-title">{date} • {time}</div>
-                            <div className="lab-values-sub">{item.note ? item.note + " • " : ""}{OCR_MODES[item.ocrMode]?.name || item.ocrMode}</div>
+                            <div className="lab-values-sub">
+                              {item.note ? item.note + " • " : ""}
+                              {OCR_MODES[item.ocrMode]?.name || item.ocrMode}
+                              {item.variant ? ` • ${item.variant}` : ""}
+                            </div>
                           </div>
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <span className={`pill ${confClass}-conf`}>{Math.round(item.avgValueConfidence || item.confidence)}%</span>
@@ -810,9 +1057,9 @@
                             <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>
                               {showRawText === item.id ? '🔼' : '🔽'} Raw
                             </button>
-                            <button className="lab-image-btn" onClick={() => { 
-                              const img = labImages.find(x => x.id === item.id); 
-                              if (img) runOcrOnImage(img); 
+                            <button className="lab-image-btn" onClick={() => {
+                              const img = labImages.find(x => x.id === item.id);
+                              if (img) runOcrOnImage(img);
                             }}>🔁</button>
                           </div>
                         </div>
@@ -838,9 +1085,9 @@
                                       {v.validation?.status === 'invalid' && <span style={{ color: '#ef4444', fontWeight: 800 }}>⚠️</span>}
                                     </div>
                                     <div className="v">
-                                      <input 
-                                        value={v.value || ""} 
-                                        onChange={e => updateOcrValue(item.id, v.test, 'value', e.target.value)} 
+                                      <input
+                                        value={v.value || ""}
+                                        onChange={e => updateOcrValue(item.id, v.test, 'value', e.target.value)}
                                       />
                                       <span className="u">{v.unit || ""}</span>
                                       <span className={`flag ${v.flag || "N"}`}>{v.flag || "N"}</span>
@@ -859,13 +1106,14 @@
                         <div className="ocr-stats">
                           <div className="ocr-stat">Pass: <span>{item.pass || "—"}</span></div>
                           <div className="ocr-stat">OCR: <span>{Math.round(item.confidence)}%</span></div>
+                          {item.variant && <div className="ocr-stat">Pick: <span>{item.variant}</span></div>}
                         </div>
                       </div>
                     );
                   })}
                 </div>
               ))}
-              
+
               {tab === "Images" && (labImages.length === 0 ? (
                 <div className="empty-labs">
                   <div className="empty-labs-icon">🔬</div>
@@ -884,10 +1132,10 @@
                             <div className="lab-image-time">{time}{count ? ` • ${count} values` : ""}</div>
                           </div>
                           <div className="lab-image-actions">
-                            <select 
-                              className="inp" 
-                              style={{ width: 110, padding: "4px 8px", fontSize: 11, background: "white" }} 
-                              value={lab.ocrMode || "CBC"} 
+                            <select
+                              className="inp"
+                              style={{ width: 110, padding: "4px 8px", fontSize: 11, background: "white" }}
+                              value={lab.ocrMode || "CBC"}
                               onChange={(e) => setLabImages(prev => prev.map(x => x.id === lab.id ? ({ ...x, ocrMode: e.target.value }) : x))}
                             >
                               {Object.keys(OCR_MODES).map(k => <option key={k} value={k}>{k}</option>)}
@@ -901,12 +1149,12 @@
                           <img src={lab.image} alt="Lab" />
                         </div>
                         <div className="lab-image-note">
-                          <input 
-                            type="text" 
-                            placeholder="Add note..." 
-                            value={lab.note || ""} 
-                            onChange={e => updateNote(lab.id, e.target.value)} 
-                            onClick={e => e.stopPropagation()} 
+                          <input
+                            type="text"
+                            placeholder="Add note..."
+                            value={lab.note || ""}
+                            onChange={e => updateNote(lab.id, e.target.value)}
+                            onClick={e => e.stopPropagation()}
                           />
                         </div>
                       </div>
@@ -923,21 +1171,21 @@
             </div>
           </div>
           {viewerIndex !== null && <ImageViewer images={labImages} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
-          {cropModal && (() => { 
-            const img = labImages.find(x => x.id === cropModal.imgId); 
-            if (!img) return null; 
-            const modeConfig = OCR_MODES[img.ocrMode || "CBC"] || OCR_MODES.CBC; 
+          {cropModal && (() => {
+            const img = labImages.find(x => x.id === cropModal.imgId);
+            if (!img) return null;
+            const modeConfig = OCR_MODES[img.ocrMode || "CBC"] || OCR_MODES.CBC;
             return (
-              <CropModal 
-                image={img.image} 
-                initialCrop={img.manualCrop || modeConfig.crop} 
-                onClose={() => setCropModal(null)} 
-                onApply={(crop) => { 
-                  setLabImages(prev => prev.map(x => x.id === img.id ? ({ ...x, manualCrop: crop }) : x)); 
-                  setCropModal(null); 
-                }} 
+              <CropModal
+                image={img.image}
+                initialCrop={img.manualCrop || modeConfig.crop}
+                onClose={() => setCropModal(null)}
+                onApply={(crop) => {
+                  setLabImages(prev => prev.map(x => x.id === img.id ? ({ ...x, manualCrop: crop }) : x));
+                  setCropModal(null);
+                }}
               />
-            ); 
+            );
           })()}
         </div>
       );
@@ -948,7 +1196,7 @@
       const [collapsed, setCollapsed] = useState(false);
       const [text, setText] = useState(notice?.text || "");
       useEffect(() => setText(notice?.text || ""), [notice?.text]);
-      
+
       if (collapsed) return (
         <div className="notice-banner notice-collapsed" onClick={() => setCollapsed(false)}>
           <div className="notice-header">
@@ -957,7 +1205,7 @@
           </div>
         </div>
       );
-      
+
       return (
         <div className="notice-banner">
           <div className="notice-header">
@@ -999,20 +1247,20 @@
       const syncTimer = useRef(null);
 
       const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-      const scheduleSync = useCallback(() => { 
-        setSyncing(true); 
-        if (syncTimer.current) clearTimeout(syncTimer.current); 
-        syncTimer.current = setTimeout(() => { 
-          pingSheets(); 
-          setTimeout(() => setSyncing(false), 1000); 
-        }, 500); 
+      const scheduleSync = useCallback(() => {
+        setSyncing(true);
+        if (syncTimer.current) clearTimeout(syncTimer.current);
+        syncTimer.current = setTimeout(() => {
+          pingSheets();
+          setTimeout(() => setSyncing(false), 1000);
+        }, 500);
       }, []);
 
       useEffect(() => {
         db.ref('notice').on('value', snap => setNotice(snap.val() || { text: "" }));
-        db.ref('patients').on('value', snap => { 
-          const val = snap.val(); 
-          setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []); 
+        db.ref('patients').on('value', snap => {
+          const val = snap.val();
+          setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []);
         });
         return () => { db.ref('notice').off(); db.ref('patients').off(); };
       }, []);
@@ -1031,25 +1279,25 @@
       const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
 
       const saveNew = () => {
-        const c = { 
-          ward: newP.ward || "Unassigned", 
-          bed: cleanBed(newP.bed), 
-          name: newP.name.trim(), 
-          diagnosis: newP.diagnosis, 
-          doctor: newP.doctor, 
-          status: newP.status || "New", 
-          plan: newP.plan, 
-          mrn: newP.mrn, 
-          timestamp: Date.now(), 
-          labImages: [] 
+        const c = {
+          ward: newP.ward || "Unassigned",
+          bed: cleanBed(newP.bed),
+          name: newP.name.trim(),
+          diagnosis: newP.diagnosis,
+          doctor: newP.doctor,
+          status: newP.status || "New",
+          plan: newP.plan,
+          mrn: newP.mrn,
+          timestamp: Date.now(),
+          labImages: []
         };
         if (!c.name) { alert("Enter name"); return; }
         if (isDup(c.ward, c.name)) { alert("Duplicate"); return; }
-        db.ref("patients").push(c).then(() => { 
-          setAddModal(false); 
-          setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); 
-          showToast("✓ Added"); 
-          pingSheets(); 
+        db.ref("patients").push(c).then(() => {
+          setAddModal(false);
+          setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+          showToast("✓ Added");
+          pingSheets();
         });
       };
 
@@ -1114,9 +1362,9 @@
                       <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>
                         🧪 Labs{getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}
                       </button>
-                      <select 
-                        className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`} 
-                        value={p.status || ""} 
+                      <select
+                        className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`}
+                        value={p.status || ""}
                         onChange={e => update(p.id, 'status', e.target.value)}
                       >
                         <option value="">-</option>
