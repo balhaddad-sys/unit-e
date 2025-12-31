@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -7,12 +8,13 @@
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
   <style>
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --red:#dc2626; }
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
 
@@ -38,43 +40,18 @@
     .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none; }
     .ward-header:hover { background: #1e3a8a; }
-    .ward-header.has-new { background: linear-gradient(90deg, var(--blue) 0%, #7c3aed 50%, var(--blue) 100%); background-size: 200% 100%; animation: header-pulse 2s ease-in-out infinite; }
-    @keyframes header-pulse { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
     .arrow { transition: transform 0.2s; display: inline-block; font-size: 10px; }
     .arrow.collapsed { transform: rotate(-90deg); }
     .ward-body.is-hidden { display: none; }
     .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
-    .new-count { background: #dc2626; color: white; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-right: 8px; animation: blink-hard 0.8s ease-in-out infinite; box-shadow: 0 0 10px rgba(220, 38, 38, 0.6); }
-    @keyframes blink-hard { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.05); } }
+    .new-count { background: #dc2626; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-right: 5px; animation: blink 1.5s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
-    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; transition: all 0.3s; }
+    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
     .p-card:last-child{ border-bottom:none; }
-    
-    .p-card.new-admission{ 
-      background: linear-gradient(135deg, #fef08a 0%, #fbbf24 30%, #f59e0b 70%, #fbbf24 100%); 
-      background-size: 300% 300%;
-      animation: gradient-shift 3s ease infinite, card-glow 1.5s ease-in-out infinite;
-      border-left: 6px solid #dc2626; 
-      border-top: 3px solid #dc2626;
-      border-bottom: 3px solid #dc2626;
-      position: relative; 
-      padding-top: 35px;
-      margin: 8px;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3);
-    }
-    
-    @keyframes gradient-shift { 0% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } 100% { background-position: 0% 50%; } }
-    @keyframes card-glow { 0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3); } 50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 0 60px rgba(245, 158, 11, 0.5); } }
-    
-    .new-admission-badge {
-      position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
-      background: linear-gradient(90deg, #dc2626, #b91c1c, #dc2626); background-size: 200% 100%;
-      animation: badge-pulse 1s ease-in-out infinite;
-      color: white; padding: 6px 20px; border-radius: 20px; font-size: 12px; font-weight: 900; 
-      letter-spacing: 1px; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5); z-index: 10; white-space: nowrap;
-    }
-    @keyframes badge-pulse { 0%, 100% { background-position: 0% 50%; transform: translateX(-50%) scale(1); } 50% { background-position: 100% 50%; transform: translateX(-50%) scale(1.02); } }
+    .p-card.new-admission{ background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 5px solid #f59e0b; animation: pulse-glow 2s ease-in-out infinite; position: relative; padding-top: 20px; }
+    .p-card.new-admission::before{ content: "⚡ NEW ADMISSION"; position: absolute; top: -8px; left: 12px; background: #dc2626; color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4); z-index: 1; }
+    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 rgba(245, 158, 11, 0.4); } 50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); } }
 
     .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
@@ -82,18 +59,13 @@
     .inp-name{ font-weight:700; font-size:15px; }
     .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
     .inp-area{ min-height:45px; resize:vertical; }
-    
-    .new-admission .inp { background: rgba(255,255,255,0.9); border-color: #f59e0b; }
-    .new-admission .inp-bed { background: #fff; color: #dc2626; font-size: 16px; }
-    .new-admission .inp-name { font-size: 16px; color: #1e293b; }
 
     .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; }
-    .status-new { background: #fef08a; color: #b91c1c; font-weight: 800; border: 2px solid #dc2626; }
+    .status-new { background: #dbeafe; color: var(--blue); }
     .status-chronic { background: #ffedd5; color: var(--orange); }
     .status-non { background: #f3e8ff; color: var(--purple); }
 
-    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; position:absolute; top:10px; right:10px; }
-    .new-admission .btn-del { top: 35px; }
+    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; }
 
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
     .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
@@ -106,15 +78,11 @@
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
     .sync-badge.syncing { background: #fef08a; color: #854d0e; }
 
-    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; }
-
-    .global-alert { background: linear-gradient(90deg, #dc2626, #f59e0b, #dc2626); background-size: 200% 100%; animation: alert-scroll 2s linear infinite; color: white; padding: 10px 16px; border-radius: 8px; margin-bottom: 10px; font-weight: 700; text-align: center; font-size: 14px; box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4); }
-    @keyframes alert-scroll { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-
-    .error-box { background: #fee2e2; border: 2px solid #dc2626; padding: 20px; margin: 20px; border-radius: 8px; color: #dc2626; }
+    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
     @media(min-width: 768px){
-      .p-card{ flex-direction:row; align-items:flex-start; gap:14px; padding-right: 50px; }
+      .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
       .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
       .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
       .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
@@ -123,170 +91,157 @@
   </style>
 </head>
 <body>
-  <div id="root"><div style="padding:20px;">Loading...</div></div>
+  <div id="root"></div>
 
-  <script>
-    // Error handler
-    window.onerror = function(msg, url, line) {
-      document.getElementById('root').innerHTML = '<div class="error-box"><h2>Error</h2><p>' + msg + '</p><p>Line: ' + line + '</p></div>';
+  <script type="text/babel">
+    const { useState, useEffect, useMemo, useRef, useCallback } = React;
+
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
+      authDomain: "unit-e-1d07b.firebaseapp.com",
+      databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "unit-e-1d07b",
+      storageBucket: "unit-e-1d07b.firebasestorage.app",
+      messagingSenderId: "465930916258",
+      appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
     };
 
-    // Globals
-    var db = null;
-    var SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
-    var SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
-    var SHEET_URL = "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID + "/edit";
-    var WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
-    var STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
+    if (window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
 
-    // Firebase init
-    try {
-      if (window.firebase && !firebase.apps.length) {
-        firebase.initializeApp({
-          apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
-          authDomain: "unit-e-1d07b.firebaseapp.com",
-          databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
-          projectId: "unit-e-1d07b",
-          storageBucket: "unit-e-1d07b.firebasestorage.app",
-          messagingSenderId: "465930916258",
-          appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
-        });
+    const SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
+    const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
+    const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
+
+    const pingSheets = () => {
+      const url = `${SHEETS_SYNC_URL}?t=${Date.now()}`;
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
+      } else {
+        fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {});
       }
-      db = firebase.database();
-    } catch (e) { console.error(e); }
+    };
 
-    function pingSheets() {
-      var url = SHEETS_SYNC_URL + "?t=" + Date.now();
-      try { navigator.sendBeacon(url, new Blob([], { type: "text/plain" })); } catch(e) {}
-    }
+    const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
+    const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
-    function isTimestamp(val) {
-      var s = String(val || "");
-      return s.match(/^\d{4}-\d{2}-\d{2}/) || s.match(/^\d{13,}$/);
-    }
+    // Check if value looks like a timestamp
+    const isTimestamp = (val) => {
+      const s = String(val || "");
+      return s.match(/^\d{4}-\d{2}-\d{2}/) || 
+             s.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i) ||
+             s.match(/^\d{13,}$/) ||
+             s.match(/T\d{2}:\d{2}/) ||
+             s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
+    };
 
-    function cleanBed(val) {
+    // Clean bed value
+    const cleanBed = (val) => {
       if (isTimestamp(val)) return "";
       return String(val || "").trim();
-    }
+    };
 
-    function makeKey(ward, name) {
-      return (ward || "").toLowerCase().trim() + "|" + (name || "").toLowerCase().trim();
-    }
+    // Create dedupe key
+    const makeKey = (ward, name) => {
+      return `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
+    };
 
-    // React helpers
-    var h = React.createElement;
-    var useState = React.useState;
-    var useEffect = React.useEffect;
-    var useMemo = React.useMemo;
-    var useRef = React.useRef;
-    var useCallback = React.useCallback;
+    const App = () => {
+      const [patients, setPatients] = useState([]);
+      const [search, setSearch] = useState("");
+      const [viewFilter, setViewFilter] = useState("All");
+      const [addModal, setAddModal] = useState(false);
+      const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+      const [collapsedWards, setCollapsedWards] = useState({});
+      const [syncing, setSyncing] = useState(false);
+      const [toast, setToast] = useState(null);
 
-    function App() {
-      var _patients = useState([]);
-      var patients = _patients[0], setPatients = _patients[1];
+      const syncTimer = useRef(null);
 
-      var _search = useState("");
-      var search = _search[0], setSearch = _search[1];
-
-      var _filter = useState("All");
-      var viewFilter = _filter[0], setViewFilter = _filter[1];
-
-      var _modal = useState(false);
-      var addModal = _modal[0], setAddModal = _modal[1];
-
-      var _newP = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-      var newP = _newP[0], setNewP = _newP[1];
-
-      var _collapsed = useState({});
-      var collapsedWards = _collapsed[0], setCollapsedWards = _collapsed[1];
-
-      var _syncing = useState(false);
-      var syncing = _syncing[0], setSyncing = _syncing[1];
-
-      var _toast = useState(null);
-      var toast = _toast[0], setToast = _toast[1];
-
-      var _error = useState(null);
-      var error = _error[0], setError = _error[1];
-
-      var syncTimer = useRef(null);
-
-      function showToast(msg) {
+      const showToast = (msg) => {
         setToast(msg);
-        setTimeout(function() { setToast(null); }, 3000);
-      }
+        setTimeout(() => setToast(null), 3000);
+      };
 
-      var scheduleSync = useCallback(function() {
+      const scheduleSheetSync = useCallback(() => {
         setSyncing(true);
         if (syncTimer.current) clearTimeout(syncTimer.current);
-        syncTimer.current = setTimeout(function() {
+        syncTimer.current = setTimeout(() => {
           pingSheets();
-          setTimeout(function() { setSyncing(false); }, 1000);
+          setTimeout(() => setSyncing(false), 1000);
         }, 500);
       }, []);
 
-      useEffect(function() {
-        if (!db) { setError("Firebase not ready"); return; }
-        var ref = db.ref('patients');
-        ref.on('value', function(snap) {
-          var val = snap.val();
-          var list = [];
-          if (val) {
-            var keys = Object.keys(val);
-            for (var i = 0; i < keys.length; i++) {
-              var k = keys[i];
-              var p = val[k];
-              p.id = k;
-              p.bed = cleanBed(p.bed);
-              list.push(p);
-            }
-          }
+      useEffect(() => {
+        const ref = db.ref('patients');
+        ref.on('value', snap => {
+          const val = snap.val();
+          let list = val ? Object.keys(val).map(k => ({ id: k, ...val[k] })) : [];
+          
+          // Clean bed values on load
+          list = list.map(p => ({
+            ...p,
+            bed: cleanBed(p.bed)
+          }));
+          
           setPatients(list);
-        }, function(err) { setError("DB error: " + err.message); });
-        return function() { ref.off(); };
+        });
+        return () => ref.off();
       }, []);
 
-      function isDuplicate(ward, name, excludeId) {
-        var key = makeKey(ward, name);
-        for (var i = 0; i < patients.length; i++) {
-          var p = patients[i];
-          if (excludeId && p.id === excludeId) continue;
-          if (makeKey(p.ward, p.name) === key) return true;
-        }
-        return false;
-      }
+      // Check for duplicate
+      const isDuplicate = (ward, name, excludeId = null) => {
+        const key = makeKey(ward, name);
+        return patients.some(p => {
+          if (excludeId && p.id === excludeId) return false;
+          return makeKey(p.ward, p.name) === key;
+        });
+      };
 
-      var update = useCallback(function(id, field, value) {
-        var patient = null;
-        for (var i = 0; i < patients.length; i++) {
-          if (patients[i].id === id) { patient = patients[i]; break; }
+      const update = useCallback((id, field, value) => {
+        // If updating name, check for duplicates
+        if (field === 'name') {
+          const patient = patients.find(p => p.id === id);
+          if (patient && isDuplicate(patient.ward, value, id)) {
+            showToast("⚠️ Patient with this name already exists in this ward");
+            return;
+          }
         }
-        if (field === 'name' && patient && isDuplicate(patient.ward, value, id)) {
-          showToast("Name exists"); return;
+        
+        // If updating ward, check for duplicates
+        if (field === 'ward') {
+          const patient = patients.find(p => p.id === id);
+          if (patient && isDuplicate(value, patient.name, id)) {
+            showToast("⚠️ Patient with this name already exists in target ward");
+            return;
+          }
         }
-        if (field === 'ward' && patient && isDuplicate(value, patient.name, id)) {
-          showToast("Exists in ward"); return;
+
+        // Clean bed values
+        if (field === 'bed') {
+          value = cleanBed(value);
         }
-        if (field === 'bed') value = cleanBed(value);
-        var data = {}; data[field] = value; data.timestamp = Date.now();
-        db.ref("patients/" + id).update(data).then(scheduleSync);
-      }, [patients, scheduleSync]);
 
-      function del(id) {
-        if (!confirm("Delete?")) return;
-        db.ref("patients/" + id).remove().then(function() { showToast("Deleted"); pingSheets(); });
-      }
+        db.ref(`patients/${id}`).update({
+          [field]: value,
+          timestamp: Date.now()
+        }).then(() => {
+          scheduleSheetSync();
+        });
+      }, [patients, scheduleSheetSync]);
 
-      function toggleWard(ward) {
-        var next = {};
-        for (var k in collapsedWards) next[k] = collapsedWards[k];
-        next[ward] = !collapsedWards[ward];
-        setCollapsedWards(next);
-      }
+      const del = (id) => {
+        if (!confirm("Delete this patient?")) return;
+        db.ref(`patients/${id}`).remove().then(() => {
+          showToast("✓ Patient deleted");
+          pingSheets();
+        });
+      };
 
-      function saveNew() {
-        var c = {
+      const toggleWard = (ward) => setCollapsedWards(prev => ({ ...prev, [ward]: !prev[ward] }));
+
+      const saveNew = () => {
+        const cleaned = {
           ward: (newP.ward || "Unassigned").trim(),
           bed: cleanBed(newP.bed),
           name: (newP.name || "").trim(),
@@ -297,107 +252,172 @@
           mrn: (newP.mrn || "").trim(),
           timestamp: Date.now()
         };
-        if (!c.name) { alert("Enter name"); return; }
-        if (isDuplicate(c.ward, c.name)) { alert("Exists"); return; }
-        db.ref("patients").push(c).then(function() {
+
+        if (!cleaned.name) {
+          alert("Please enter patient name.");
+          return;
+        }
+
+        // Check for duplicate
+        if (isDuplicate(cleaned.ward, cleaned.name)) {
+          alert("⚠️ A patient with this name already exists in " + cleaned.ward);
+          return;
+        }
+
+        db.ref("patients").push(cleaned).then(() => {
           setAddModal(false);
           setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-          showToast("Added"); pingSheets();
+          showToast("✓ Patient added");
+          pingSheets();
         });
-      }
+      };
 
-      function cleanupDupes() {
-        if (!confirm("Remove dupes?")) return;
+      // Cleanup duplicates
+      const cleanupDuplicates = async () => {
+        if (!confirm("This will remove duplicate patients (keeping the most recent). Continue?")) return;
+        
         setSyncing(true);
-        var byKey = {}, toDelete = [];
-        for (var i = 0; i < patients.length; i++) {
-          var p = patients[i];
-          var key = makeKey(p.ward, p.name);
-          if (!byKey[key]) { byKey[key] = p; }
-          else {
-            if (Number(p.timestamp || 0) > Number(byKey[key].timestamp || 0)) {
-              toDelete.push(byKey[key].id); byKey[key] = p;
-            } else { toDelete.push(p.id); }
+        showToast("🔄 Cleaning up duplicates...");
+
+        const byKey = {};
+        const toDelete = [];
+
+        patients.forEach(p => {
+          const key = makeKey(p.ward, p.name);
+          if (!byKey[key]) {
+            byKey[key] = p;
+          } else {
+            // Keep newer one
+            const existingTs = Number(byKey[key].timestamp || 0);
+            const newTs = Number(p.timestamp || 0);
+            if (newTs > existingTs) {
+              toDelete.push(byKey[key].id);
+              byKey[key] = p;
+            } else {
+              toDelete.push(p.id);
+            }
           }
-        }
-        var promises = [];
-        for (var j = 0; j < toDelete.length; j++) {
-          promises.push(db.ref("patients/" + toDelete[j]).remove());
-        }
-        Promise.all(promises).then(function() {
-          showToast("Removed " + toDelete.length); pingSheets(); setSyncing(false);
         });
-      }
 
-      function manualSync() { setSyncing(true); pingSheets(); showToast("Syncing"); setTimeout(function() { setSyncing(false); }, 2000); }
-      function openSheet() { window.open(SHEET_URL, '_blank'); }
+        // Delete duplicates
+        for (const id of toDelete) {
+          await db.ref(`patients/${id}`).remove();
+        }
 
-      function exportExcel() {
-        var wb = XLSX.utils.book_new();
-        var wsData = [["UNIT E"], ["DATE: " + new Date().toLocaleDateString()], [], ["WARD", "BED", "NAME", "MRN", "DX", "DR", "STATUS", "PLAN"]];
-        for (var i = 0; i < groups.sortedKeys.length; i++) {
-          var ward = groups.sortedKeys[i];
-          wsData.push([ward.toUpperCase()]);
-          var pts = groups.g[ward];
-          for (var j = 0; j < pts.length; j++) {
-            var p = pts[j];
-            wsData.push([p.ward, p.bed, p.name, p.mrn || "", p.diagnosis, p.doctor, p.status, p.plan]);
-          }
+        showToast(`✓ Removed ${toDelete.length} duplicates`);
+        pingSheets();
+        setSyncing(false);
+      };
+
+      const manualSync = () => {
+        setSyncing(true);
+        pingSheets();
+        showToast("🔄 Syncing with Google Sheet...");
+        setTimeout(() => setSyncing(false), 2000);
+      };
+
+      const openSheet = () => {
+        window.open(SHEET_URL, '_blank');
+      };
+
+      const exportExcel = () => {
+        const wb = XLSX.utils.book_new();
+        const wsData = [
+          ["UNIT E ROUNDS REPORT"],
+          ["DATE: " + new Date().toLocaleDateString()],
+          [],
+          ["WARD", "BED", "PATIENT NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN"]
+        ];
+        groups.sortedKeys.forEach(ward => {
+          wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
+          groups.g[ward].forEach(p => {
+            wsData.push([p.ward, cleanBed(p.bed), p.name, p.mrn || "", p.diagnosis, p.doctor, p.status || "-", p.plan]);
+          });
           wsData.push([]);
-        }
-        var ws = XLSX.utils.aoa_to_sheet(wsData);
+        });
+        const ws = XLSX.utils.aoa_to_sheet(wsData);
+        ws['!cols'] = [{ wch: 15 }, { wch: 8 }, { wch: 25 }, { wch: 12 }, { wch: 30 }, { wch: 15 }, { wch: 15 }, { wch: 50 }];
         XLSX.utils.book_append_sheet(wb, ws, "Rounds");
-        XLSX.writeFile(wb, "UnitE.xlsx");
-      }
+        XLSX.writeFile(wb, "UnitE_Rounds.xlsx");
+      };
 
-      var groups = useMemo(function() {
-        var g = {};
-        var filtered = [];
-        for (var i = 0; i < patients.length; i++) {
-          var p = patients[i];
-          if (viewFilter !== 'All' && p.status !== viewFilter) continue;
-          var str = ((p.name || "") + (p.bed || "") + (p.ward || "") + (p.diagnosis || "")).toLowerCase();
-          if (str.indexOf(search.toLowerCase()) < 0) continue;
-          var w = p.ward || "Unassigned";
-          if (!g[w]) g[w] = [];
-          g[w].push(p);
-        }
-        // Sort each ward
-        var wards = Object.keys(g);
-        for (var j = 0; j < wards.length; j++) {
-          var wardName = wards[j];
-          g[wardName].sort(function(a, b) {
-            var aNew = (a.status || "").toLowerCase() === "new";
-            var bNew = (b.status || "").toLowerCase() === "new";
-            if (aNew && !bNew) return -1;
-            if (!aNew && bNew) return 1;
+      const groups = useMemo(() => {
+        const g = {};
+        let filtered = patients;
+        if (viewFilter !== 'All') filtered = patients.filter(p => p.status === viewFilter);
+        filtered
+          .filter(p => (String(p.name || "") + String(p.bed || "") + String(p.ward || "") + String(p.diagnosis || "")).toLowerCase().includes(search.toLowerCase()))
+          .forEach(p => {
+            let w = p.ward || "Unassigned";
+            if (!g[w]) g[w] = [];
+            g[w].push(p);
+          });
+        
+        // Sort each ward: New status first, then others
+        Object.keys(g).forEach(ward => {
+          g[ward].sort((a, b) => {
+            // New status gets priority (comes first)
+            const aIsNew = (a.status || "").toLowerCase() === "new";
+            const bIsNew = (b.status || "").toLowerCase() === "new";
+            if (aIsNew && !bIsNew) return -1;
+            if (!aIsNew && bIsNew) return 1;
+            // If both same status priority, sort by bed
             return String(a.bed || "").localeCompare(String(b.bed || ""));
           });
-        }
-        var sortedKeys = wards.sort(function(a, b) { return WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b); });
-        var newCounts = {};
-        var totalNew = 0;
-        for (var k = 0; k < sortedKeys.length; k++) {
-          var wrd = sortedKeys[k];
-          var count = 0;
-          for (var m = 0; m < g[wrd].length; m++) {
-            if ((g[wrd][m].status || "").toLowerCase() === "new") count++;
-          }
-          newCounts[wrd] = count;
-          totalNew += count;
-        }
-        return { g: g, sortedKeys: sortedKeys, newCounts: newCounts, totalNew: totalNew };
+        });
+        
+        const sortedKeys = Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
+        
+        // Calculate new admission counts per ward
+        const newCounts = {};
+        Object.keys(g).forEach(ward => {
+          newCounts[ward] = g[ward].filter(p => (p.status || "").toLowerCase() === "new").length;
+        });
+        
+        return { g, sortedKeys, totalCount: filtered.length, newCounts };
       }, [patients, search, viewFilter]);
 
-      if (error) return h('div', { className: 'error-box' }, error);
+      return (
+        <div className="wrap">
+          <div className="topbar">
+            <div className="title">
+              <div className="title-row">
+                <h1>Unit E</h1>
+                <span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>
+                  {syncing ? '⏳' : '✓'} {patients.length}
+                </span>
+              </div>
+            </div>
+            <div className="actions">
+              <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
+              <button className="btn btn-green" onClick={openSheet}>📊 Sheet</button>
+              <button className="btn btn-white" onClick={exportExcel}>📤</button>
+              <button className="btn btn-blue" onClick={manualSync}>🔄</button>
+              <button className="btn btn-red" onClick={cleanupDuplicates}>🧹</button>
+            </div>
+          </div>
 
-      // Build UI
-      var children = [];
+          <div className="controls-container">
+            <div className="filter-row">
+              {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
+                <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>
+              ))}
+            </div>
+            <input className="search-bar" placeholder="Search patients..." value={search} onChange={e => setSearch(e.target.value)} />
+          </div>
 
-      // Global alert
-      if (groups.totalNew > 0) {
-        children.push(h('div', { key: 'alert', className: 'global-alert' }, 'NEW ADMISSIONS: ' + groups.totalNew));
-      }
-
-      // Topbar
-      children.push(h('di
+          {groups.sortedKeys.map(ward => {
+            const newCount = groups.newCounts?.[ward] || 0;
+            return (
+            <div key={ward} className="ward-section">
+              <div className="ward-header" onClick={() => toggleWard(ward)}>
+                <div><span className={`arrow ${!collapsedWards[ward] ? '' : 'collapsed'}`}>▼</span> {ward}</div>
+                <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
+                  {newCount > 0 && <span className="new-count">⚡ {newCount} NEW</span>}
+                  <span className="ward-count">{groups.g[ward].length}</span>
+                </div>
+              </div>
+              <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
+                {groups.g[ward].map(p => (
+                  <div className={`p-card ${(p.status || "").toLowerCase() === "new" ? "new-admission" : ""}`} key={p.id}>
+                    <div cla
