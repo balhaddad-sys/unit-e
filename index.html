@@ -11,7 +11,6 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
     :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --yellow:#ca8a04; --red:#dc2626; }
@@ -85,7 +84,7 @@
     .btn-lab.has-labs{ background:#d946ef; color:white; border-color:#d946ef; }
 
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
-    .modal{ background:white; width:100%; max-width:500px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
+    .modal{ background:white; width:100%; max-width:550px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
     .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
     .modal-head.purple{ background:var(--purple); }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
@@ -121,9 +120,21 @@
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
     @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
-    .extracted-preview { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; max-height: 150px; overflow-y: auto; }
+    .extracted-preview { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; max-height: 200px; overflow-y: auto; }
     .extracted-preview h4 { margin: 0 0 8px 0; color: var(--green); font-size: 12px; }
-    .extracted-item { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #dcfce7; }
+    .extracted-item { display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid #dcfce7; }
+    .extracted-item:last-child { border-bottom: none; }
+
+    .image-preview { max-width: 100%; max-height: 150px; border-radius: 8px; margin-top: 8px; border: 1px solid var(--border); }
+
+    .ai-badge { background: linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%); color: white; padding: 2px 8px; border-radius: 10px; font-size: 10px; font-weight: 600; margin-left: 8px; }
+
+    .custom-labs { margin-top: 8px; }
+    .custom-lab-item { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; }
+    .custom-lab-item input { flex: 1; }
+    .custom-lab-item input:first-child { max-width: 120px; }
+    .add-custom-btn { background: #f8fafc; border: 1px dashed var(--border); border-radius: 6px; padding: 8px; width: 100%; cursor: pointer; color: #64748b; font-size: 12px; }
+    .add-custom-btn:hover { background: #f1f5f9; border-color: var(--purple); color: var(--purple); }
 
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
@@ -169,28 +180,33 @@
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
-    // Lab configuration with normal ranges
+    // Lab configuration with normal ranges - expanded for Kuwait MOH
     const LAB_CONFIG = {
       cbc: {
         title: "CBC",
         fields: [
-          { key: "wbc", label: "WBC", unit: "K", low: 4, high: 11 },
+          { key: "wbc", label: "WBC", unit: "K/µL", low: 4, high: 11 },
           { key: "hgb", label: "Hgb", unit: "g/dL", low: 12, high: 17 },
           { key: "hct", label: "Hct", unit: "%", low: 36, high: 50 },
-          { key: "plt", label: "Plt", unit: "K", low: 150, high: 400 },
+          { key: "plt", label: "Plt", unit: "K/µL", low: 150, high: 400 },
           { key: "mcv", label: "MCV", unit: "fL", low: 80, high: 100 },
+          { key: "neut", label: "Neut", unit: "%", low: 40, high: 70 },
+          { key: "lymph", label: "Lymph", unit: "%", low: 20, high: 40 },
         ]
       },
       bmp: {
-        title: "BMP",
+        title: "Chemistry",
         fields: [
           { key: "na", label: "Na", unit: "mEq/L", low: 136, high: 145 },
           { key: "k", label: "K", unit: "mEq/L", low: 3.5, high: 5.0 },
           { key: "cl", label: "Cl", unit: "mEq/L", low: 98, high: 106 },
           { key: "co2", label: "CO2", unit: "mEq/L", low: 23, high: 29 },
-          { key: "bun", label: "BUN", unit: "mg/dL", low: 7, high: 20 },
-          { key: "cr", label: "Cr", unit: "mg/dL", low: 0.6, high: 1.2 },
+          { key: "bun", label: "BUN/Urea", unit: "mg/dL", low: 7, high: 20 },
+          { key: "cr", label: "Creat", unit: "mg/dL", low: 0.6, high: 1.2 },
           { key: "glu", label: "Glucose", unit: "mg/dL", low: 70, high: 100 },
+          { key: "ca", label: "Ca", unit: "mg/dL", low: 8.5, high: 10.5 },
+          { key: "mg", label: "Mg", unit: "mg/dL", low: 1.7, high: 2.2 },
+          { key: "phos", label: "Phos", unit: "mg/dL", low: 2.5, high: 4.5 },
         ]
       },
       lft: {
@@ -200,7 +216,9 @@
           { key: "alt", label: "ALT", unit: "U/L", low: 7, high: 56 },
           { key: "alp", label: "ALP", unit: "U/L", low: 44, high: 147 },
           { key: "tbili", label: "T.Bili", unit: "mg/dL", low: 0.1, high: 1.2 },
+          { key: "dbili", label: "D.Bili", unit: "mg/dL", low: 0, high: 0.3 },
           { key: "alb", label: "Albumin", unit: "g/dL", low: 3.5, high: 5.0 },
+          { key: "tp", label: "T.Protein", unit: "g/dL", low: 6, high: 8.3 },
         ]
       },
       coag: {
@@ -209,57 +227,47 @@
           { key: "pt", label: "PT", unit: "sec", low: 11, high: 13.5 },
           { key: "inr", label: "INR", unit: "", low: 0.8, high: 1.1 },
           { key: "ptt", label: "PTT", unit: "sec", low: 25, high: 35 },
+          { key: "fibrinogen", label: "Fibrinogen", unit: "mg/dL", low: 200, high: 400 },
         ]
       },
-      other: {
-        title: "Other",
+      cardiac: {
+        title: "Cardiac / Inflammatory",
         fields: [
-          { key: "lactate", label: "Lactate", unit: "mmol/L", low: 0.5, high: 2.0 },
           { key: "trop", label: "Troponin", unit: "ng/mL", low: 0, high: 0.04 },
           { key: "bnp", label: "BNP", unit: "pg/mL", low: 0, high: 100 },
           { key: "crp", label: "CRP", unit: "mg/L", low: 0, high: 10 },
           { key: "pct", label: "Procal", unit: "ng/mL", low: 0, high: 0.5 },
+          { key: "lactate", label: "Lactate", unit: "mmol/L", low: 0.5, high: 2.0 },
+          { key: "ldh", label: "LDH", unit: "U/L", low: 140, high: 280 },
+        ]
+      },
+      drugs: {
+        title: "Drug Levels",
+        fields: [
+          { key: "vanco_trough", label: "Vanco Tr", unit: "µg/mL", low: 10, high: 20 },
+          { key: "vanco_peak", label: "Vanco Pk", unit: "µg/mL", low: 25, high: 40 },
+          { key: "gent_trough", label: "Gent Tr", unit: "µg/mL", low: 0, high: 2 },
+          { key: "gent_peak", label: "Gent Pk", unit: "µg/mL", low: 5, high: 10 },
+          { key: "digoxin", label: "Digoxin", unit: "ng/mL", low: 0.8, high: 2.0 },
+          { key: "phenytoin", label: "Phenytoin", unit: "µg/mL", low: 10, high: 20 },
+          { key: "valproic", label: "Valproic", unit: "µg/mL", low: 50, high: 100 },
+        ]
+      },
+      abg: {
+        title: "ABG / Blood Gas",
+        fields: [
+          { key: "ph", label: "pH", unit: "", low: 7.35, high: 7.45 },
+          { key: "pco2", label: "pCO2", unit: "mmHg", low: 35, high: 45 },
+          { key: "po2", label: "pO2", unit: "mmHg", low: 80, high: 100 },
+          { key: "hco3", label: "HCO3", unit: "mEq/L", low: 22, high: 26 },
+          { key: "sao2", label: "SaO2", unit: "%", low: 95, high: 100 },
         ]
       }
     };
 
-    // Lab name variations for OCR matching
-    const LAB_ALIASES = {
-      wbc: ["wbc", "white blood cell", "white cell", "leucocyte", "leukocyte", "wcc"],
-      hgb: ["hgb", "hb", "hemoglobin", "haemoglobin"],
-      hct: ["hct", "hematocrit", "haematocrit", "pcv"],
-      plt: ["plt", "platelet", "platelets", "thrombocyte"],
-      mcv: ["mcv", "mean corpuscular volume", "mean cell volume"],
-      na: ["na", "sodium", "na+"],
-      k: ["k", "potassium", "k+"],
-      cl: ["cl", "chloride", "cl-"],
-      co2: ["co2", "bicarbonate", "hco3", "bicarb", "tco2"],
-      bun: ["bun", "urea", "blood urea nitrogen", "urea nitrogen"],
-      cr: ["cr", "creatinine", "creat", "crea"],
-      glu: ["glu", "glucose", "blood sugar", "bs", "rbs", "fbs", "sugar"],
-      ast: ["ast", "sgot", "aspartate aminotransferase", "aspartate transaminase"],
-      alt: ["alt", "sgpt", "alanine aminotransferase", "alanine transaminase"],
-      alp: ["alp", "alkaline phosphatase", "alk phos"],
-      tbili: ["tbili", "bilirubin", "total bilirubin", "t bili", "t.bili", "bil"],
-      alb: ["alb", "albumin"],
-      pt: ["pt", "prothrombin time", "prothrombin"],
-      inr: ["inr", "international normalized ratio"],
-      ptt: ["ptt", "aptt", "partial thromboplastin time", "activated partial thromboplastin"],
-      lactate: ["lactate", "lactic acid", "lact"],
-      trop: ["trop", "troponin", "tni", "tnt", "hs-trop", "hs trop", "hstrop"],
-      bnp: ["bnp", "brain natriuretic peptide", "nt-probnp", "ntprobnp", "pro-bnp"],
-      crp: ["crp", "c-reactive protein", "c reactive protein"],
-      pct: ["pct", "procalcitonin", "procal"],
-    };
-
-    // Check if value looks like a timestamp
     const isTimestamp = (val) => {
       const s = String(val || "");
-      return s.match(/^\d{4}-\d{2}-\d{2}/) || 
-             s.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i) ||
-             s.match(/^\d{13,}$/) ||
-             s.match(/T\d{2}:\d{2}/) ||
-             s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
+      return s.match(/^\d{4}-\d{2}-\d{2}/) || s.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i) || s.match(/^\d{13,}$/) || s.match(/T\d{2}:\d{2}/) || s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
     };
 
     const cleanBed = (val) => {
@@ -274,45 +282,84 @@
       return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
     };
 
-    // Parse OCR text to extract lab values
-    const parseLabsFromText = (text) => {
-      const results = {};
-      const lines = text.toLowerCase().split(/[\n\r]+/);
-      const fullText = text.toLowerCase();
-      
-      // For each lab type, search for matches
-      Object.entries(LAB_ALIASES).forEach(([labKey, aliases]) => {
-        for (const alias of aliases) {
-          // Pattern: alias followed by numbers (with possible units, colons, spaces)
-          const patterns = [
-            new RegExp(`${alias}[:\\s]+([\\d.]+)`, 'i'),
-            new RegExp(`${alias}[^\\d]*([\\d.]+)`, 'i'),
-            new RegExp(`([\\d.]+)[\\s]*${alias}`, 'i'),
-          ];
-          
-          for (const pattern of patterns) {
-            const match = fullText.match(pattern);
-            if (match && match[1]) {
-              const value = parseFloat(match[1]);
-              if (!isNaN(value) && value > 0 && value < 10000) {
-                results[labKey] = value;
-                break;
-              }
+    // Claude Vision API for lab extraction
+    const extractLabsWithAI = async (imageBase64) => {
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: "claude-sonnet-4-20250514",
+          max_tokens: 1500,
+          messages: [
+            {
+              role: "user",
+              content: [
+                {
+                  type: "image",
+                  source: {
+                    type: "base64",
+                    media_type: "image/png",
+                    data: imageBase64
+                  }
+                },
+                {
+                  type: "text",
+                  text: `Extract ALL lab values from this medical laboratory report image. This is from Kuwait Ministry of Health system.
+
+Return ONLY a JSON object with lab values. Use these exact keys where applicable:
+- CBC: wbc, hgb, hct, plt, mcv, neut, lymph
+- Chemistry: na, k, cl, co2, bun, cr, glu, ca, mg, phos  
+- LFTs: ast, alt, alp, tbili, dbili, alb, tp
+- Coagulation: pt, inr, ptt, fibrinogen
+- Cardiac: trop, bnp, crp, pct, lactate, ldh
+- Drug levels: vanco_trough, vanco_peak, gent_trough, gent_peak, digoxin, phenytoin, valproic
+- ABG: ph, pco2, po2, hco3, sao2
+
+For any lab not in the list above, use a descriptive key (e.g., "ferritin", "vitamin_d", "tsh").
+
+Extract the numeric VALUE only (no units). If a value shows "<0.01", use 0.01. If ">100", use 100.
+
+Example response format:
+{"vanco_trough": 14.7, "cr": 1.2, "k": 4.1, "wbc": 8.5}
+
+IMPORTANT: Return ONLY the JSON object, no other text.`
+                }
+              ]
             }
-          }
-          if (results[labKey]) break;
-        }
+          ]
+        })
       });
+
+      const data = await response.json();
       
-      return results;
+      if (data.content && data.content[0] && data.content[0].text) {
+        const text = data.content[0].text.trim();
+        // Try to parse JSON from response
+        try {
+          // Handle case where response might have markdown code blocks
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          }
+          return JSON.parse(text);
+        } catch (e) {
+          console.error("Failed to parse AI response:", text);
+          return null;
+        }
+      }
+      return null;
     };
 
     // Lab Modal Component
     const LabModal = ({ patient, onClose, onSave }) => {
       const [labs, setLabs] = useState(patient.labs || {});
+      const [customLabs, setCustomLabs] = useState(patient.labs?.custom || []);
       const [scanning, setScanning] = useState(false);
       const [scanProgress, setScanProgress] = useState("");
       const [extracted, setExtracted] = useState(null);
+      const [imagePreview, setImagePreview] = useState(null);
       const [dragOver, setDragOver] = useState(false);
       const fileInputRef = useRef(null);
       const cameraInputRef = useRef(null);
@@ -332,38 +379,63 @@
 
       const processImage = async (file) => {
         setScanning(true);
-        setScanProgress("Initializing OCR...");
+        setScanProgress("Reading image...");
         setExtracted(null);
-
-        try {
-          const worker = await Tesseract.createWorker('eng', 1, {
-            logger: m => {
-              if (m.status === 'recognizing text') {
-                setScanProgress(`Scanning: ${Math.round(m.progress * 100)}%`);
-              }
-            }
-          });
-
-          setScanProgress("Reading image...");
-          const { data: { text } } = await worker.recognize(file);
-          await worker.terminate();
-
-          setScanProgress("Extracting lab values...");
-          const extracted = parseLabsFromText(text);
+        
+        // Convert to base64
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+          const base64Full = e.target.result;
+          setImagePreview(base64Full);
           
-          if (Object.keys(extracted).length > 0) {
-            setExtracted(extracted);
-            setLabs(prev => ({ ...prev, ...extracted }));
-            setScanProgress(`Found ${Object.keys(extracted).length} lab values!`);
-          } else {
-            setScanProgress("No lab values detected. Try a clearer image or enter manually.");
+          // Extract base64 data (remove data:image/...;base64, prefix)
+          const base64Data = base64Full.split(',')[1];
+          
+          setScanProgress("🤖 AI analyzing lab report...");
+          
+          try {
+            const extractedLabs = await extractLabsWithAI(base64Data);
+            
+            if (extractedLabs && Object.keys(extractedLabs).length > 0) {
+              setExtracted(extractedLabs);
+              
+              // Separate known labs from custom ones
+              const knownKeys = new Set();
+              Object.values(LAB_CONFIG).forEach(section => {
+                section.fields.forEach(f => knownKeys.add(f.key));
+              });
+              
+              const knownLabs = {};
+              const newCustomLabs = [...customLabs];
+              
+              Object.entries(extractedLabs).forEach(([key, value]) => {
+                if (knownKeys.has(key)) {
+                  knownLabs[key] = value;
+                } else {
+                  // Add as custom lab if not already exists
+                  const existingIdx = newCustomLabs.findIndex(c => c.name.toLowerCase() === key.toLowerCase());
+                  if (existingIdx >= 0) {
+                    newCustomLabs[existingIdx].value = value;
+                  } else {
+                    newCustomLabs.push({ name: key, value: String(value) });
+                  }
+                }
+              });
+              
+              setLabs(prev => ({ ...prev, ...knownLabs }));
+              setCustomLabs(newCustomLabs);
+              setScanProgress(`✓ Found ${Object.keys(extractedLabs).length} lab values!`);
+            } else {
+              setScanProgress("No lab values detected. Try a clearer image or enter manually.");
+            }
+          } catch (err) {
+            console.error("AI extraction error:", err);
+            setScanProgress("Error analyzing image. Please try again or enter manually.");
           }
-        } catch (err) {
-          console.error("OCR Error:", err);
-          setScanProgress("Error processing image. Please try again.");
-        }
-
-        setScanning(false);
+          
+          setScanning(false);
+        };
+        reader.readAsDataURL(file);
       };
 
       const handleFileSelect = (e) => {
@@ -399,22 +471,39 @@
       }, [handlePaste]);
 
       const handleSave = () => {
-        onSave(patient.id, { ...labs, updatedAt: Date.now() });
+        const labsToSave = { ...labs, custom: customLabs, updatedAt: Date.now() };
+        onSave(patient.id, labsToSave);
         onClose();
       };
 
       const clearLabs = () => {
         if (confirm("Clear all lab values?")) {
           setLabs({});
+          setCustomLabs([]);
           setExtracted(null);
+          setImagePreview(null);
         }
+      };
+
+      const addCustomLab = () => {
+        setCustomLabs([...customLabs, { name: "", value: "" }]);
+      };
+
+      const updateCustomLab = (idx, field, value) => {
+        const updated = [...customLabs];
+        updated[idx][field] = value;
+        setCustomLabs(updated);
+      };
+
+      const removeCustomLab = (idx) => {
+        setCustomLabs(customLabs.filter((_, i) => i !== idx));
       };
 
       return (
         <div className="modalOverlay" onClick={onClose}>
-          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
             <div className="modal-head purple">
-              <span>🧪 Labs - {patient.name}</span>
+              <span>🧪 Labs - {patient.name} <span className="ai-badge">AI Powered</span></span>
               <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
             </div>
             <div className="modal-body">
@@ -428,7 +517,8 @@
                 <div style={{ marginBottom: '8px', fontSize: '24px' }}>📷</div>
                 <div style={{ fontWeight: '600', marginBottom: '4px' }}>Scan Lab Results</div>
                 <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
-                  Take a photo, upload an image, or paste (Ctrl+V) a screenshot
+                  Works with Kuwait MOH / Mubarak Hospital format<br/>
+                  Take a photo, upload, paste (Ctrl+V), or drag & drop
                 </div>
                 <div>
                   <button className="scan-btn" onClick={() => cameraInputRef.current?.click()} disabled={scanning}>
@@ -441,6 +531,10 @@
                 <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
                 <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: 'none' }} />
                 
+                {imagePreview && (
+                  <img src={imagePreview} alt="Scanned" className="image-preview" />
+                )}
+                
                 {scanProgress && (
                   <div className="scan-progress">
                     {scanning && <span className="spinner"></span>}
@@ -452,10 +546,10 @@
               {/* Extracted Preview */}
               {extracted && Object.keys(extracted).length > 0 && (
                 <div className="extracted-preview">
-                  <h4>✓ Extracted Values (auto-filled below)</h4>
+                  <h4>✓ AI Extracted Values (auto-filled below)</h4>
                   {Object.entries(extracted).map(([key, val]) => (
                     <div key={key} className="extracted-item">
-                      <span>{key.toUpperCase()}</span>
+                      <span style={{ textTransform: 'capitalize' }}>{key.replace(/_/g, ' ')}</span>
                       <span style={{ fontWeight: '600' }}>{val}</span>
                     </div>
                   ))}
@@ -469,7 +563,7 @@
                   <div className="lab-grid">
                     {section.fields.map(field => (
                       <div key={field.key} className="lab-field">
-                        <label>{field.label} {field.unit && <span style={{ opacity: 0.6 }}>({field.unit})</span>}</label>
+                        <label>{field.label} <span style={{ opacity: 0.5 }}>({field.unit})</span></label>
                         <input
                           type="text"
                           inputMode="decimal"
@@ -483,6 +577,33 @@
                   </div>
                 </div>
               ))}
+
+              {/* Custom Labs Section */}
+              <div className="lab-section">
+                <div className="lab-section-title">Other / Custom Labs</div>
+                <div className="custom-labs">
+                  {customLabs.map((lab, idx) => (
+                    <div key={idx} className="custom-lab-item">
+                      <input
+                        className="inp"
+                        placeholder="Lab name"
+                        value={lab.name}
+                        onChange={e => updateCustomLab(idx, 'name', e.target.value)}
+                      />
+                      <input
+                        className="inp"
+                        placeholder="Value"
+                        value={lab.value}
+                        onChange={e => updateCustomLab(idx, 'value', e.target.value)}
+                      />
+                      <button className="btn-del" onClick={() => removeCustomLab(idx)}>×</button>
+                    </div>
+                  ))}
+                  <button className="add-custom-btn" onClick={addCustomLab}>
+                    + Add Custom Lab
+                  </button>
+                </div>
+              </div>
 
               {labs.updatedAt && (
                 <div className="lab-timestamp">Last updated: {formatTime(labs.updatedAt)}</div>
@@ -504,9 +625,7 @@
       const [isCollapsed, setIsCollapsed] = useState(false);
       const [editText, setEditText] = useState(notice?.text || "");
 
-      useEffect(() => {
-        setEditText(notice?.text || "");
-      }, [notice?.text]);
+      useEffect(() => { setEditText(notice?.text || ""); }, [notice?.text]);
 
       const handleSave = () => { onSave(editText); setIsEditing(false); };
       const handleCancel = () => { setEditText(notice?.text || ""); setIsEditing(false); };
@@ -558,7 +677,7 @@
       const [search, setSearch] = useState("");
       const [viewFilter, setViewFilter] = useState("All");
       const [addModal, setAddModal] = useState(false);
-      const [labModal, setLabModal] = useState(null); // patient object or null
+      const [labModal, setLabModal] = useState(null);
       const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
       const [collapsedWards, setCollapsedWards] = useState({});
       const [syncing, setSyncing] = useState(false);
@@ -732,7 +851,7 @@
         return { g, sortedKeys, totalCount: filtered.length };
       }, [patients, search, viewFilter]);
 
-      const hasLabs = (p) => p.labs && Object.keys(p.labs).some(k => k !== 'updatedAt' && p.labs[k]);
+      const hasLabs = (p) => p.labs && Object.keys(p.labs).some(k => k !== 'updatedAt' && k !== 'custom' && p.labs[k]);
 
       return (
         <div className="wrap">
@@ -808,7 +927,6 @@
             </div>
           ))}
 
-          {/* Add Patient Modal */}
           {addModal && (
             <div className="modalOverlay">
               <div className="modal">
@@ -863,7 +981,6 @@
             </div>
           )}
 
-          {/* Lab Modal */}
           {labModal && (
             <LabModal 
               patient={labModal} 
