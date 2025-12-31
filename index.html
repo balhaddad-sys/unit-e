@@ -13,7 +13,7 @@
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
   <style>
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; }
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --red:#dc2626; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
 
@@ -39,18 +39,68 @@
     .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
     .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none; }
     .ward-header:hover { background: #1e3a8a; }
+    .ward-header.has-new { background: linear-gradient(90deg, var(--blue) 0%, #7c3aed 50%, var(--blue) 100%); background-size: 200% 100%; animation: header-pulse 2s ease-in-out infinite; }
+    @keyframes header-pulse { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
     .arrow { transition: transform 0.2s; display: inline-block; font-size: 10px; }
     .arrow.collapsed { transform: rotate(-90deg); }
     .ward-body.is-hidden { display: none; }
     .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
-    .new-count { background: #dc2626; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-right: 5px; animation: blink 1.5s ease-in-out infinite; }
-    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
+    .new-count { background: #dc2626; color: white; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-right: 8px; animation: blink-hard 0.8s ease-in-out infinite; box-shadow: 0 0 10px rgba(220, 38, 38, 0.6); }
+    @keyframes blink-hard { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.05); } }
 
-    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
+    /* NEW ADMISSION CARD - BLARING STYLE */
+    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; transition: all 0.3s; }
     .p-card:last-child{ border-bottom:none; }
-    .p-card.new-admission{ background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 5px solid #f59e0b; animation: pulse-glow 2s ease-in-out infinite; position: relative; padding-top: 20px; }
-    .p-card.new-admission::before{ content: "⚡ NEW ADMISSION"; position: absolute; top: -8px; left: 12px; background: #dc2626; color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4); z-index: 1; }
-    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 rgba(245, 158, 11, 0.4); } 50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); } }
+    
+    .p-card.new-admission{ 
+      background: linear-gradient(135deg, #fef08a 0%, #fbbf24 30%, #f59e0b 70%, #fbbf24 100%); 
+      background-size: 300% 300%;
+      animation: gradient-shift 3s ease infinite, card-glow 1.5s ease-in-out infinite;
+      border-left: 6px solid #dc2626; 
+      border-top: 3px solid #dc2626;
+      border-bottom: 3px solid #dc2626;
+      position: relative; 
+      padding-top: 35px;
+      margin: 8px;
+      border-radius: 12px;
+      box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3);
+    }
+    
+    @keyframes gradient-shift { 
+      0% { background-position: 0% 50%; } 
+      50% { background-position: 100% 50%; } 
+      100% { background-position: 0% 50%; } 
+    }
+    
+    @keyframes card-glow { 
+      0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3); } 
+      50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 0 60px rgba(245, 158, 11, 0.5); } 
+    }
+    
+    .p-card.new-admission::before{ 
+      content: "🚨 NEW ADMISSION 🚨"; 
+      position: absolute; 
+      top: -12px; 
+      left: 50%;
+      transform: translateX(-50%);
+      background: linear-gradient(90deg, #dc2626, #b91c1c, #dc2626);
+      background-size: 200% 100%;
+      animation: badge-pulse 1s ease-in-out infinite;
+      color: white; 
+      padding: 6px 20px; 
+      border-radius: 20px; 
+      font-size: 12px; 
+      font-weight: 900; 
+      letter-spacing: 1px; 
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5); 
+      z-index: 10;
+      white-space: nowrap;
+    }
+    
+    @keyframes badge-pulse {
+      0%, 100% { background-position: 0% 50%; transform: translateX(-50%) scale(1); }
+      50% { background-position: 100% 50%; transform: translateX(-50%) scale(1.02); }
+    }
 
     .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
@@ -58,9 +108,14 @@
     .inp-name{ font-weight:700; font-size:15px; }
     .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
     .inp-area{ min-height:45px; resize:vertical; }
+    
+    /* Enhanced inputs for new admissions */
+    .new-admission .inp { background: rgba(255,255,255,0.9); border-color: #f59e0b; }
+    .new-admission .inp-bed { background: #fff; color: #dc2626; font-size: 16px; }
+    .new-admission .inp-name { font-size: 16px; color: #1e293b; }
 
     .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; }
-    .status-new { background: #dbeafe; color: var(--blue); }
+    .status-new { background: #fef08a; color: #b91c1c; font-weight: 800; border: 2px solid #dc2626; }
     .status-chronic { background: #ffedd5; color: var(--orange); }
     .status-non { background: #f3e8ff; color: var(--purple); }
 
@@ -79,6 +134,22 @@
 
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
     @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
+
+    /* Global new admissions alert banner */
+    .global-alert { 
+      background: linear-gradient(90deg, #dc2626, #f59e0b, #dc2626); 
+      background-size: 200% 100%;
+      animation: alert-scroll 2s linear infinite;
+      color: white; 
+      padding: 10px 16px; 
+      border-radius: 8px; 
+      margin-bottom: 10px; 
+      font-weight: 700; 
+      text-align: center;
+      font-size: 14px;
+      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
+    }
+    @keyframes alert-scroll { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
 
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
@@ -124,7 +195,6 @@
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
-    // Check if value looks like a timestamp
     const isTimestamp = (val) => {
       const s = String(val || "");
       return s.match(/^\d{4}-\d{2}-\d{2}/) || 
@@ -134,13 +204,11 @@
              s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
     };
 
-    // Clean bed value
     const cleanBed = (val) => {
       if (isTimestamp(val)) return "";
       return String(val || "").trim();
     };
 
-    // Create dedupe key
     const makeKey = (ward, name) => {
       return `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
     };
@@ -176,19 +244,15 @@
         ref.on('value', snap => {
           const val = snap.val();
           let list = val ? Object.keys(val).map(k => ({ id: k, ...val[k] })) : [];
-          
-          // Clean bed values on load
           list = list.map(p => ({
             ...p,
             bed: cleanBed(p.bed)
           }));
-          
           setPatients(list);
         });
         return () => ref.off();
       }, []);
 
-      // Check for duplicate
       const isDuplicate = (ward, name, excludeId = null) => {
         const key = makeKey(ward, name);
         return patients.some(p => {
@@ -198,7 +262,6 @@
       };
 
       const update = useCallback((id, field, value) => {
-        // If updating name, check for duplicates
         if (field === 'name') {
           const patient = patients.find(p => p.id === id);
           if (patient && isDuplicate(patient.ward, value, id)) {
@@ -207,7 +270,6 @@
           }
         }
         
-        // If updating ward, check for duplicates
         if (field === 'ward') {
           const patient = patients.find(p => p.id === id);
           if (patient && isDuplicate(value, patient.name, id)) {
@@ -216,7 +278,6 @@
           }
         }
 
-        // Clean bed values
         if (field === 'bed') {
           value = cleanBed(value);
         }
@@ -257,7 +318,6 @@
           return;
         }
 
-        // Check for duplicate
         if (isDuplicate(cleaned.ward, cleaned.name)) {
           alert("⚠️ A patient with this name already exists in " + cleaned.ward);
           return;
@@ -271,7 +331,6 @@
         });
       };
 
-      // Cleanup duplicates
       const cleanupDuplicates = async () => {
         if (!confirm("This will remove duplicate patients (keeping the most recent). Continue?")) return;
         
@@ -286,7 +345,6 @@
           if (!byKey[key]) {
             byKey[key] = p;
           } else {
-            // Keep newer one
             const existingTs = Number(byKey[key].timestamp || 0);
             const newTs = Number(p.timestamp || 0);
             if (newTs > existingTs) {
@@ -298,7 +356,6 @@
           }
         });
 
-        // Delete duplicates
         for (const id of toDelete) {
           await db.ref(`patients/${id}`).remove();
         }
@@ -352,71 +409,37 @@
             g[w].push(p);
           });
         
-        // Sort each ward: New status first, then others
+        // Sort each ward: New status first, then by bed
         Object.keys(g).forEach(ward => {
           g[ward].sort((a, b) => {
-            // New status gets priority (comes first)
             const aIsNew = (a.status || "").toLowerCase() === "new";
             const bIsNew = (b.status || "").toLowerCase() === "new";
             if (aIsNew && !bIsNew) return -1;
             if (!aIsNew && bIsNew) return 1;
-            // If both same status priority, sort by bed
             return String(a.bed || "").localeCompare(String(b.bed || ""));
           });
         });
         
         const sortedKeys = Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
         
-        // Calculate new admission counts per ward
         const newCounts = {};
+        let totalNew = 0;
         Object.keys(g).forEach(ward => {
-          newCounts[ward] = g[ward].filter(p => (p.status || "").toLowerCase() === "new").length;
+          const count = g[ward].filter(p => (p.status || "").toLowerCase() === "new").length;
+          newCounts[ward] = count;
+          totalNew += count;
         });
         
-        return { g, sortedKeys, totalCount: filtered.length, newCounts };
+        return { g, sortedKeys, totalCount: filtered.length, newCounts, totalNew };
       }, [patients, search, viewFilter]);
 
       return (
         <div className="wrap">
-          <div className="topbar">
-            <div className="title">
-              <div className="title-row">
-                <h1>Unit E</h1>
-                <span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>
-                  {syncing ? '⏳' : '✓'} {patients.length}
-                </span>
-              </div>
+          {/* Global alert banner for new admissions */}
+          {groups.totalNew > 0 && (
+            <div className="global-alert">
+              🚨 {groups.totalNew} NEW ADMISSION{groups.totalNew > 1 ? 'S' : ''} PENDING REVIEW 🚨
             </div>
-            <div className="actions">
-              <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
-              <button className="btn btn-green" onClick={openSheet}>📊 Sheet</button>
-              <button className="btn btn-white" onClick={exportExcel}>📤</button>
-              <button className="btn btn-blue" onClick={manualSync}>🔄</button>
-              <button className="btn btn-red" onClick={cleanupDuplicates}>🧹</button>
-            </div>
-          </div>
+          )}
 
-          <div className="controls-container">
-            <div className="filter-row">
-              {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
-                <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>
-              ))}
-            </div>
-            <input className="search-bar" placeholder="Search patients..." value={search} onChange={e => setSearch(e.target.value)} />
-          </div>
-
-          {groups.sortedKeys.map(ward => {
-            const newCount = groups.newCounts?.[ward] || 0;
-            return (
-            <div key={ward} className="ward-section">
-              <div className="ward-header" onClick={() => toggleWard(ward)}>
-                <div><span className={`arrow ${!collapsedWards[ward] ? '' : 'collapsed'}`}>▼</span> {ward}</div>
-                <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
-                  {newCount > 0 && <span className="new-count">⚡ {newCount} NEW</span>}
-                  <span className="ward-count">{groups.g[ward].length}</span>
-                </div>
-              </div>
-              <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
-                {groups.g[ward].map(p => (
-                  <div className={`p-card ${(p.status || "").toLowerCase() === "new" ? "new-admission" : ""}`} key={p.id}>
-                    <div cla
+          <div cl
