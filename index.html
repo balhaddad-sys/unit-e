@@ -1,427 +1,247 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Unit E Ward Rounds</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Unit E Ward Rounds</title>
 
-  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+  
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
+  
+  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
+  <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
-  <style>
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --red:#dc2626; }
-    body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
-    .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
+  <style>
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; }
+    body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
+    .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
+    
+    /* TOPBAR */
+    .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
+    .title h1{ margin:0; font-size:18px; font-weight:800; }
+    
+    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
+    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
+    .btn:active{ transform:translateY(1px); }
+    .btn-white{ background:white; color:var(--green); }
+    .btn-blue{ background:#dbeafe; color:var(--blue); }
 
-    .topbar{ background:var(--green); color:white; padding:12px 16px; border-radius:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:10px; box-shadow:0 4px 6px -1px rgba(0,0,0,0.1); }
-    .title h1{ margin:0; font-size:18px; font-weight:800; }
-    .title-row { display: flex; align-items: center; gap: 10px; }
+    /* FILTERS */
+    .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
+    .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
+    .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
+    
+    .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; }
 
-    .actions{ display:flex; gap:8px; flex-wrap:wrap; }
-    .btn{ border:none; border-radius:6px; padding:8px 12px; font-weight:600; font-size:13px; cursor:pointer; display:flex; align-items:center; gap:6px; transition:0.1s; box-shadow:0 1px 2px rgba(0,0,0,0.05); }
-    .btn:active{ transform:translateY(1px); }
-    .btn-white{ background:white; color:var(--green); }
-    .btn-blue{ background:#dbeafe; color:var(--blue); }
-    .btn-red{ background:#fee2e2; color:#dc2626; }
-    .btn-green{ background:#d1fae5; color:var(--green); }
+    /* WARD & COMPRESSIBILITY */
+    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none; }
+    .ward-header:hover { background: #1e3a8a; }
+    .arrow { transition: transform 0.2s; display: inline-block; font-size: 10px; }
+    .arrow.collapsed { transform: rotate(-90deg); }
+    .ward-body.is-hidden { display: none; }
+    .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
+    
+    /* PATIENT CARDS */
+    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
+    .p-card:last-child{ border-bottom:none; }
+    
+    .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; }
+    .inp:focus{ background:white; border-color:var(--green); outline:none; }
+    .inp-bed{ width:70px; font-weight:800; text-align:center; color:var(--blue); background:#eff6ff; }
+    .inp-name{ font-weight:700; font-size:15px; }
+    .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
+    .inp-area{ min-height:45px; resize:vertical; }
 
-    .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
-    .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
-    .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
-    .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
+    .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; }
+    .status-new { background: #dbeafe; color: var(--blue); }
+    .status-chronic { background: #ffedd5; color: var(--orange); }
+    .status-non { background: #f3e8ff; color: var(--purple); }
 
-    .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; box-sizing: border-box; }
+    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; }
 
-    .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
-    .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; user-select: none; }
-    .ward-header:hover { background: #1e3a8a; }
-    .ward-header.has-new { background: linear-gradient(90deg, var(--blue) 0%, #7c3aed 50%, var(--blue) 100%); background-size: 200% 100%; animation: header-pulse 2s ease-in-out infinite; }
-    @keyframes header-pulse { 0%, 100% { background-position: 0% 50%; } 50% { background-position: 100% 50%; } }
-    .arrow { transition: transform 0.2s; display: inline-block; font-size: 10px; }
-    .arrow.collapsed { transform: rotate(-90deg); }
-    .ward-body.is-hidden { display: none; }
-    .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
-    .new-count { background: #dc2626; color: white; padding: 4px 10px; border-radius: 10px; font-size: 11px; font-weight: 800; margin-right: 8px; animation: blink-hard 0.8s ease-in-out infinite; box-shadow: 0 0 10px rgba(220, 38, 38, 0.6); }
-    @keyframes blink-hard { 0%, 100% { opacity: 1; transform: scale(1); } 50% { opacity: 0.6; transform: scale(1.05); } }
+    /* MODAL */
+    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
+    .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
+    .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; }
+    .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
+    .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
 
-    .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; transition: all 0.3s; }
-    .p-card:last-child{ border-bottom:none; }
-    
-    .p-card.new-admission{ 
-      background: linear-gradient(135deg, #fef08a 0%, #fbbf24 30%, #f59e0b 70%, #fbbf24 100%); 
-      background-size: 300% 300%;
-      animation: gradient-shift 3s ease infinite, card-glow 1.5s ease-in-out infinite;
-      border-left: 6px solid #dc2626; 
-      border-top: 3px solid #dc2626;
-      border-bottom: 3px solid #dc2626;
-      position: relative; 
-      padding-top: 35px;
-      margin: 8px;
-      border-radius: 12px;
-      box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3);
-    }
-    
-    @keyframes gradient-shift { 
-      0% { background-position: 0% 50%; } 
-      50% { background-position: 100% 50%; } 
-      100% { background-position: 0% 50%; } 
-    }
-    
-    @keyframes card-glow { 
-      0%, 100% { box-shadow: 0 0 20px rgba(220, 38, 38, 0.4), 0 0 40px rgba(245, 158, 11, 0.3); } 
-      50% { box-shadow: 0 0 30px rgba(220, 38, 38, 0.7), 0 0 60px rgba(245, 158, 11, 0.5); } 
-    }
-    
-    .new-admission-badge {
-      position: absolute; 
-      top: -12px; 
-      left: 50%;
-      transform: translateX(-50%);
-      background: linear-gradient(90deg, #dc2626, #b91c1c, #dc2626);
-      background-size: 200% 100%;
-      animation: badge-pulse 1s ease-in-out infinite;
-      color: white; 
-      padding: 6px 20px; 
-      border-radius: 20px; 
-      font-size: 12px; 
-      font-weight: 900; 
-      letter-spacing: 1px; 
-      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.5); 
-      z-index: 10;
-      white-space: nowrap;
-    }
-    
-    @keyframes badge-pulse {
-      0%, 100% { background-position: 0% 50%; transform: translateX(-50%) scale(1); }
-      50% { background-position: 100% 50%; transform: translateX(-50%) scale(1.02); }
-    }
-
-    .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
-    .inp:focus{ background:white; border-color:var(--green); outline:none; }
-    .inp-bed{ width:70px; font-weight:800; text-align:center; color:var(--blue); background:#eff6ff; }
-    .inp-name{ font-weight:700; font-size:15px; }
-    .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
-    .inp-area{ min-height:45px; resize:vertical; }
-    
-    .new-admission .inp { background: rgba(255,255,255,0.9); border-color: #f59e0b; }
-    .new-admission .inp-bed { background: #fff; color: #dc2626; font-size: 16px; }
-    .new-admission .inp-name { font-size: 16px; color: #1e293b; }
-
-    .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; }
-    .status-new { background: #fef08a; color: #b91c1c; font-weight: 800; border: 2px solid #dc2626; }
-    .status-chronic { background: #ffedd5; color: var(--orange); }
-    .status-non { background: #f3e8ff; color: var(--purple); }
-
-    .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; position:absolute; top:10px; right:10px; }
-    .new-admission .btn-del { top: 35px; }
-
-    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
-    .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
-    .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; }
-    .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
-    .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); background:#fff; }
-    .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
-
-    .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
-    .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
-    .sync-badge.syncing { background: #fef08a; color: #854d0e; }
-
-    .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
-    @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
-
-    .global-alert { 
-      background: linear-gradient(90deg, #dc2626, #f59e0b, #dc2626); 
-      background-size: 200% 100%;
-      animation: alert-scroll 2s linear infinite;
-      color: white; 
-      padding: 10px 16px; 
-      border-radius: 8px; 
-      margin-bottom: 10px; 
-      font-weight: 700; 
-      text-align: center;
-      font-size: 14px;
-      box-shadow: 0 4px 15px rgba(220, 38, 38, 0.4);
-    }
-    @keyframes alert-scroll { 0% { background-position: 0% 50%; } 100% { background-position: 200% 50%; } }
-
-    .error-box { background: #fee2e2; border: 2px solid #dc2626; padding: 20px; margin: 20px; border-radius: 8px; color: #dc2626; }
-
-    @media(min-width: 768px){
-      .p-card{ flex-direction:row; align-items:flex-start; gap:14px; padding-right: 50px; }
-      .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
-      .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
-      .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
-    }
-    @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } }
-  </style>
+    @media(min-width: 768px){
+      .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
+      .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
+      .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
+      .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
+    }
+    @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } }
+  </style>
 </head>
 <body>
-  <div id="root"><div style="padding:20px;">Loading...</div></div>
+  <div id="root"></div>
 
-  <script>
-    window.onerror = function(msg, url, line, col, error) {
-      document.getElementById('root').innerHTML = '<div class="error-box"><h2>JavaScript Error</h2><p>' + msg + '</p><p>Line: ' + line + '</p></div>';
-      return false;
-    };
+  <script type="text/babel">
+    const { useState, useEffect, useMemo } = React;
 
-    // Firebase config
-    var firebaseConfig = {
-      apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
-      authDomain: "unit-e-1d07b.firebaseapp.com",
-      databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
-      projectId: "unit-e-1d07b",
-      storageBucket: "unit-e-1d07b.firebasestorage.app",
-      messagingSenderId: "465930916258",
-      appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
-    };
+    const MASTER_DATA = [
+      { ward:"Ward 19", bed:"12-2", name:"Shady", diagnosis:"CAP", doctor:"Noura", status:"New", plan:"" },
+      { ward:"Ward 19", bed:"17-1", name:"Wael", diagnosis:"Post arrest", doctor:"Lwtwa", status:"Chronic", plan:"" },
+      { ward:"Ward 20", bed:"17-1", name:"Nawaf", diagnosis:"Chest infection", doctor:"Bader", status:"Non-Chronic", plan:"" },
+      { ward:"Ward 20", bed:"11-1", name:"Iskander", diagnosis:"Infective endocarditis", doctor:"Ahmad", status:"New", plan:"" },
+      { ward:"Ward 21", bed:"13-1", name:"Mohammad", diagnosis:"CAP/AKI", doctor:"Mohammed", status:"New", plan:"" },
+      { ward:"ER", bed:"", name:"Lawla", diagnosis:"Angioedema", doctor:"Lulwa", status:"New", plan:"" }
+    ];
 
-    var db = null;
-    try {
-      if (window.firebase && !firebase.apps.length) {
-        firebase.initializeApp(firebaseConfig);
-      }
-      db = firebase.database();
-    } catch (e) {
-      console.error("Firebase init error:", e);
-    }
+    const firebaseConfig = {
+      apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
+      authDomain: "unit-e-1d07b.firebaseapp.com",
+      databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
+      projectId: "unit-e-1d07b",
+      storageBucket: "unit-e-1d07b.firebasestorage.app",
+      messagingSenderId: "465930916258",
+      appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
+    };
 
-    var SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
-    var SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
-    var SHEET_URL = "https://docs.google.com/spreadsheets/d/" + SPREADSHEET_ID + "/edit";
-    var WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
-    var STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
+    if(window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    const db = firebase.database();
 
-    function pingSheets() {
-      var url = SHEETS_SYNC_URL + "?t=" + Date.now();
-      if (navigator.sendBeacon) {
-        navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
-      } else {
-        fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(function() {});
-      }
-    }
+    const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
+    const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
-    function isTimestamp(val) {
-      var s = String(val || "");
-      return s.match(/^\d{4}-\d{2}-\d{2}/) || s.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i) || s.match(/^\d{13,}$/) || s.match(/T\d{2}:\d{2}/) || s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
-    }
+    const App = () => {
+      const [patients, setPatients] = useState([]);
+      const [search, setSearch] = useState("");
+      const [viewFilter, setViewFilter] = useState("All"); 
+      const [addModal, setAddModal] = useState(false);
+      const [newP, setNewP] = useState({ward:"Ward 19", bed:"", name:"", diagnosis:"", doctor:"", plan:"", status: "New"});
+      const [collapsedWards, setCollapsedWards] = useState({});
 
-    function cleanBed(val) {
-      if (isTimestamp(val)) return "";
-      return String(val || "").trim();
-    }
+      useEffect(() => {
+        db.ref('patients').on('value', snap => {
+          const val = snap.val();
+          setPatients(val ? Object.keys(val).map(k => ({id:k, ...val[k]})) : []);
+        });
+      }, []);
 
-    function makeKey(ward, name) {
-      return (ward || "").toLowerCase().trim() + "|" + (name || "").toLowerCase().trim();
-    }
-  </script>
+      const update = (id, f, v) => db.ref(`patients/${id}`).update({[f]:v});
+      const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove();
+      const toggleWard = (ward) => setCollapsedWards(prev => ({...prev, [ward]: !prev[ward]}));
+      const loadMaster = () => MASTER_DATA.forEach(p => db.ref('patients').push({...p, timestamp:Date.now()}));
 
-  <script type="text/babel">
-    var useState = React.useState;
-    var useEffect = React.useEffect;
-    var useMemo = React.useMemo;
-    var useRef = React.useRef;
-    var useCallback = React.useCallback;
+      // --- IMPROVED EXCEL EXPORT ---
+      const exportExcelReport = () => {
+          const wb = XLSX.utils.book_new();
+          const wsData = [
+              ["UNIT E ROUNDS REPORT"],
+              ["DATE: " + new Date().toLocaleDateString()],
+              [],
+              ["WARD", "BED", "PATIENT NAME", "MRN", "DIAGNOSIS", "DOCTOR", "STATUS", "PLAN / NOTES"]
+          ];
 
-    function App() {
-      var patientState = useState([]);
-      var patients = patientState[0];
-      var setPatients = patientState[1];
+          const headerStyle = { font: { bold: true, sz: 12 }, fill: { fgColor: { rgb: "E5E7EB" } }, border: { outline: true } };
+          const blueStyle = { font: { bold: true, color: { rgb: "FFFFFF" } }, fill: { fgColor: { rgb: "1E40AF" } } };
+          const gridStyle = { border: { top: {style:'thin'}, bottom: {style:'thin'}, left: {style:'thin'}, right: {style:'thin'} } };
 
-      var searchState = useState("");
-      var search = searchState[0];
-      var setSearch = searchState[1];
+          groups.sortedKeys.forEach(ward => {
+             wsData.push([ward.toUpperCase(), "", "", "", "", "", "", ""]);
+             groups.g[ward].forEach(p => {
+                wsData.push([p.ward, p.bed, p.name, p.mrn||"", p.diagnosis, p.doctor, p.status||"-", p.plan]);
+             });
+             wsData.push([]); 
+          });
 
-      var filterState = useState("All");
-      var viewFilter = filterState[0];
-      var setViewFilter = filterState[1];
+          const ws = XLSX.utils.aoa_to_sheet(wsData);
+          ws['!cols'] = [{wch:15}, {wch:8}, {wch:25}, {wch:12}, {wch:30}, {wch:15}, {wch:15}, {wch:50}];
 
-      var modalState = useState(false);
-      var addModal = modalState[0];
-      var setAddModal = modalState[1];
+          Object.keys(ws).forEach(addr => {
+              if(addr.startsWith('!')) return;
+              const cell = ws[addr];
+              const row = parseInt(addr.match(/\d+/)[0]) - 1;
+              if(row === 3) cell.s = headerStyle;
+              else if(row > 3 && cell.v) {
+                  if(groups.sortedKeys.map(k=>k.toUpperCase()).includes(cell.v)) cell.s = blueStyle;
+                  else cell.s = gridStyle;
+              }
+          });
 
-      var newPState = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-      var newP = newPState[0];
-      var setNewP = newPState[1];
+          XLSX.utils.book_append_sheet(wb, ws, "Rounds");
+          XLSX.writeFile(wb, "UnitE_Rounds_Report.xlsx");
+      };
 
-      var collapsedState = useState({});
-      var collapsedWards = collapsedState[0];
-      var setCollapsedWards = collapsedState[1];
+      const groups = useMemo(() => {
+        const g = {};
+        let filtered = patients;
+        if(viewFilter !== 'All') filtered = patients.filter(p => p.status === viewFilter);
+        filtered.filter(p => (p.name+p.bed+p.ward+p.diagnosis).toLowerCase().includes(search.toLowerCase())).forEach(p => {
+          let w = p.ward || "Unassigned";
+          if(!g[w]) g[w] = []; g[w].push(p);
+        });
+        const sortedKeys = Object.keys(g).sort((a,b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
+        return { g, sortedKeys, totalCount: filtered.length };
+      }, [patients, search, viewFilter]);
 
-      var syncState = useState(false);
-      var syncing = syncState[0];
-      var setSyncing = syncState[1];
+      return (
+        <div className="wrap">
+          <div className="topbar">
+            <div className="title"><h1>Unit E Ward Rounds</h1></div>
+            <div className="actions">
+              <button className="btn btn-blue" onClick={loadMaster}>📥 Master List</button>
+              <button className="btn btn-white" onClick={()=>setAddModal(true)}>+ Add Patient</button>
+              <button className="btn btn-white" onClick={exportExcelReport}>📤 Export Excel</button>
+            </div>
+          </div>
 
-      var toastState = useState(null);
-      var toast = toastState[0];
-      var setToast = toastState[1];
+          <div className="controls-container">
+            <div className="filter-row">
+                {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
+                    <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={()=>setViewFilter(f)}>{f}</button>
+                ))}
+            </div>
+            <input className="search-bar" placeholder="Search patients..." value={search} onChange={e=>setSearch(e.target.value)} />
+          </div>
 
-      var errorState = useState(null);
-      var error = errorState[0];
-      var setError = errorState[1];
+          {groups.sortedKeys.map(ward => (
+            <div key={ward} className="ward-section">
+              <div className="ward-header" onClick={() => toggleWard(ward)}>
+                  <div><span className={`arrow ${!collapsedWards[ward] ? '' : 'collapsed'}`}>▼</span> {ward}</div>
+                  <span className="ward-count">{groups.g[ward].length} Pts</span>
+              </div>
+              <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
+                  {groups.g[ward].map(p => (
+                    <div className="p-card" key={p.id}>
+                      <div className="mobile-row col-1">
+                        <input className="inp inp-bed" value={p.bed} placeholder="Bed" onChange={e=>update(p.id,'bed',e.target.value)} />
+                        <input className="inp inp-doc" value={p.doctor} placeholder="Dr." onChange={e=>update(p.id,'doctor',e.target.value)} />
+                      </div>
+                      <div className="col-2">
+                        <div style={{display:'flex', gap:8}}><input className="inp inp-name" value={p.name} placeholder="Name" onChange={e=>update(p.id,'name',e.target.value)} /><input className="inp" style={{width:'90px'}} value={p.mrn} placeholder="MRN" onChange={e=>update(p.id,'mrn',e.target.value)} /></div>
+                        <input className="inp" value={p.diagnosis} placeholder="Diagnosis" onChange={e=>update(p.id,'diagnosis',e.target.value)} />
+                      </div>
+                      <div className="col-3"><textarea className="inp inp-area" value={p.plan} placeholder="Plan..." onChange={e=>update(p.id,'plan',e.target.value)} /></div>
+                      <div style={{display:'flex', gap:6, alignItems:'center'}}><select className={`status-select status-${p.status?.toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e=>update(p.id, 'status', e.target.value)}><option value="">- Status -</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select><button className="btn-del" onClick={()=>del(p.id)}>×</button></div>
+                    </div>
+                  ))}
+              </div>
+            </div>
+          ))}
 
-      var syncTimer = useRef(null);
+          {addModal && (
+            <div className="modalOverlay"><div className="modal"><div className="modal-head">Add Patient</div><div className="modal-body">
+              <div className="form-group"><label>Ward</label><select className="inp" value={newP.ward} onChange={e=>setNewP({...newP, ward:e.target.value})}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
+              <div style={{display:'flex', gap:10}}><div className="form-group"><label>Bed</label><input className="inp" value={newP.bed} onChange={e=>setNewP({...newP, bed:e.target.value})} /></div><div className="form-group"><label>Doctor</label><input className="inp" value={newP.doctor} onChange={e=>setNewP({...newP, doctor:e.target.value})} /></div></div>
+              <div className="form-group"><label>Name</label><input className="inp" value={newP.name} onChange={e=>setNewP({...newP, name:e.target.value})} /></div>
+              <div className="form-group"><label>Diagnosis</label><input className="inp" value={newP.diagnosis} onChange={e=>setNewP({...newP, diagnosis:e.target.value})} /></div>
+              <div className="form-group"><label>Status</label><select className="inp" value={newP.status} onChange={e=>setNewP({...newP, status:e.target.value})}>{STATUS_OPTIONS.map(s => <option key={s}>{s}</option>)}</select></div>
+            </div><div className="modal-foot"><button className="btn" onClick={()=>setAddModal(false)}>Cancel</button><button className="btn btn-blue" onClick={saveNew}>Save</button></div></div></div>
+          )}
+        </div>
+      );
+    };
 
-      function showToast(msg) {
-        setToast(msg);
-        setTimeout(function() { setToast(null); }, 3000);
-      }
-
-      var scheduleSheetSync = useCallback(function() {
-        setSyncing(true);
-        if (syncTimer.current) clearTimeout(syncTimer.current);
-        syncTimer.current = setTimeout(function() {
-          pingSheets();
-          setTimeout(function() { setSyncing(false); }, 1000);
-        }, 500);
-      }, []);
-
-      useEffect(function() {
-        if (!db) {
-          setError("Firebase not initialized");
-          return;
-        }
-        var ref = db.ref('patients');
-        ref.on('value', function(snap) {
-          var val = snap.val();
-          var list = val ? Object.keys(val).map(function(k) { return Object.assign({ id: k }, val[k]); }) : [];
-          list = list.map(function(p) { return Object.assign({}, p, { bed: cleanBed(p.bed) }); });
-          setPatients(list);
-        }, function(err) {
-          setError("Firebase error: " + err.message);
-        });
-        return function() { ref.off(); };
-      }, []);
-
-      function isDuplicate(ward, name, excludeId) {
-        var key = makeKey(ward, name);
-        return patients.some(function(p) {
-          if (excludeId && p.id === excludeId) return false;
-          return makeKey(p.ward, p.name) === key;
-        });
-      }
-
-      var update = useCallback(function(id, field, value) {
-        var patient = patients.find(function(p) { return p.id === id; });
-        if (field === 'name' && patient && isDuplicate(patient.ward, value, id)) {
-          showToast("Patient exists in ward");
-          return;
-        }
-        if (field === 'ward' && patient && isDuplicate(value, patient.name, id)) {
-          showToast("Patient exists in target ward");
-          return;
-        }
-        if (field === 'bed') value = cleanBed(value);
-        var updateData = {};
-        updateData[field] = value;
-        updateData.timestamp = Date.now();
-        db.ref("patients/" + id).update(updateData).then(function() { scheduleSheetSync(); });
-      }, [patients, scheduleSheetSync]);
-
-      function del(id) {
-        if (!confirm("Delete?")) return;
-        db.ref("patients/" + id).remove().then(function() { showToast("Deleted"); pingSheets(); });
-      }
-
-      function toggleWard(ward) {
-        setCollapsedWards(function(prev) {
-          var next = Object.assign({}, prev);
-          next[ward] = !prev[ward];
-          return next;
-        });
-      }
-
-      function saveNew() {
-        var cleaned = {
-          ward: (newP.ward || "Unassigned").trim(),
-          bed: cleanBed(newP.bed),
-          name: (newP.name || "").trim(),
-          diagnosis: (newP.diagnosis || "").trim(),
-          doctor: (newP.doctor || "").trim(),
-          status: (newP.status || "New").trim(),
-          plan: (newP.plan || "").trim(),
-          mrn: (newP.mrn || "").trim(),
-          timestamp: Date.now()
-        };
-        if (!cleaned.name) { alert("Enter name"); return; }
-        if (isDuplicate(cleaned.ward, cleaned.name)) { alert("Patient exists"); return; }
-        db.ref("patients").push(cleaned).then(function() {
-          setAddModal(false);
-          setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-          showToast("Added");
-          pingSheets();
-        });
-      }
-
-      function cleanupDuplicates() {
-        if (!confirm("Remove duplicates?")) return;
-        setSyncing(true);
-        showToast("Cleaning...");
-        var byKey = {};
-        var toDelete = [];
-        patients.forEach(function(p) {
-          var key = makeKey(p.ward, p.name);
-          if (!byKey[key]) { byKey[key] = p; }
-          else {
-            if (Number(p.timestamp || 0) > Number(byKey[key].timestamp || 0)) {
-              toDelete.push(byKey[key].id);
-              byKey[key] = p;
-            } else { toDelete.push(p.id); }
-          }
-        });
-        Promise.all(toDelete.map(function(id) { return db.ref("patients/" + id).remove(); })).then(function() {
-          showToast("Removed " + toDelete.length);
-          pingSheets();
-          setSyncing(false);
-        });
-      }
-
-      function manualSync() {
-        setSyncing(true);
-        pingSheets();
-        showToast("Syncing...");
-        setTimeout(function() { setSyncing(false); }, 2000);
-      }
-
-      function openSheet() { window.open(SHEET_URL, '_blank'); }
-
-      function exportExcel() {
-        var wb = XLSX.utils.book_new();
-        var wsData = [["UNIT E"], ["DATE: " + new Date().toLocaleDateString()], [], ["WARD", "BED", "NAME", "MRN", "DX", "DR", "STATUS", "PLAN"]];
-        groups.sortedKeys.forEach(function(ward) {
-          wsData.push([ward.toUpperCase()]);
-          groups.g[ward].forEach(function(p) { wsData.push([p.ward, p.bed, p.name, p.mrn || "", p.diagnosis, p.doctor, p.status, p.plan]); });
-          wsData.push([]);
-        });
-        var ws = XLSX.utils.aoa_to_sheet(wsData);
-        XLSX.utils.book_append_sheet(wb, ws, "Rounds");
-        XLSX.writeFile(wb, "UnitE.xlsx");
-      }
-
-      var groups = useMemo(function() {
-        var g = {};
-        var filtered = viewFilter === 'All' ? patients : patients.filter(function(p) { return p.status === viewFilter; });
-        filtered.filter(function(p) {
-          return (p.name + p.bed + p.ward + p.diagnosis).toLowerCase().indexOf(search.toLowerCase()) >= 0;
-        }).forEach(function(p) {
-          var w = p.ward || "Unassigned";
-          if (!g[w]) g[w] = [];
-          g[w].push(p);
-        });
-        Object.keys(g).forEach(function(ward) {
-          g[ward].sort(function(a, b) {
-            var aNew = (a.status || "").toLowerCase() === "new";
-            var bNew = (b.status || "").toLowerCase() === "new";
-            if (aNew && !bNew) return -1;
-            if (!aNew && bNew) return 1;
-            return String(a.bed || "").localeCompare(String(b.bed || ""));
-          });
-        });
-        var sortedKeys = Object.keys(g).sort(function(a, b) { return WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b); });
-        var newCounts = {};
-        var totalNew = 0;
-        Object.keys(g).forEach(function(ward) {
-          var c = g[ward].filter(function(p) { return (p.status || "").toLowerCase() === "new"; }).length;
+    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
+  </script>
+</body>
+</html>
