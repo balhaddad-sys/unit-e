@@ -11,9 +11,10 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 
   <style>
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --yellow:#ca8a04; }
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --yellow:#ca8a04; --red:#dc2626; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
 
@@ -28,81 +29,23 @@
     .btn-blue{ background:#dbeafe; color:var(--blue); }
     .btn-red{ background:#fee2e2; color:#dc2626; }
     .btn-green{ background:#d1fae5; color:var(--green); }
+    .btn-purple{ background:#f3e8ff; color:var(--purple); }
 
     /* Notice Banner Styles */
-    .notice-banner { 
-      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
-      border: 2px solid #f59e0b; 
-      border-radius: 12px; 
-      padding: 12px 16px; 
-      margin-bottom: 12px; 
-      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
-    }
-    .notice-header { 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center; 
-      margin-bottom: 8px;
-    }
-    .notice-title { 
-      font-weight: 800; 
-      color: #92400e; 
-      font-size: 13px; 
-      text-transform: uppercase; 
-      display: flex; 
-      align-items: center; 
-      gap: 6px;
-    }
+    .notice-banner { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2); }
+    .notice-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+    .notice-title { font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; display: flex; align-items: center; gap: 6px; }
     .notice-actions { display: flex; gap: 6px; }
-    .notice-btn { 
-      background: white; 
-      border: 1px solid #f59e0b; 
-      border-radius: 6px; 
-      padding: 4px 10px; 
-      font-size: 12px; 
-      font-weight: 600; 
-      color: #92400e; 
-      cursor: pointer;
-      transition: all 0.15s;
-    }
+    .notice-btn { background: white; border: 1px solid #f59e0b; border-radius: 6px; padding: 4px 10px; font-size: 12px; font-weight: 600; color: #92400e; cursor: pointer; transition: all 0.15s; }
     .notice-btn:hover { background: #fffbeb; }
     .notice-btn.save { background: #15803d; color: white; border-color: #15803d; }
     .notice-btn.cancel { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
-    .notice-content { 
-      color: #78350f; 
-      font-size: 14px; 
-      line-height: 1.5;
-      white-space: pre-wrap;
-    }
-    .notice-content.empty { 
-      color: #a16207; 
-      font-style: italic; 
-    }
-    .notice-textarea { 
-      width: 100%; 
-      min-height: 60px; 
-      padding: 10px; 
-      border: 1px solid #f59e0b; 
-      border-radius: 8px; 
-      font-size: 14px; 
-      font-family: inherit; 
-      resize: vertical; 
-      background: white;
-      box-sizing: border-box;
-    }
+    .notice-content { color: #78350f; font-size: 14px; line-height: 1.5; white-space: pre-wrap; }
+    .notice-content.empty { color: #a16207; font-style: italic; }
+    .notice-textarea { width: 100%; min-height: 60px; padding: 10px; border: 1px solid #f59e0b; border-radius: 8px; font-size: 14px; font-family: inherit; resize: vertical; background: white; box-sizing: border-box; }
     .notice-textarea:focus { outline: none; border-color: #d97706; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2); }
-    .notice-meta { 
-      font-size: 11px; 
-      color: #a16207; 
-      margin-top: 8px; 
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-    .notice-collapsed { 
-      padding: 10px 16px; 
-      cursor: pointer;
-    }
+    .notice-meta { font-size: 11px; color: #a16207; margin-top: 8px; }
+    .notice-collapsed { padding: 10px 16px; cursor: pointer; }
     .notice-collapsed .notice-header { margin-bottom: 0; }
     .notice-collapsed:hover { background: linear-gradient(135deg, #fef9c3 0%, #fde047 100%); }
     .notice-expand-hint { font-size: 11px; color: #a16207; }
@@ -138,13 +81,38 @@
     .status-non { background: #f3e8ff; color: var(--purple); }
 
     .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; }
+    .btn-lab{ padding:4px 8px; border-radius:6px; background:#f3e8ff; color:var(--purple); border:1px solid #e9d5ff; font-weight:600; font-size:11px; cursor:pointer; display:flex; align-items:center; gap:4px; }
+    .btn-lab.has-labs{ background:#d946ef; color:white; border-color:#d946ef; }
 
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
-    .modal{ background:white; width:100%; max-width:450px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
-    .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; }
+    .modal{ background:white; width:100%; max-width:500px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
+    .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
+    .modal-head.purple{ background:var(--purple); }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); background:#fff; }
     .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
+
+    /* Lab Modal Styles */
+    .lab-section { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
+    .lab-section-title { font-size: 12px; font-weight: 700; color: var(--purple); margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(100px, 1fr)); gap: 8px; }
+    .lab-field { display: flex; flex-direction: column; }
+    .lab-field label { font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 2px; }
+    .lab-field input { padding: 6px 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px; text-align: center; font-weight: 600; }
+    .lab-field input:focus { border-color: var(--purple); outline: none; background: white; }
+    .lab-field input.abnormal-high { background: #fef2f2; border-color: #fca5a5; color: var(--red); }
+    .lab-field input.abnormal-low { background: #eff6ff; border-color: #93c5fd; color: var(--blue); }
+
+    .scan-area { border: 2px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center; background: #fafafa; }
+    .scan-area.dragover { border-color: var(--purple); background: #faf5ff; }
+    .scan-btn { background: var(--purple); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; margin: 8px 4px; }
+    .scan-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
+    .scan-btn.secondary { background: white; color: var(--purple); border: 2px solid var(--purple); }
+    .scan-progress { margin-top: 12px; font-size: 13px; color: #64748b; }
+    .scan-progress .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: var(--purple); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    .lab-timestamp { font-size: 11px; color: #94a3b8; text-align: right; margin-top: 8px; }
 
     .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
@@ -153,13 +121,17 @@
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; animation: fadeIn 0.3s; }
     @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(10px); } to { opacity: 1; transform: translateX(-50%) translateY(0); } }
 
+    .extracted-preview { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 12px; max-height: 150px; overflow-y: auto; }
+    .extracted-preview h4 { margin: 0 0 8px 0; color: var(--green); font-size: 12px; }
+    .extracted-item { display: flex; justify-content: space-between; padding: 2px 0; border-bottom: 1px solid #dcfce7; }
+
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
       .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
       .col-2{ flex:1; display:flex; flex-direction:column; gap:6px; }
       .col-3{ width:280px; display:flex; flex-direction:column; gap:6px; }
     }
-    @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } }
+    @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } .lab-grid { grid-template-columns: repeat(3, 1fr); } }
   </style>
 </head>
 <body>
@@ -197,6 +169,89 @@
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
+    // Lab configuration with normal ranges
+    const LAB_CONFIG = {
+      cbc: {
+        title: "CBC",
+        fields: [
+          { key: "wbc", label: "WBC", unit: "K", low: 4, high: 11 },
+          { key: "hgb", label: "Hgb", unit: "g/dL", low: 12, high: 17 },
+          { key: "hct", label: "Hct", unit: "%", low: 36, high: 50 },
+          { key: "plt", label: "Plt", unit: "K", low: 150, high: 400 },
+          { key: "mcv", label: "MCV", unit: "fL", low: 80, high: 100 },
+        ]
+      },
+      bmp: {
+        title: "BMP",
+        fields: [
+          { key: "na", label: "Na", unit: "mEq/L", low: 136, high: 145 },
+          { key: "k", label: "K", unit: "mEq/L", low: 3.5, high: 5.0 },
+          { key: "cl", label: "Cl", unit: "mEq/L", low: 98, high: 106 },
+          { key: "co2", label: "CO2", unit: "mEq/L", low: 23, high: 29 },
+          { key: "bun", label: "BUN", unit: "mg/dL", low: 7, high: 20 },
+          { key: "cr", label: "Cr", unit: "mg/dL", low: 0.6, high: 1.2 },
+          { key: "glu", label: "Glucose", unit: "mg/dL", low: 70, high: 100 },
+        ]
+      },
+      lft: {
+        title: "LFTs",
+        fields: [
+          { key: "ast", label: "AST", unit: "U/L", low: 10, high: 40 },
+          { key: "alt", label: "ALT", unit: "U/L", low: 7, high: 56 },
+          { key: "alp", label: "ALP", unit: "U/L", low: 44, high: 147 },
+          { key: "tbili", label: "T.Bili", unit: "mg/dL", low: 0.1, high: 1.2 },
+          { key: "alb", label: "Albumin", unit: "g/dL", low: 3.5, high: 5.0 },
+        ]
+      },
+      coag: {
+        title: "Coagulation",
+        fields: [
+          { key: "pt", label: "PT", unit: "sec", low: 11, high: 13.5 },
+          { key: "inr", label: "INR", unit: "", low: 0.8, high: 1.1 },
+          { key: "ptt", label: "PTT", unit: "sec", low: 25, high: 35 },
+        ]
+      },
+      other: {
+        title: "Other",
+        fields: [
+          { key: "lactate", label: "Lactate", unit: "mmol/L", low: 0.5, high: 2.0 },
+          { key: "trop", label: "Troponin", unit: "ng/mL", low: 0, high: 0.04 },
+          { key: "bnp", label: "BNP", unit: "pg/mL", low: 0, high: 100 },
+          { key: "crp", label: "CRP", unit: "mg/L", low: 0, high: 10 },
+          { key: "pct", label: "Procal", unit: "ng/mL", low: 0, high: 0.5 },
+        ]
+      }
+    };
+
+    // Lab name variations for OCR matching
+    const LAB_ALIASES = {
+      wbc: ["wbc", "white blood cell", "white cell", "leucocyte", "leukocyte", "wcc"],
+      hgb: ["hgb", "hb", "hemoglobin", "haemoglobin"],
+      hct: ["hct", "hematocrit", "haematocrit", "pcv"],
+      plt: ["plt", "platelet", "platelets", "thrombocyte"],
+      mcv: ["mcv", "mean corpuscular volume", "mean cell volume"],
+      na: ["na", "sodium", "na+"],
+      k: ["k", "potassium", "k+"],
+      cl: ["cl", "chloride", "cl-"],
+      co2: ["co2", "bicarbonate", "hco3", "bicarb", "tco2"],
+      bun: ["bun", "urea", "blood urea nitrogen", "urea nitrogen"],
+      cr: ["cr", "creatinine", "creat", "crea"],
+      glu: ["glu", "glucose", "blood sugar", "bs", "rbs", "fbs", "sugar"],
+      ast: ["ast", "sgot", "aspartate aminotransferase", "aspartate transaminase"],
+      alt: ["alt", "sgpt", "alanine aminotransferase", "alanine transaminase"],
+      alp: ["alp", "alkaline phosphatase", "alk phos"],
+      tbili: ["tbili", "bilirubin", "total bilirubin", "t bili", "t.bili", "bil"],
+      alb: ["alb", "albumin"],
+      pt: ["pt", "prothrombin time", "prothrombin"],
+      inr: ["inr", "international normalized ratio"],
+      ptt: ["ptt", "aptt", "partial thromboplastin time", "activated partial thromboplastin"],
+      lactate: ["lactate", "lactic acid", "lact"],
+      trop: ["trop", "troponin", "tni", "tnt", "hs-trop", "hs trop", "hstrop"],
+      bnp: ["bnp", "brain natriuretic peptide", "nt-probnp", "ntprobnp", "pro-bnp"],
+      crp: ["crp", "c-reactive protein", "c reactive protein"],
+      pct: ["pct", "procalcitonin", "procal"],
+    };
+
     // Check if value looks like a timestamp
     const isTimestamp = (val) => {
       const s = String(val || "");
@@ -207,27 +262,240 @@
              s.match(/\d{4}\s\d{2}:\d{2}:\d{2}/);
     };
 
-    // Clean bed value
     const cleanBed = (val) => {
       if (isTimestamp(val)) return "";
       return String(val || "").trim();
     };
 
-    // Create dedupe key
-    const makeKey = (ward, name) => {
-      return `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
-    };
-
-    // Format timestamp
+    const makeKey = (ward, name) => `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
     const formatTime = (ts) => {
       if (!ts) return "";
       const d = new Date(ts);
-      return d.toLocaleString('en-GB', { 
-        day: 'numeric', 
-        month: 'short', 
-        hour: '2-digit', 
-        minute: '2-digit'
+      return d.toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+    };
+
+    // Parse OCR text to extract lab values
+    const parseLabsFromText = (text) => {
+      const results = {};
+      const lines = text.toLowerCase().split(/[\n\r]+/);
+      const fullText = text.toLowerCase();
+      
+      // For each lab type, search for matches
+      Object.entries(LAB_ALIASES).forEach(([labKey, aliases]) => {
+        for (const alias of aliases) {
+          // Pattern: alias followed by numbers (with possible units, colons, spaces)
+          const patterns = [
+            new RegExp(`${alias}[:\\s]+([\\d.]+)`, 'i'),
+            new RegExp(`${alias}[^\\d]*([\\d.]+)`, 'i'),
+            new RegExp(`([\\d.]+)[\\s]*${alias}`, 'i'),
+          ];
+          
+          for (const pattern of patterns) {
+            const match = fullText.match(pattern);
+            if (match && match[1]) {
+              const value = parseFloat(match[1]);
+              if (!isNaN(value) && value > 0 && value < 10000) {
+                results[labKey] = value;
+                break;
+              }
+            }
+          }
+          if (results[labKey]) break;
+        }
       });
+      
+      return results;
+    };
+
+    // Lab Modal Component
+    const LabModal = ({ patient, onClose, onSave }) => {
+      const [labs, setLabs] = useState(patient.labs || {});
+      const [scanning, setScanning] = useState(false);
+      const [scanProgress, setScanProgress] = useState("");
+      const [extracted, setExtracted] = useState(null);
+      const [dragOver, setDragOver] = useState(false);
+      const fileInputRef = useRef(null);
+      const cameraInputRef = useRef(null);
+
+      const updateLab = (key, value) => {
+        setLabs(prev => ({ ...prev, [key]: value }));
+      };
+
+      const getFieldClass = (field, value) => {
+        if (!value || value === "") return "";
+        const num = parseFloat(value);
+        if (isNaN(num)) return "";
+        if (num < field.low) return "abnormal-low";
+        if (num > field.high) return "abnormal-high";
+        return "";
+      };
+
+      const processImage = async (file) => {
+        setScanning(true);
+        setScanProgress("Initializing OCR...");
+        setExtracted(null);
+
+        try {
+          const worker = await Tesseract.createWorker('eng', 1, {
+            logger: m => {
+              if (m.status === 'recognizing text') {
+                setScanProgress(`Scanning: ${Math.round(m.progress * 100)}%`);
+              }
+            }
+          });
+
+          setScanProgress("Reading image...");
+          const { data: { text } } = await worker.recognize(file);
+          await worker.terminate();
+
+          setScanProgress("Extracting lab values...");
+          const extracted = parseLabsFromText(text);
+          
+          if (Object.keys(extracted).length > 0) {
+            setExtracted(extracted);
+            setLabs(prev => ({ ...prev, ...extracted }));
+            setScanProgress(`Found ${Object.keys(extracted).length} lab values!`);
+          } else {
+            setScanProgress("No lab values detected. Try a clearer image or enter manually.");
+          }
+        } catch (err) {
+          console.error("OCR Error:", err);
+          setScanProgress("Error processing image. Please try again.");
+        }
+
+        setScanning(false);
+      };
+
+      const handleFileSelect = (e) => {
+        const file = e.target.files?.[0];
+        if (file) processImage(file);
+      };
+
+      const handleDrop = (e) => {
+        e.preventDefault();
+        setDragOver(false);
+        const file = e.dataTransfer.files?.[0];
+        if (file && file.type.startsWith('image/')) {
+          processImage(file);
+        }
+      };
+
+      const handlePaste = useCallback((e) => {
+        const items = e.clipboardData?.items;
+        if (items) {
+          for (const item of items) {
+            if (item.type.startsWith('image/')) {
+              const file = item.getAsFile();
+              if (file) processImage(file);
+              break;
+            }
+          }
+        }
+      }, []);
+
+      useEffect(() => {
+        document.addEventListener('paste', handlePaste);
+        return () => document.removeEventListener('paste', handlePaste);
+      }, [handlePaste]);
+
+      const handleSave = () => {
+        onSave(patient.id, { ...labs, updatedAt: Date.now() });
+        onClose();
+      };
+
+      const clearLabs = () => {
+        if (confirm("Clear all lab values?")) {
+          setLabs({});
+          setExtracted(null);
+        }
+      };
+
+      return (
+        <div className="modalOverlay" onClick={onClose}>
+          <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '550px' }}>
+            <div className="modal-head purple">
+              <span>🧪 Labs - {patient.name}</span>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
+            </div>
+            <div className="modal-body">
+              {/* Scan Area */}
+              <div 
+                className={`scan-area ${dragOver ? 'dragover' : ''}`}
+                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
+                onDragLeave={() => setDragOver(false)}
+                onDrop={handleDrop}
+              >
+                <div style={{ marginBottom: '8px', fontSize: '24px' }}>📷</div>
+                <div style={{ fontWeight: '600', marginBottom: '4px' }}>Scan Lab Results</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
+                  Take a photo, upload an image, or paste (Ctrl+V) a screenshot
+                </div>
+                <div>
+                  <button className="scan-btn" onClick={() => cameraInputRef.current?.click()} disabled={scanning}>
+                    📸 Camera
+                  </button>
+                  <button className="scan-btn secondary" onClick={() => fileInputRef.current?.click()} disabled={scanning}>
+                    📁 Upload
+                  </button>
+                </div>
+                <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} style={{ display: 'none' }} />
+                <input ref={cameraInputRef} type="file" accept="image/*" capture="environment" onChange={handleFileSelect} style={{ display: 'none' }} />
+                
+                {scanProgress && (
+                  <div className="scan-progress">
+                    {scanning && <span className="spinner"></span>}
+                    {scanProgress}
+                  </div>
+                )}
+              </div>
+
+              {/* Extracted Preview */}
+              {extracted && Object.keys(extracted).length > 0 && (
+                <div className="extracted-preview">
+                  <h4>✓ Extracted Values (auto-filled below)</h4>
+                  {Object.entries(extracted).map(([key, val]) => (
+                    <div key={key} className="extracted-item">
+                      <span>{key.toUpperCase()}</span>
+                      <span style={{ fontWeight: '600' }}>{val}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Lab Sections */}
+              {Object.entries(LAB_CONFIG).map(([sectionKey, section]) => (
+                <div key={sectionKey} className="lab-section">
+                  <div className="lab-section-title">{section.title}</div>
+                  <div className="lab-grid">
+                    {section.fields.map(field => (
+                      <div key={field.key} className="lab-field">
+                        <label>{field.label} {field.unit && <span style={{ opacity: 0.6 }}>({field.unit})</span>}</label>
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={labs[field.key] || ""}
+                          onChange={e => updateLab(field.key, e.target.value)}
+                          className={getFieldClass(field, labs[field.key])}
+                          placeholder={`${field.low}-${field.high}`}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+
+              {labs.updatedAt && (
+                <div className="lab-timestamp">Last updated: {formatTime(labs.updatedAt)}</div>
+              )}
+            </div>
+            <div className="modal-foot">
+              <button className="btn btn-red" onClick={clearLabs}>Clear</button>
+              <button className="btn btn-white" onClick={onClose}>Cancel</button>
+              <button className="btn btn-purple" onClick={handleSave} style={{ background: 'var(--purple)', color: 'white' }}>Save Labs</button>
+            </div>
+          </div>
+        </div>
+      );
     };
 
     // Notice Banner Component
@@ -240,24 +508,10 @@
         setEditText(notice?.text || "");
       }, [notice?.text]);
 
-      const handleSave = () => {
-        onSave(editText);
-        setIsEditing(false);
-      };
+      const handleSave = () => { onSave(editText); setIsEditing(false); };
+      const handleCancel = () => { setEditText(notice?.text || ""); setIsEditing(false); };
+      const handleClear = () => { if (confirm("Clear the notice?")) { onSave(""); setIsEditing(false); } };
 
-      const handleCancel = () => {
-        setEditText(notice?.text || "");
-        setIsEditing(false);
-      };
-
-      const handleClear = () => {
-        if (confirm("Clear the notice?")) {
-          onSave("");
-          setIsEditing(false);
-        }
-      };
-
-      // Collapsed view
       if (isCollapsed && !isEditing) {
         return (
           <div className="notice-banner notice-collapsed" onClick={() => setIsCollapsed(false)}>
@@ -288,26 +542,12 @@
               )}
             </div>
           </div>
-          
           {isEditing ? (
-            <textarea 
-              className="notice-textarea"
-              value={editText}
-              onChange={e => setEditText(e.target.value)}
-              placeholder="Enter important notices, updates, or reminders for the team..."
-              autoFocus
-            />
+            <textarea className="notice-textarea" value={editText} onChange={e => setEditText(e.target.value)} placeholder="Enter important notices..." autoFocus />
           ) : (
-            <div className={`notice-content ${!notice?.text ? 'empty' : ''}`}>
-              {notice?.text || "No current notices. Tap Edit to add one."}
-            </div>
+            <div className={`notice-content ${!notice?.text ? 'empty' : ''}`}>{notice?.text || "No current notices. Tap Edit to add one."}</div>
           )}
-          
-          {notice?.updatedAt && !isEditing && (
-            <div className="notice-meta">
-              <span>Last updated: {formatTime(notice.updatedAt)}</span>
-            </div>
-          )}
+          {notice?.updatedAt && !isEditing && <div className="notice-meta">Last updated: {formatTime(notice.updatedAt)}</div>}
         </div>
       );
     };
@@ -318,6 +558,7 @@
       const [search, setSearch] = useState("");
       const [viewFilter, setViewFilter] = useState("All");
       const [addModal, setAddModal] = useState(false);
+      const [labModal, setLabModal] = useState(null); // patient object or null
       const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
       const [collapsedWards, setCollapsedWards] = useState({});
       const [syncing, setSyncing] = useState(false);
@@ -325,10 +566,7 @@
 
       const syncTimer = useRef(null);
 
-      const showToast = (msg) => {
-        setToast(msg);
-        setTimeout(() => setToast(null), 3000);
-      };
+      const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
 
       const scheduleSheetSync = useCallback(() => {
         setSyncing(true);
@@ -339,16 +577,11 @@
         }, 500);
       }, []);
 
-      // Listen to notice changes
       useEffect(() => {
         const ref = db.ref('notice');
         ref.on('value', snap => {
           const val = snap.val();
-          if (val) {
-            setNotice(val);
-          } else {
-            setNotice({ text: "", updatedAt: null });
-          }
+          setNotice(val || { text: "", updatedAt: null });
         });
         return () => ref.off();
       }, []);
@@ -358,39 +591,29 @@
         ref.on('value', snap => {
           const val = snap.val();
           let list = val ? Object.keys(val).map(k => ({ id: k, ...val[k] })) : [];
-          
-          // Clean bed values on load
-          list = list.map(p => ({
-            ...p,
-            bed: cleanBed(p.bed)
-          }));
-          
+          list = list.map(p => ({ ...p, bed: cleanBed(p.bed) }));
           setPatients(list);
         });
         return () => ref.off();
       }, []);
 
-      // Save notice
       const saveNotice = (text) => {
-        db.ref('notice').set({
-          text: text.trim(),
-          updatedAt: Date.now()
-        }).then(() => {
-          showToast("✓ Notice updated");
+        db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Notice updated"));
+      };
+
+      const saveLabs = (patientId, labs) => {
+        db.ref(`patients/${patientId}/labs`).set(labs).then(() => {
+          showToast("✓ Labs saved");
+          scheduleSheetSync();
         });
       };
 
-      // Check for duplicate
       const isDuplicate = (ward, name, excludeId = null) => {
         const key = makeKey(ward, name);
-        return patients.some(p => {
-          if (excludeId && p.id === excludeId) return false;
-          return makeKey(p.ward, p.name) === key;
-        });
+        return patients.some(p => (excludeId && p.id === excludeId) ? false : makeKey(p.ward, p.name) === key);
       };
 
       const update = useCallback((id, field, value) => {
-        // If updating name, check for duplicates
         if (field === 'name') {
           const patient = patients.find(p => p.id === id);
           if (patient && isDuplicate(patient.ward, value, id)) {
@@ -398,8 +621,6 @@
             return;
           }
         }
-        
-        // If updating ward, check for duplicates
         if (field === 'ward') {
           const patient = patients.find(p => p.id === id);
           if (patient && isDuplicate(value, patient.name, id)) {
@@ -407,26 +628,14 @@
             return;
           }
         }
+        if (field === 'bed') value = cleanBed(value);
 
-        // Clean bed values
-        if (field === 'bed') {
-          value = cleanBed(value);
-        }
-
-        db.ref(`patients/${id}`).update({
-          [field]: value,
-          timestamp: Date.now()
-        }).then(() => {
-          scheduleSheetSync();
-        });
+        db.ref(`patients/${id}`).update({ [field]: value, timestamp: Date.now() }).then(() => scheduleSheetSync());
       }, [patients, scheduleSheetSync]);
 
       const del = (id) => {
         if (!confirm("Delete this patient?")) return;
-        db.ref(`patients/${id}`).remove().then(() => {
-          showToast("✓ Patient deleted");
-          pingSheets();
-        });
+        db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Patient deleted"); pingSheets(); });
       };
 
       const toggleWard = (ward) => setCollapsedWards(prev => ({ ...prev, [ward]: !prev[ward] }));
@@ -443,18 +652,11 @@
           mrn: (newP.mrn || "").trim(),
           timestamp: Date.now()
         };
-
-        if (!cleaned.name) {
-          alert("Please enter patient name.");
-          return;
-        }
-
-        // Check for duplicate
+        if (!cleaned.name) { alert("Please enter patient name."); return; }
         if (isDuplicate(cleaned.ward, cleaned.name)) {
           alert("⚠️ A patient with this name already exists in " + cleaned.ward);
           return;
         }
-
         db.ref("patients").push(cleaned).then(() => {
           setAddModal(false);
           setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
@@ -463,38 +665,23 @@
         });
       };
 
-      // Cleanup duplicates
       const cleanupDuplicates = async () => {
         if (!confirm("This will remove duplicate patients (keeping the most recent). Continue?")) return;
-        
         setSyncing(true);
         showToast("🔄 Cleaning up duplicates...");
-
         const byKey = {};
         const toDelete = [];
-
         patients.forEach(p => {
           const key = makeKey(p.ward, p.name);
-          if (!byKey[key]) {
-            byKey[key] = p;
-          } else {
-            // Keep newer one
+          if (!byKey[key]) { byKey[key] = p; }
+          else {
             const existingTs = Number(byKey[key].timestamp || 0);
             const newTs = Number(p.timestamp || 0);
-            if (newTs > existingTs) {
-              toDelete.push(byKey[key].id);
-              byKey[key] = p;
-            } else {
-              toDelete.push(p.id);
-            }
+            if (newTs > existingTs) { toDelete.push(byKey[key].id); byKey[key] = p; }
+            else { toDelete.push(p.id); }
           }
         });
-
-        // Delete duplicates
-        for (const id of toDelete) {
-          await db.ref(`patients/${id}`).remove();
-        }
-
+        for (const id of toDelete) { await db.ref(`patients/${id}`).remove(); }
         showToast(`✓ Removed ${toDelete.length} duplicates`);
         pingSheets();
         setSyncing(false);
@@ -507,9 +694,7 @@
         setTimeout(() => setSyncing(false), 2000);
       };
 
-      const openSheet = () => {
-        window.open(SHEET_URL, '_blank');
-      };
+      const openSheet = () => window.open(SHEET_URL, '_blank');
 
       const exportExcel = () => {
         const wb = XLSX.utils.book_new();
@@ -547,6 +732,8 @@
         return { g, sortedKeys, totalCount: filtered.length };
       }, [patients, search, viewFilter]);
 
+      const hasLabs = (p) => p.labs && Object.keys(p.labs).some(k => k !== 'updatedAt' && p.labs[k]);
+
       return (
         <div className="wrap">
           <div className="topbar">
@@ -567,7 +754,6 @@
             </div>
           </div>
 
-          {/* Notice Banner */}
           <NoticeBanner notice={notice} onSave={saveNotice} />
 
           <div className="controls-container">
@@ -602,7 +788,10 @@
                     <div className="col-3">
                       <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
                     </div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                    <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
+                      <button className={`btn-lab ${hasLabs(p) ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>
+                        🧪 {hasLabs(p) ? 'Labs' : 'Add Labs'}
+                      </button>
                       <select
                         className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`}
                         value={p.status || ""}
@@ -619,6 +808,7 @@
             </div>
           ))}
 
+          {/* Add Patient Modal */}
           {addModal && (
             <div className="modalOverlay">
               <div className="modal">
@@ -671,6 +861,15 @@
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Lab Modal */}
+          {labModal && (
+            <LabModal 
+              patient={labModal} 
+              onClose={() => setLabModal(null)} 
+              onSave={saveLabs}
+            />
           )}
 
           {toast && <div className="toast">{toast}</div>}
