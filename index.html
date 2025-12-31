@@ -3,7 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Unit E Ward Rounds - Enhanced OCR v2 (Max Accuracy)</title>
+  <title>Unit E Ward Rounds - Enhanced OCR v2 (Accuracy Patch)</title>
+
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
@@ -11,6 +12,7 @@
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+
   <style>
     :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --red:#dc2626; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
@@ -23,6 +25,7 @@
     .btn-white{ background:white; color:var(--green); }
     .btn-blue{ background:#dbeafe; color:var(--blue); }
     .btn-green{ background:#d1fae5; color:var(--green); }
+
     .notice-banner { background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border: 2px solid #f59e0b; border-radius: 12px; padding: 12px 16px; margin-bottom: 12px; }
     .notice-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
     .notice-title { font-weight: 800; color: #92400e; font-size: 13px; text-transform: uppercase; }
@@ -34,17 +37,20 @@
     .notice-textarea { width: 100%; min-height: 60px; padding: 10px; border: 1px solid #f59e0b; border-radius: 8px; font-size: 14px; font-family: inherit; background: white; box-sizing: border-box; }
     .notice-collapsed { padding: 10px 16px; cursor: pointer; }
     .notice-collapsed .notice-header { margin-bottom: 0; }
+
     .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
     .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; }
     .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
     .filter-btn.active { background: var(--green); color: white; border-color: var(--green); }
     .search-bar{ width:100%; padding:10px; border:1px solid var(--border); border-radius:8px; font-size:14px; outline:none; box-sizing: border-box; }
+
     .ward-section{ background:white; border:1px solid var(--border); border-radius:8px; overflow:hidden; margin-bottom:20px; }
     .ward-header{ background:var(--blue); color:white; padding:10px 16px; font-weight:700; font-size:13px; display:flex; justify-content:space-between; align-items:center; cursor: pointer; }
     .arrow { transition: transform 0.2s; font-size: 10px; }
     .arrow.collapsed { transform: rotate(-90deg); }
     .ward-body.is-hidden { display: none; }
     .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
+
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; }
     .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
@@ -52,31 +58,40 @@
     .inp-name{ font-weight:700; font-size:15px; }
     .inp-doc{ width:110px; font-size:12px; font-weight:600; color:#64748b; }
     .inp-area{ min-height:45px; resize:vertical; }
+
     .status-select { padding: 4px; border-radius: 4px; border: 1px solid var(--border); font-size: 11px; font-weight: 600; cursor: pointer; }
     .status-new { background: #dbeafe; color: var(--blue); }
     .status-chronic { background: #ffedd5; color: var(--orange); }
     .status-non { background: #f3e8ff; color: var(--purple); }
+
     .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; }
+
     .btn-lab{ padding:4px 8px; border-radius:6px; background:#f3e8ff; color:var(--purple); border:1px solid #e9d5ff; font-weight:600; font-size:11px; cursor:pointer; position: relative; }
     .btn-lab.has-labs{ background:#d946ef; color:white; border-color:#d946ef; }
     .lab-count{ position:absolute; top:-6px; right:-6px; background:var(--red); color:white; font-size:10px; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
+
     .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:100; padding:10px; }
     .modal{ background:white; width:100%; max-width:900px; border-radius:12px; display:flex; flex-direction:column; max-height:95vh; overflow:hidden; }
     .modal-head{ background:var(--purple); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); }
+
     .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
     .sync-badge.syncing { background: #fef08a; color: #854d0e; }
+
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; }
+
     .tabs { display:flex; gap:8px; margin-bottom: 4px; }
     .tab { padding:8px 12px; border-radius: 999px; border:1px solid var(--border); background:#f8fafc; cursor:pointer; font-weight:700; font-size:12px; color:#64748b; }
     .tab.active { background: var(--purple); color:white; border-color: var(--purple); }
+
     .add-lab-area { border: 2px dashed var(--purple); border-radius: 12px; padding: 24px; text-align: center; background: #faf5ff; cursor: pointer; }
     .add-lab-area.dragging { background: #e9d5ff; border-color: #9333ea; }
     .add-lab-icon { font-size: 32px; margin-bottom: 8px; }
     .add-lab-text { font-weight: 600; color: var(--purple); margin-bottom: 4px; }
     .add-lab-hint { font-size: 12px; color: #a855f7; }
+
     .lab-values-card { border:1px solid var(--border); border-radius: 12px; overflow:hidden; }
     .lab-values-head { padding:10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color:white; display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap: wrap; }
     .lab-values-title { font-weight:800; font-size:12px; }
@@ -85,11 +100,12 @@
     .pill.high-conf { background: #22c55e; }
     .pill.med-conf { background: #f59e0b; }
     .pill.low-conf { background: #ef4444; }
+
     .lab-values-body { padding: 10px 12px; background: white; }
     .kv-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
     .kv { border:1px solid #e2e8f0; border-radius:10px; padding:10px; background:#f8fafc; }
     .kv.invalid { border-color: #ef4444; background: #fef2f2; }
-    .kv .k { font-size:11px; font-weight:800; color:#475569; text-transform:uppercase; margin-bottom:4px; display: flex; align-items: center; gap: 6px; }
+    .kv .k { font-size:11px; font-weight:800; color:#475569; text-transform:uppercase; margin-bottom:4px; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
     .kv .v { display:flex; align-items:center; gap:8px; flex-wrap: wrap; }
     .kv input { width: 90px; padding:6px 8px; border:1px solid #e2e8f0; border-radius:8px; font-size:14px; background:white; }
     .kv .u { font-size:12px; color:#64748b; font-weight:700; }
@@ -97,10 +113,12 @@
     .flag.H { background:#fee2e2; color:#b91c1c; }
     .flag.L { background:#dbeafe; color:#1d4ed8; }
     .flag.N { background:#dcfce7; color:#166534; }
+
     .confidence-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
     .confidence-dot.high { background: #22c55e; }
     .confidence-dot.med { background: #f59e0b; }
     .confidence-dot.low { background: #ef4444; }
+
     .lab-images-grid { display: flex; flex-direction: column; gap: 12px; }
     .lab-image-card { background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
     .lab-image-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color: white; gap: 8px; flex-wrap: wrap; }
@@ -113,28 +131,36 @@
     .lab-image-container img { width: 100%; display: block; }
     .lab-image-note { padding: 10px 12px; border-top: 1px solid var(--border); }
     .lab-image-note input { width: 100%; border: none; background: transparent; font-size: 13px; color: var(--text); }
+
     .image-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: flex; flex-direction: column; }
     .image-viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; color: white; }
     .image-viewer-close { background: rgba(255,255,255,0.1); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; }
     .image-viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; }
     .image-viewer-body img { max-width: 100%; max-height: 100%; object-fit: contain; }
+
     .empty-labs { text-align: center; padding: 40px 20px; color: #94a3b8; }
     .empty-labs-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+
     .ocr-settings-panel { border: 1px solid #e9d5ff; background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-radius: 12px; padding: 14px; }
     .ocr-settings-title { font-weight: 900; color: #6b21a8; font-size: 13px; margin-bottom: 10px; }
     .ocr-settings-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; }
     .ocr-setting { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 10px; }
     .ocr-setting-label { font-size: 10px; font-weight: 800; color: #64748b; text-transform: uppercase; margin-bottom: 4px; }
+
     .ocr-progress { padding: 12px; border: 1px solid #e9d5ff; border-radius: 12px; background: #faf5ff; }
     .ocr-progress-bar { height: 8px; background: #e9d5ff; border-radius: 4px; overflow: hidden; margin-bottom: 8px; }
     .ocr-progress-fill { height: 100%; background: linear-gradient(90deg, #7e22ce, #a855f7); transition: width 0.3s; }
     .ocr-progress-text { font-size: 12px; font-weight: 700; color: #6b21a8; display: flex; justify-content: space-between; }
+
     .raw-text-panel { border: 1px solid #e2e8f0; border-radius: 8px; background: #1e293b; padding: 12px; max-height: 200px; overflow: auto; }
     .raw-text-panel pre { margin: 0; font-size: 11px; color: #94a3b8; white-space: pre-wrap; word-break: break-all; font-family: monospace; }
+
     .ocr-stats { display: flex; gap: 12px; flex-wrap: wrap; padding: 10px 12px; background: #f8fafc; border-top: 1px solid var(--border); }
-    .ocr-stat { font-size: 11px; font-weight: 700; color: #64748b; }
+    .ocr-stat { font-size: 11px; font-weight: 700; color:#64748b; }
     .ocr-stat span { color: var(--purple); }
+
     .ocr-error { background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px; padding: 12px; color: #b91c1c; font-size: 13px; }
+
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
       .col-1{ width:130px; display:flex; flex-direction:column; gap:6px; }
@@ -145,8 +171,10 @@
     @media(max-width: 767px){ .mobile-row{ display:flex; gap:8px; } .p-card{ padding-right: 50px; } }
   </style>
 </head>
+
 <body>
   <div id="root"></div>
+
   <script type="text/babel">
     const { useState, useEffect, useMemo, useRef, useCallback } = React;
 
@@ -188,6 +216,166 @@
     let _ocrWorker = null;
     let _ocrWorkerReady = false;
 
+    // ===== OCR Accuracy Patch (Otsu + Deskew + Profiles + Cleaning) =====
+    const OCR_PROFILES = {
+      FULL_TEXT: {
+        tessedit_char_whitelist:
+          "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%/<>.-+µ^()[]{}:;,# "
+      },
+      NUMERIC_ONLY: {
+        tessedit_char_whitelist: "0123456789.<>-"
+      },
+    };
+
+    const NUMERIC_SUB_MAP = new Map([
+      ["l","1"], ["I","1"], ["`","1"], ["]","1"], ["!","1"], ["|","1"],
+      ["O","0"], ["D","0"], ["o","0"], ["Q","0"],
+      ["S","5"], ["s","5"],
+      ["Z","2"], ["z","2"],
+      ["B","8"], ["ß","8"],
+    ]);
+
+    const cleanNumericString = (raw) => {
+      let s = String(raw || "").trim();
+      s = s.replace(/[^0-9A-Za-z.<>\-+]/g, "");
+      if (/[A-Za-z]/.test(s)) {
+        s = s.split("").map(ch => NUMERIC_SUB_MAP.get(ch) ?? ch).join("");
+      }
+      const parts = s.split(".");
+      if (parts.length > 2) s = parts[0] + "." + parts.slice(1).join("");
+      s = s.replace(/(?!^[<>])[^0-9.<>-]/g, "");
+      return s;
+    };
+
+    const otsuThreshold = (gray) => {
+      const hist = new Array(256).fill(0);
+      for (let i = 0; i < gray.length; i++) hist[gray[i]]++;
+      const total = gray.length;
+
+      let sum = 0;
+      for (let t = 0; t < 256; t++) sum += t * hist[t];
+
+      let sumB = 0;
+      let wB = 0;
+      let wF = 0;
+
+      let varMax = 0;
+      let threshold = 128;
+
+      for (let t = 0; t < 256; t++) {
+        wB += hist[t];
+        if (wB === 0) continue;
+        wF = total - wB;
+        if (wF === 0) break;
+
+        sumB += t * hist[t];
+
+        const mB = sumB / wB;
+        const mF = (sum - sumB) / wF;
+
+        const between = wB * wF * (mB - mF) * (mB - mF);
+        if (between > varMax) {
+          varMax = between;
+          threshold = t;
+        }
+      }
+      return threshold;
+    };
+
+    const luminanceGray = (r, g, b) => (0.2126 * r + 0.7152 * g + 0.0722 * b) | 0;
+
+    const boxBlurGray = (gray, w, h) => {
+      const out = new Uint8ClampedArray(gray.length);
+      const idx = (x,y) => y*w + x;
+      for (let y = 1; y < h - 1; y++) {
+        for (let x = 1; x < w - 1; x++) {
+          let sum = 0;
+          sum += gray[idx(x-1,y-1)] + gray[idx(x,y-1)] + gray[idx(x+1,y-1)];
+          sum += gray[idx(x-1,y)]   + gray[idx(x,y)]   + gray[idx(x+1,y)];
+          sum += gray[idx(x-1,y+1)] + gray[idx(x,y+1)] + gray[idx(x+1,y+1)];
+          out[idx(x,y)] = (sum / 9) | 0;
+        }
+      }
+      for (let x=0;x<w;x++){ out[idx(x,0)] = gray[idx(x,0)]; out[idx(x,h-1)] = gray[idx(x,h-1)]; }
+      for (let y=0;y<h;y++){ out[idx(0,y)] = gray[idx(0,y)]; out[idx(w-1,y)] = gray[idx(w-1,y)]; }
+      return out;
+    };
+
+    const rotateCanvas = (srcCanvas, angleDeg) => {
+      const ang = angleDeg * Math.PI / 180;
+      const w = srcCanvas.width, h = srcCanvas.height;
+      const cos = Math.abs(Math.cos(ang));
+      const sin = Math.abs(Math.sin(ang));
+      const nw = Math.ceil(w * cos + h * sin);
+      const nh = Math.ceil(w * sin + h * cos);
+
+      const out = document.createElement("canvas");
+      out.width = nw; out.height = nh;
+      const ctx = out.getContext("2d", { willReadFrequently: true });
+
+      ctx.fillStyle = "#fff";
+      ctx.fillRect(0, 0, nw, nh);
+
+      ctx.translate(nw / 2, nh / 2);
+      ctx.rotate(ang);
+      ctx.drawImage(srcCanvas, -w / 2, -h / 2);
+      ctx.setTransform(1,0,0,1,0,0);
+      return out;
+    };
+
+    const projectionScore = (binCanvas) => {
+      const ctx = binCanvas.getContext("2d", { willReadFrequently: true });
+      const { width:w, height:h } = binCanvas;
+      const data = ctx.getImageData(0,0,w,h).data;
+
+      const rows = new Array(h).fill(0);
+      for (let y=0; y<h; y++){
+        let sum = 0;
+        for (let x=0; x<w; x++){
+          const i = (y*w + x)*4;
+          if (data[i] < 128) sum++;
+        }
+        rows[y] = sum;
+      }
+
+      let mean = rows.reduce((a,b)=>a+b,0)/h;
+      let v = 0;
+      for (let y=0;y<h;y++){ const d = rows[y]-mean; v += d*d; }
+      return v / h;
+    };
+
+    const detectSkewAngle = (binCanvas) => {
+      const maxW = 600;
+      const scale = binCanvas.width > maxW ? (maxW / binCanvas.width) : 1;
+      const proxy = document.createElement("canvas");
+      proxy.width = Math.floor(binCanvas.width * scale);
+      proxy.height = Math.floor(binCanvas.height * scale);
+      const pctx = proxy.getContext("2d", { willReadFrequently: true });
+      pctx.imageSmoothingEnabled = false;
+      pctx.drawImage(binCanvas, 0, 0, proxy.width, proxy.height);
+
+      let bestAngle = 0;
+      let bestScore = -Infinity;
+
+      for (let a = -6; a <= 6; a += 0.5) {
+        const rot = rotateCanvas(proxy, a);
+        const s = projectionScore(rot);
+        if (s > bestScore) {
+          bestScore = s;
+          bestAngle = a;
+        }
+      }
+      return bestAngle;
+    };
+
+    const redactPHI = (text) => {
+      let t = String(text || "");
+      t = t.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "███-██-████");
+      t = t.replace(/\b(MRN|MRN\.)\s*[:#]?\s*\d{5,}\b/gi, "MRN: █████");
+      return t;
+    };
+    // ===== End OCR Accuracy Patch =====
+
     const getOcrWorker = async (loggerFn) => {
       if (_ocrWorker && _ocrWorkerReady) return _ocrWorker;
 
@@ -201,10 +389,7 @@
 
       try {
         _ocrWorker = await Tesseract.createWorker('eng', 1, {
-          logger: (m) => {
-            console.log("Tesseract:", m);
-            loggerFn && loggerFn(m);
-          }
+          logger: (m) => { console.log("Tesseract:", m); loggerFn && loggerFn(m); }
         });
         _ocrWorkerReady = true;
         console.log("OCR Worker ready!");
@@ -238,6 +423,7 @@
       RDW: { unit: "%", refLow: 11.5, refHigh: 14.5, critLow: 10, critHigh: 25, aliases: ["RED CELL DISTRIBUTION WIDTH", "RDW-CV"] },
       Plt: { unit: "10^9/L", refLow: 150, refHigh: 400, critLow: 50, critHigh: 1000, aliases: ["PLT", "PLATELETS", "THROMBOCYTES", "PLATELET"] },
       MPV: { unit: "fL", refLow: 7.5, refHigh: 11.5, critLow: 5, critHigh: 15, aliases: ["MEAN PLATELET VOLUME"] },
+
       Na: { unit: "mmol/L", refLow: 136, refHigh: 145, critLow: 120, critHigh: 160, aliases: ["SODIUM", "NA+"] },
       K: { unit: "mmol/L", refLow: 3.5, refHigh: 5.0, critLow: 2.5, critHigh: 6.5, aliases: ["POTASSIUM", "K+"] },
       Cl: { unit: "mmol/L", refLow: 98, refHigh: 106, critLow: 80, critHigh: 120, aliases: ["CHLORIDE", "CL-"] },
@@ -247,12 +433,14 @@
       Glucose: { unit: "mmol/L", refLow: 3.9, refHigh: 6.1, critLow: 2.0, critHigh: 25.0, aliases: ["GLU", "BLOOD SUGAR", "GLUC"] },
       Ca: { unit: "mmol/L", refLow: 2.15, refHigh: 2.55, critLow: 1.6, critHigh: 3.5, aliases: ["CALCIUM", "CA++"] },
       Mg: { unit: "mmol/L", refLow: 0.7, refHigh: 1.0, critLow: 0.4, critHigh: 2.0, aliases: ["MAGNESIUM", "MG++"] },
+
       Albumin: { unit: "g/L", refLow: 35, refHigh: 50, critLow: 15, critHigh: 60, aliases: ["ALB"] },
       Bilirubin: { unit: "µmol/L", refLow: 0, refHigh: 21, critLow: 0, critHigh: 200, aliases: ["BILI", "TOTAL BILIRUBIN", "T.BILI"] },
       ALP: { unit: "U/L", refLow: 40, refHigh: 130, critLow: 20, critHigh: 500, aliases: ["ALK PHOS", "ALKALINE PHOSPHATASE"] },
       ALT: { unit: "U/L", refLow: 7, refHigh: 56, critLow: 0, critHigh: 1000, aliases: ["SGPT", "GPT"] },
       AST: { unit: "U/L", refLow: 10, refHigh: 40, critLow: 0, critHigh: 1000, aliases: ["SGOT", "GOT"] },
       GGT: { unit: "U/L", refLow: 9, refHigh: 48, critLow: 0, critHigh: 500, aliases: ["GAMMA GT"] },
+
       pH: { unit: "", refLow: 7.35, refHigh: 7.45, critLow: 7.0, critHigh: 7.8, aliases: ["BLOOD PH"] },
       pCO2: { unit: "mmHg", refLow: 35, refHigh: 45, critLow: 20, critHigh: 80, aliases: ["PCO2", "PACO2"] },
       pO2: { unit: "mmHg", refLow: 80, refHigh: 100, critLow: 40, critHigh: 500, aliases: ["PO2", "PAO2"] },
@@ -260,21 +448,24 @@
       BE: { unit: "mmol/L", refLow: -2, refHigh: 2, critLow: -15, critHigh: 15, aliases: ["BASE EXCESS"] },
       SaO2: { unit: "%", refLow: 95, refHigh: 100, critLow: 70, critHigh: 100, aliases: ["O2 SAT", "SPO2", "SAO2"] },
       Lactate: { unit: "mmol/L", refLow: 0.5, refHigh: 2.0, critLow: 0, critHigh: 10, aliases: ["LACTIC ACID", "LAC"] },
+
       PT: { unit: "sec", refLow: 11, refHigh: 13.5, critLow: 8, critHigh: 50, aliases: ["PROTHROMBIN TIME"] },
       INR: { unit: "", refLow: 0.9, refHigh: 1.1, critLow: 0.5, critHigh: 8, aliases: [] },
       PTT: { unit: "sec", refLow: 25, refHigh: 35, critLow: 15, critHigh: 100, aliases: ["APTT"] },
       aPTT: { unit: "sec", refLow: 25, refHigh: 35, critLow: 15, critHigh: 100, aliases: ["ACTIVATED PTT"] },
       Fibrinogen: { unit: "g/L", refLow: 2, refHigh: 4, critLow: 0.5, critHigh: 8, aliases: ["FIB"] },
       "D-Dimer": { unit: "µg/L", refLow: 0, refHigh: 500, critLow: 0, critHigh: 10000, aliases: ["DDIMER", "D-DIMER"] },
+
       Troponin: { unit: "ng/L", refLow: 0, refHigh: 14, critLow: 0, critHigh: 10000, aliases: ["TROP", "TNI", "TNT", "HS-TROP", "TROPONIN I", "TROPONIN T"] },
       BNP: { unit: "pg/mL", refLow: 0, refHigh: 100, critLow: 0, critHigh: 5000, aliases: ["NT-PROBNP", "PROBNP"] },
       CK: { unit: "U/L", refLow: 30, refHigh: 200, critLow: 10, critHigh: 10000, aliases: ["CREATINE KINASE", "CPK"] },
       "CK-MB": { unit: "U/L", refLow: 0, refHigh: 25, critLow: 0, critHigh: 500, aliases: ["CKMB"] },
+
       CRP: { unit: "mg/L", refLow: 0, refHigh: 5, critLow: 0, critHigh: 300, aliases: ["C-REACTIVE PROTEIN"] },
       ESR: { unit: "mm/hr", refLow: 0, refHigh: 20, critLow: 0, critHigh: 120, aliases: ["SED RATE"] },
     };
 
-    // Image preprocessing base
+    // Image preprocessing helpers
     const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
     const applyCropToCanvas = (img, crop) => {
@@ -287,124 +478,13 @@
       return canvas;
     };
 
-    // ========= ACCURACY HELPERS (NEW) =========
-    const rotateCanvas = (srcCanvas, degrees) => {
-      const rad = (degrees * Math.PI) / 180;
-      const w = srcCanvas.width, h = srcCanvas.height;
-      const cos = Math.abs(Math.cos(rad)), sin = Math.abs(Math.sin(rad));
-      const nw = Math.ceil(w * cos + h * sin);
-      const nh = Math.ceil(w * sin + h * cos);
-
-      const c = document.createElement("canvas");
-      c.width = nw; c.height = nh;
-      const ctx = c.getContext("2d", { willReadFrequently: true });
-
-      ctx.translate(nw / 2, nh / 2);
-      ctx.rotate(rad);
-      ctx.drawImage(srcCanvas, -w / 2, -h / 2);
-      return c;
-    };
-
-    const clamp255 = (x) => Math.max(0, Math.min(255, x));
-
-    const unsharpMask = (ctx, width, height, amount = 0.6) => {
-      const img = ctx.getImageData(0, 0, width, height);
-      const d = img.data;
-
-      const blur = new Uint8ClampedArray(d.length);
-      const idx = (x, y) => (y * width + x) * 4;
-
-      for (let y = 1; y < height - 1; y++) {
-        for (let x = 1; x < width - 1; x++) {
-          let r = 0, g = 0, b = 0;
-          for (let yy = -1; yy <= 1; yy++) {
-            for (let xx = -1; xx <= 1; xx++) {
-              const i = idx(x + xx, y + yy);
-              r += d[i]; g += d[i + 1]; b += d[i + 2];
-            }
-          }
-          const i0 = idx(x, y);
-          blur[i0] = (r / 9) | 0;
-          blur[i0 + 1] = (g / 9) | 0;
-          blur[i0 + 2] = (b / 9) | 0;
-          blur[i0 + 3] = d[i0 + 3];
-        }
-      }
-
-      for (let i = 0; i < d.length; i += 4) {
-        d[i]     = clamp255(d[i]     + amount * (d[i]     - blur[i]));
-        d[i + 1] = clamp255(d[i + 1] + amount * (d[i + 1] - blur[i + 1]));
-        d[i + 2] = clamp255(d[i + 2] + amount * (d[i + 2] - blur[i + 2]));
-      }
-      ctx.putImageData(img, 0, 0);
-    };
-
-    const otsuThreshold = (gray) => {
-      const hist = new Array(256).fill(0);
-      for (let i = 0; i < gray.length; i++) hist[gray[i]]++;
-
-      const total = gray.length;
-      let sum = 0;
-      for (let t = 0; t < 256; t++) sum += t * hist[t];
-
-      let sumB = 0, wB = 0, wF = 0;
-      let varMax = 0, threshold = 127;
-
-      for (let t = 0; t < 256; t++) {
-        wB += hist[t];
-        if (wB === 0) continue;
-        wF = total - wB;
-        if (wF === 0) break;
-
-        sumB += t * hist[t];
-        const mB = sumB / wB;
-        const mF = (sum - sumB) / wF;
-        const varBetween = wB * wF * (mB - mF) * (mB - mF);
-
-        if (varBetween > varMax) {
-          varMax = varBetween;
-          threshold = t;
-        }
-      }
-      return threshold;
-    };
-
-    const binarizeOtsuOnCanvas = (ctx, width, height, invert = false) => {
-      const img = ctx.getImageData(0, 0, width, height);
-      const d = img.data;
-      const gray = new Uint8ClampedArray(width * height);
-
-      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-        const g = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) | 0;
-        gray[j] = g;
-      }
-
-      const thr = otsuThreshold(gray);
-
-      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-        const g = gray[j];
-        let v = g > thr ? 255 : 0;
-        if (invert) v = 255 - v;
-        d[i] = d[i + 1] = d[i + 2] = v;
-      }
-      ctx.putImageData(img, 0, 0);
-      return thr;
-    };
-
-    const normalizeNumericText = (s) =>
-      String(s || "")
-        .replace(/(\d),(\d)/g, "$1.$2")
-        .replace(/[^\S\r\n]+/g, " ")
-        .trim();
-
-    // ========= PREPROCESS (UPGRADED) =========
+    // NEW preprocessForOCR (Otsu + optional deskew)
     const preprocessForOCR = async (dataUrl, options = {}) => {
       const {
         mode = "CBC",
         smartCrop = true,
         manualCrop = null,
-        scale = 2.4,
-        makeVariants = true,
+        deskew = true,
       } = options;
 
       const img = new Image();
@@ -418,58 +498,121 @@
       const crop = manualCrop || (smartCrop ? modeConfig.crop : { top: 0, bottom: 0, left: 0, right: 0 });
       const croppedCanvas = applyCropToCanvas(img, crop);
 
+      const scale = (croppedCanvas.width < 900 ? 2.2 : 1.8);
       const upCanvas = document.createElement("canvas");
       upCanvas.width = Math.floor(croppedCanvas.width * scale);
       upCanvas.height = Math.floor(croppedCanvas.height * scale);
 
       const upCtx = upCanvas.getContext("2d", { willReadFrequently: true });
-      upCtx.imageSmoothingEnabled = true;
-      upCtx.imageSmoothingQuality = "high";
+      upCtx.imageSmoothingEnabled = false;
       upCtx.drawImage(croppedCanvas, 0, 0, upCanvas.width, upCanvas.height);
 
-      // grayscale + strong contrast
       const imageData = upCtx.getImageData(0, 0, upCanvas.width, upCanvas.height);
       const d = imageData.data;
-      for (let i = 0; i < d.length; i += 4) {
-        let g = (0.2126 * d[i] + 0.7152 * d[i + 1] + 0.0722 * d[i + 2]) | 0;
-        g = clamp255((g - 128) * 1.35 + 128);
-        d[i] = d[i + 1] = d[i + 2] = g;
+      const gray = new Uint8ClampedArray(upCanvas.width * upCanvas.height);
+
+      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        gray[p] = luminanceGray(d[i], d[i+1], d[i+2]);
+      }
+
+      const blurred = boxBlurGray(gray, upCanvas.width, upCanvas.height);
+      const th = otsuThreshold(blurred);
+
+      for (let i = 0, p = 0; i < d.length; i += 4, p++) {
+        const v = blurred[p] < th ? 0 : 255;
+        d[i] = d[i+1] = d[i+2] = v;
+        d[i+3] = 255;
       }
       upCtx.putImageData(imageData, 0, 0);
 
-      // sharpen
-      unsharpMask(upCtx, upCanvas.width, upCanvas.height, 0.7);
-
-      const base = upCanvas.toDataURL("image/png");
-
-      if (!makeVariants) {
-        return { variants: [{ name: "gray+sharp", dataUrl: base }], cropUsed: crop };
+      let finalCanvas = upCanvas;
+      let skewAngle = 0;
+      if (deskew) {
+        try {
+          skewAngle = detectSkewAngle(upCanvas);
+          if (Math.abs(skewAngle) >= 0.3) {
+            finalCanvas = rotateCanvas(upCanvas, -skewAngle);
+          }
+        } catch (e) {
+          console.warn("Deskew failed; continuing without:", e);
+        }
       }
 
-      // Otsu binarized
-      const bin1 = document.createElement("canvas");
-      bin1.width = upCanvas.width; bin1.height = upCanvas.height;
-      const b1 = bin1.getContext("2d", { willReadFrequently: true });
-      b1.drawImage(upCanvas, 0, 0);
-      const thr1 = binarizeOtsuOnCanvas(b1, bin1.width, bin1.height, false);
-      const v1 = bin1.toDataURL("image/png");
-
-      // inverted Otsu
-      const bin2 = document.createElement("canvas");
-      bin2.width = upCanvas.width; bin2.height = upCanvas.height;
-      const b2 = bin2.getContext("2d", { willReadFrequently: true });
-      b2.drawImage(upCanvas, 0, 0);
-      const thr2 = binarizeOtsuOnCanvas(b2, bin2.width, bin2.height, true);
-      const v2 = bin2.toDataURL("image/png");
-
       return {
-        variants: [
-          { name: "gray+sharp", dataUrl: base },
-          { name: `otsu(${thr1})`, dataUrl: v1 },
-          { name: `otsu-inv(${thr2})`, dataUrl: v2 },
-        ],
-        cropUsed: crop
+        processed: finalCanvas.toDataURL("image/png"),
+        cropUsed: crop,
+        skewAngle,
+        threshold: th,
       };
+    };
+
+    // NEW runOCR (PSM + whitelist + dpi + line confidences)
+    const runOCR = async (dataUrl, options = {}, setProgress, setStage) => {
+      const {
+        mode = "CBC",
+        smartCrop = true,
+        manualCrop = null,
+        deskew = true,
+        psm = "6",
+        profile = "FULL_TEXT"
+      } = options;
+
+      try {
+        setStage && setStage("Preprocessing (Otsu + deskew)...");
+        setProgress && setProgress(5);
+
+        const pre = await preprocessForOCR(dataUrl, { mode, smartCrop, manualCrop, deskew });
+
+        setStage && setStage("Initializing OCR engine...");
+        setProgress && setProgress(10);
+
+        const worker = await getOcrWorker((m) => {
+          if (m?.status === "recognizing text" && typeof m.progress === "number") {
+            setProgress && setProgress(10 + Math.round(m.progress * 80));
+          }
+        });
+
+        setStage && setStage("Recognizing text...");
+
+        const wl = OCR_PROFILES[profile]?.tessedit_char_whitelist || OCR_PROFILES.FULL_TEXT.tessedit_char_whitelist;
+
+        await worker.setParameters({
+          tessedit_pageseg_mode: String(psm),
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+          tessedit_char_whitelist: wl,
+        });
+
+        const result = await worker.recognize(pre.processed);
+
+        setProgress && setProgress(95);
+        setStage && setStage("Processing results...");
+
+        const text = result?.data?.text || "";
+        const confidence = Number(result?.data?.confidence || 0);
+
+        const lines = Array.isArray(result?.data?.lines)
+          ? result.data.lines.map(l => ({
+              text: String(l.text || "").trim(),
+              confidence: Number(l.confidence || 0),
+            })).filter(l => l.text)
+          : [];
+
+        setProgress && setProgress(100);
+
+        return {
+          text,
+          confidence,
+          pass: `PSM${psm}`,
+          cropUsed: pre.cropUsed,
+          skewAngle: pre.skewAngle,
+          threshold: pre.threshold,
+          lines,
+        };
+      } catch (err) {
+        console.error("OCR Error:", err);
+        throw err;
+      }
     };
 
     // Enhanced Parser with fuzzy matching
@@ -478,7 +621,9 @@
       for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
       for (let i = 1; i <= b.length; i++) {
         for (let j = 1; j <= a.length; j++) {
-          matrix[i][j] = b[i - 1] === a[j - 1] ? matrix[i - 1][j - 1] : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
+          matrix[i][j] = b[i - 1] === a[j - 1]
+            ? matrix[i - 1][j - 1]
+            : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
         }
       }
       return matrix[b.length][a.length];
@@ -533,53 +678,97 @@
       return 'N';
     };
 
-    const parseLabsFromText = (text, mode = "CBC") => {
-      // (UPGRADED) normalize numeric commas/spaces first
-      const lines = normalizeNumericText(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
-      const values = [], seen = new Set();
-      const rangePattern = /(\d+\.?\d*)\s*[-–]\s*(\d+\.?\d*)/;
+    // NEW parseLabsFromText (unit anchors + substitution map + low-confidence)
+    const parseLabsFromText = (text, mode = "CBC", meta = {}) => {
+      const ocrLines = (meta?.lines?.length ? meta.lines : null);
 
-      for (const line of lines) {
-        if (/^(date|time|patient|name|id|mrn|dob|specimen|collected|received|printed|page|lab|hospital|report)/i.test(line)) continue;
+      const lines = ocrLines
+        ? ocrLines.map(x => ({ line: x.text, conf: x.confidence }))
+        : String(text || "").split(/\r?\n/).map(l => ({ line: l.trim(), conf: null }));
 
-        const match = line.match(/^([A-Za-z][A-Za-z0-9%\/\-\(\)\+\s]{1,25}?)\s*[:\.]?\s*([<>]?\d+\.?\d*)/i);
-        if (!match) continue;
+      const values = [];
+      const seen = new Set();
 
-        const testRaw = match[1], value = match[2];
+      const UNIT_ANCHORS = [
+        "mmol/L","µmol/L","mg/L","g/L","U/L","ng/L","pg/mL","sec","%","fL","pg","mmHg","L/L","10^9/L","10^12/L"
+      ];
+      const unitRe = new RegExp(`\\b(${UNIT_ANCHORS.map(u => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join("|")})\\b`, "i");
+      const valueRe = /[<>-]?\d{1,4}(?:\.\d{1,3})?/;
+
+      for (const obj of lines) {
+        const raw = obj.line;
+        if (!raw) continue;
+
+        if (/^(date|time|patient|name|id|mrn|dob|specimen|collected|received|printed|page|lab|hospital|report)/i.test(raw)) continue;
+
+        let testRaw = "";
+        let valRaw = "";
+        let unitRaw = "";
+
+        const unitMatch = raw.match(unitRe);
+        if (unitMatch) {
+          unitRaw = unitMatch[1];
+          const beforeUnit = raw.slice(0, unitMatch.index).trim();
+          const mVal = beforeUnit.match(new RegExp(`${valueRe.source}\\s*$`));
+          if (mVal) valRaw = mVal[0];
+          if (valRaw) testRaw = beforeUnit.slice(0, beforeUnit.length - valRaw.length).trim();
+        } else {
+          const m = raw.match(/^([A-Za-z][A-Za-z0-9%\/\-\(\)\+\s]{1,25}?)\s*[:\.]?\s*([<>-]?\S+)/);
+          if (m) { testRaw = m[1]; valRaw = m[2]; }
+        }
+
+        if (!testRaw || !valRaw) continue;
+
         const test = normalizeTestName(testRaw);
 
-        if (!test || value.length > 8 || /^\d{4}$/.test(value) || /^\d{2}:\d{2}/.test(value)) continue;
+        const cleaned = cleanNumericString(valRaw);
+        const mNum = cleaned.match(new RegExp(`^${valueRe.source}$`)) ? cleaned : (cleaned.match(valueRe)?.[0] || "");
+        if (!mNum) continue;
+
+        if (/^\d{4}$/.test(mNum) || /^\d{2}:\d{2}/.test(mNum)) continue;
 
         const def = TEST_DEFINITIONS[test];
-        const unit = def?.unit || '';
+        const unit = unitRaw || def?.unit || "";
 
-        let flag = 'N';
-        if (/\bH\b|\bHIGH\b|\*H\*/i.test(line)) flag = 'H';
-        else if (/\bL\b|\bLOW\b|\*L\*/i.test(line)) flag = 'L';
-        if (def) flag = determineFlag(test, value, flag);
+        let flag = "N";
+        if (/\bH\b|\bHIGH\b|\*H\*/i.test(raw)) flag = "H";
+        else if (/\bL\b|\bLOW\b|\*L\*/i.test(raw)) flag = "L";
+        if (def) flag = determineFlag(test, mNum, flag);
 
-        let refLow = '', refHigh = '';
-        const rangeMatch = line.match(rangePattern);
-        if (rangeMatch) { refLow = rangeMatch[1]; refHigh = rangeMatch[2]; }
-        else if (def) { refLow = String(def.refLow); refHigh = String(def.refHigh); }
+        let refLow = "", refHigh = "";
+        if (def) { refLow = String(def.refLow); refHigh = String(def.refHigh); }
 
-        const validation = def ? validateValue(test, value) : { status: 'unknown' };
+        const validation = def ? validateValue(test, mNum) : { status: "unknown" };
 
-        let confidence = 70;
-        if (def) confidence += 15;
-        if (flag !== 'N') confidence += 5;
-        if (validation.status === 'invalid') confidence -= 30;
-        confidence = Math.max(10, Math.min(100, confidence));
+        let conf = 65;
+        if (def) conf += 20;
+        if (flag !== "N") conf += 5;
+        if (typeof obj.conf === "number") conf = (conf * 0.5 + obj.conf * 0.5);
+        conf = Math.max(10, Math.min(100, conf));
 
-        const key = `${test}|${value}`;
+        const lowConfidence = (typeof obj.conf === "number" && obj.conf < 75);
+
+        const key = `${test}|${mNum}|${unit}`;
         if (seen.has(key)) continue;
         seen.add(key);
 
-        values.push({ test, value, flag, unit, refLow, refHigh, validation, confidence, raw: line });
+        values.push({
+          test,
+          value: mNum,
+          flag,
+          unit,
+          refLow,
+          refHigh,
+          validation,
+          confidence: conf,
+          lowConfidence,
+          raw,
+          lineConfidence: obj.conf,
+        });
       }
 
       const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
-      const expectedOrder = modeConfig.expectedTests;
+      const expectedOrder = modeConfig.expectedTests || [];
       values.sort((a, b) => {
         const aIdx = expectedOrder.indexOf(a.test), bIdx = expectedOrder.indexOf(b.test);
         if (aIdx === -1 && bIdx === -1) return 0;
@@ -589,153 +778,6 @@
       });
 
       return values;
-    };
-
-    // ========= MULTI-PASS OCR (NEW) =========
-    const scoreOcrResult = (text, confidence, mode) => {
-      const parsed = parseLabsFromText(text, mode);
-      const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
-      const expected = new Set(modeConfig.expectedTests || []);
-
-      const foundExpected = parsed.filter(v => expected.has(v.test)).length;
-      const invalid = parsed.filter(v => v.validation?.status === "invalid").length;
-      const abnormal = parsed.filter(v => v.flag && v.flag !== "N").length;
-
-      const avgValConf = parsed.length
-        ? parsed.reduce((s, v) => s + (v.confidence || 0), 0) / parsed.length
-        : 0;
-
-      const score =
-        (foundExpected * 25) +
-        (parsed.length * 5) +
-        (abnormal * 1.5) +
-        (avgValConf * 0.6) +
-        (confidence * 0.4) -
-        (invalid * 30);
-
-      return { score, parsed, foundExpected, invalid, avgValConf };
-    };
-
-    const runOCR = async (dataUrl, options = {}, setProgress, setStage) => {
-      const {
-        mode = "CBC",
-        smartCrop = true,
-        manualCrop = null,
-        accuracy = "Max", // "Balanced" | "Max"
-      } = options;
-
-      try {
-        setStage && setStage("Preprocessing image...");
-        setProgress && setProgress(5);
-
-        const makeVariants = accuracy === "Max";
-        const pre = await preprocessForOCR(dataUrl, { mode, smartCrop, manualCrop, makeVariants });
-
-        setStage && setStage("Initializing OCR engine...");
-        setProgress && setProgress(10);
-
-        const worker = await getOcrWorker((m) => {
-          if (m?.status === "recognizing text" && typeof m.progress === "number") {
-            // soft signal only
-          }
-        });
-
-        await worker.setParameters({
-          preserve_interword_spaces: "1",
-          tessedit_char_whitelist: "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ.%/+-()[]<>:= \n",
-        });
-
-        if (accuracy !== "Max") {
-          setStage && setStage("Recognizing (balanced)...");
-          await worker.setParameters({ tessedit_pageseg_mode: "6" });
-
-          const result = await worker.recognize(pre.variants[0].dataUrl);
-          const text = normalizeNumericText(result?.data?.text || "");
-          const confidence = Number(result?.data?.confidence || 0);
-
-          setProgress && setProgress(100);
-
-          return {
-            text,
-            confidence,
-            pass: "PSM6",
-            cropUsed: pre.cropUsed,
-            variant: pre.variants[0]?.name || "default",
-          };
-        }
-
-        const PSM_LIST = ["6", "4", "11"];
-        const ANGLES = [0, -2, 2, -4, 4];
-
-        let best = null;
-        let attempts = 0;
-        const totalAttempts = pre.variants.length * PSM_LIST.length * ANGLES.length;
-
-        for (const variant of pre.variants) {
-          const baseImg = new Image();
-          baseImg.src = variant.dataUrl;
-          await new Promise((res, rej) => { baseImg.onload = res; baseImg.onerror = () => rej(new Error("Variant load failed")); });
-
-          const baseCanvas = document.createElement("canvas");
-          baseCanvas.width = baseImg.width; baseCanvas.height = baseImg.height;
-          baseCanvas.getContext("2d", { willReadFrequently: true }).drawImage(baseImg, 0, 0);
-
-          for (const deg of ANGLES) {
-            const rotated = deg === 0 ? baseCanvas : rotateCanvas(baseCanvas, deg);
-            const rotatedUrl = rotated.toDataURL("image/png");
-
-            for (const psm of PSM_LIST) {
-              attempts++;
-              setStage && setStage(`Recognizing (max) • ${variant.name} • ${deg}° • PSM${psm}`);
-              setProgress && setProgress(10 + Math.round((attempts / totalAttempts) * 85));
-
-              await worker.setParameters({ tessedit_pageseg_mode: psm });
-
-              const result = await worker.recognize(rotatedUrl);
-              const text = normalizeNumericText(result?.data?.text || "");
-              const conf = Number(result?.data?.confidence || 0);
-
-              const s = scoreOcrResult(text, conf, mode);
-
-              if (!best || s.score > best.score) {
-                best = {
-                  score: s.score,
-                  text,
-                  confidence: conf,
-                  pass: `PSM${psm}`,
-                  variant: variant.name,
-                  angle: deg,
-                  parsedMeta: s,
-                };
-
-                if (s.foundExpected >= 6 && s.invalid === 0 && s.avgValConf >= 80) {
-                  setProgress && setProgress(100);
-                  return {
-                    text: best.text,
-                    confidence: best.confidence,
-                    pass: best.pass,
-                    cropUsed: pre.cropUsed,
-                    variant: `${best.variant} • ${best.angle}°`,
-                  };
-                }
-              }
-            }
-          }
-        }
-
-        setProgress && setProgress(100);
-
-        return {
-          text: best?.text || "",
-          confidence: best?.confidence || 0,
-          pass: best?.pass || "—",
-          cropUsed: pre.cropUsed,
-          variant: best ? `${best.variant} • ${best.angle}°` : "—",
-        };
-      } catch (err) {
-        console.error("OCR Error:", err);
-        throw err;
-      }
     };
 
     const compressImage = (file, maxWidth = 1400) => {
@@ -769,7 +811,10 @@
           <div className="modal" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
             <div className="modal-head" style={{ background: "#f59e0b" }}>✂️ Manual Crop<button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: 18, cursor: 'pointer' }}>×</button></div>
             <div className="modal-body" style={{ gap: 14 }}>
-              <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0" }}><img src={image} style={{ width: "100%", display: "block" }} alt="Crop" /><div style={boxStyle}></div></div>
+              <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0" }}>
+                <img src={image} style={{ width: "100%", display: "block" }} alt="Crop" />
+                <div style={boxStyle}></div>
+              </div>
               <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
                 {["top", "bottom", "left", "right"].map(k => (
                   <div key={k} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 10, background: "#f8fafc" }}>
@@ -781,7 +826,10 @@
               </div>
               <div style={{ fontSize: 12, color: "#475569", fontWeight: 600, background: "#fef3c7", padding: 10, borderRadius: 8 }}>💡 Crop away headers/footers. Keep only results table.</div>
             </div>
-            <div className="modal-foot"><button className="btn btn-white" onClick={onClose}>Cancel</button><button className="btn" style={{ background: "#f59e0b", color: "white" }} onClick={() => onApply(crop)}>Apply</button></div>
+            <div className="modal-foot">
+              <button className="btn btn-white" onClick={onClose}>Cancel</button>
+              <button className="btn" style={{ background: "#f59e0b", color: "white" }} onClick={() => onApply(crop)}>Apply</button>
+            </div>
           </div>
         </div>
       );
@@ -793,8 +841,13 @@
       const { date, time } = formatDateTime(current.timestamp);
       return (
         <div className="image-viewer" onClick={onClose}>
-          <div className="image-viewer-header" onClick={e => e.stopPropagation()}><div style={{ fontWeight: 600 }}>{date} • {time} {current.note ? `• ${current.note}` : ""}</div><button className="image-viewer-close" onClick={onClose}>×</button></div>
-          <div className="image-viewer-body" onClick={e => e.stopPropagation()}><img src={current.image} alt="Lab" /></div>
+          <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
+            <div style={{ fontWeight: 600 }}>{date} • {time} {current.note ? `• ${current.note}` : ""}</div>
+            <button className="image-viewer-close" onClick={onClose}>×</button>
+          </div>
+          <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
+            <img src={current.image} alt="Lab" />
+          </div>
         </div>
       );
     };
@@ -810,11 +863,11 @@
       const [ocrProgress, setOcrProgress] = useState(0);
       const [ocrStage, setOcrStage] = useState("");
       const [ocrError, setOcrError] = useState(null);
+
       const [defaultOcrMode, setDefaultOcrMode] = useState("CBC");
       const [defaultSmartCrop, setDefaultSmartCrop] = useState(true);
-
-      // (NEW) Accuracy toggle
-      const [defaultAccuracy, setDefaultAccuracy] = useState("Max");
+      const [defaultDeskew, setDefaultDeskew] = useState(true);
+      const [defaultPSM, setDefaultPSM] = useState("6");
 
       const [cropModal, setCropModal] = useState(null);
       const fileRef = useRef(null);
@@ -833,28 +886,32 @@
               mode: imgObj.ocrMode || defaultOcrMode,
               smartCrop: imgObj.smartCrop !== false,
               manualCrop: imgObj.manualCrop || null,
-              accuracy: imgObj.accuracy || defaultAccuracy,
+              deskew: imgObj.deskew !== false,
+              psm: imgObj.psm || defaultPSM,
+              profile: "FULL_TEXT",
             },
             setOcrProgress,
             setOcrStage
           );
 
-          const values = parseLabsFromText(best.text, imgObj.ocrMode || defaultOcrMode);
+          const values = parseLabsFromText(best.text, imgObj.ocrMode || defaultOcrMode, { lines: best.lines });
+
           const avgConfidence = values.length > 0
-            ? values.reduce((sum, v) => sum + v.confidence, 0) / values.length
+            ? values.reduce((sum, v) => sum + (v.confidence || 0), 0) / values.length
             : best.confidence;
 
           setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
             ...x,
             ocr: {
-              text: best.text,
+              text: redactPHI(best.text),
               values,
               confidence: best.confidence,
               avgValueConfidence: avgConfidence,
               pass: best.pass,
-              variant: best.variant || "",
               cropUsed: best.cropUsed || null,
-              updatedAt: Date.now()
+              updatedAt: Date.now(),
+              skewAngle: best.skewAngle,
+              threshold: best.threshold,
             }
           } : x));
 
@@ -883,8 +940,9 @@
             ocrMode: defaultOcrMode,
             smartCrop: defaultSmartCrop,
             manualCrop: null,
-            accuracy: defaultAccuracy, // (NEW)
-            ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, pass: "", variant: "", updatedAt: null, cropUsed: null }
+            psm: defaultPSM,
+            deskew: defaultDeskew,
+            ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, pass: "", updatedAt: null, cropUsed: null, skewAngle: 0, threshold: null }
           };
           setLabImages(prev => [newImage, ...prev]);
           setUploading(false);
@@ -928,19 +986,25 @@
           confidence: img.ocr?.confidence || 0,
           avgValueConfidence: img.ocr?.avgValueConfidence || 0,
           pass: img.ocr?.pass || "",
-          variant: img.ocr?.variant || "",
           values: img.ocr?.values || [],
-          rawText: img.ocr?.text || ""
+          rawText: img.ocr?.text || "",
+          skewAngle: img.ocr?.skewAngle || 0,
+          threshold: img.ocr?.threshold ?? null,
         }));
       }, [labImages]);
 
       const handleSave = () => { onSave(patient.id, labImages); onClose(); };
+
       const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
 
       return (
         <div className="modalOverlay" onClick={onClose}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-head"><span>🧪 Labs - {patient.name}</span><button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button></div>
+            <div className="modal-head">
+              <span>🧪 Labs - {patient.name}</span>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
+            </div>
+
             <div className="modal-body">
               <div className="tabs">
                 <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
@@ -965,12 +1029,19 @@
                     </label>
                   </div>
 
-                  {/* (NEW) Accuracy */}
                   <div className="ocr-setting">
-                    <div className="ocr-setting-label">Accuracy</div>
-                    <select className="inp" value={defaultAccuracy} onChange={(e) => setDefaultAccuracy(e.target.value)} style={{ background: "white" }}>
-                      <option value="Balanced">Balanced (faster)</option>
-                      <option value="Max">Max (more accurate)</option>
+                    <div className="ocr-setting-label">Deskew</div>
+                    <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+                      <input type="checkbox" checked={defaultDeskew} onChange={e => setDefaultDeskew(e.target.checked)} />
+                      Auto-rotate
+                    </label>
+                  </div>
+
+                  <div className="ocr-setting">
+                    <div className="ocr-setting-label">PSM</div>
+                    <select className="inp" value={defaultPSM} onChange={(e) => setDefaultPSM(e.target.value)} style={{ background: "white" }}>
+                      <option value="6">6 — Table / Block</option>
+                      <option value="7">7 — Single Line (ROI)</option>
                     </select>
                   </div>
                 </div>
@@ -1008,12 +1079,7 @@
               {ocrError && (
                 <div className="ocr-error">
                   ⚠️ {ocrError}
-                  <button
-                    onClick={() => setOcrError(null)}
-                    style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}
-                  >
-                    ×
-                  </button>
+                  <button onClick={() => setOcrError(null)} style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
                 </div>
               )}
 
@@ -1048,30 +1114,36 @@
                             <div className="lab-values-sub">
                               {item.note ? item.note + " • " : ""}
                               {OCR_MODES[item.ocrMode]?.name || item.ocrMode}
-                              {item.variant ? ` • ${item.variant}` : ""}
+                              {typeof item.skewAngle === "number" ? ` • skew:${item.skewAngle.toFixed(1)}°` : ""}
+                              {item.threshold !== null ? ` • th:${item.threshold}` : ""}
                             </div>
                           </div>
+
                           <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                             <span className={`pill ${confClass}-conf`}>{Math.round(item.avgValueConfidence || item.confidence)}%</span>
                             <span className="pill">{hasVals ? `${item.values.length} values` : "—"}</span>
+
                             <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>
                               {showRawText === item.id ? '🔼' : '🔽'} Raw
                             </button>
+
                             <button className="lab-image-btn" onClick={() => {
                               const img = labImages.find(x => x.id === item.id);
                               if (img) runOcrOnImage(img);
                             }}>🔁</button>
                           </div>
                         </div>
+
                         {showRawText === item.id && (
                           <div className="raw-text-panel">
                             <pre>{item.rawText || "(empty)"}</pre>
                           </div>
                         )}
+
                         <div className="lab-values-body">
                           {!hasVals ? (
                             <div style={{ color: "#94a3b8", fontWeight: 600 }}>
-                              No values detected. Try different Lab Type or Manual Crop.
+                              No values detected. Try different Lab Type, Manual Crop, or PSM 7.
                             </div>
                           ) : (
                             <div className="kv-grid">
@@ -1081,9 +1153,15 @@
                                   <div key={v.test} className={`kv ${valClass}`}>
                                     <div className="k">
                                       {v.test}
-                                      <span className={`confidence-dot ${getConfidenceClass(v.confidence)}`} title={`${v.confidence}%`}></span>
+                                      <span className={`confidence-dot ${getConfidenceClass(v.confidence)}`} title={`${Math.round(v.confidence)}%`}></span>
+                                      {v.lowConfidence && (
+                                        <span style={{ color: "#b45309", fontWeight: 900, fontSize: 11 }}>
+                                          ⚠️ Low conf
+                                        </span>
+                                      )}
                                       {v.validation?.status === 'invalid' && <span style={{ color: '#ef4444', fontWeight: 800 }}>⚠️</span>}
                                     </div>
+
                                     <div className="v">
                                       <input
                                         value={v.value || ""}
@@ -1092,6 +1170,7 @@
                                       <span className="u">{v.unit || ""}</span>
                                       <span className={`flag ${v.flag || "N"}`}>{v.flag || "N"}</span>
                                     </div>
+
                                     {(v.refLow || v.refHigh) && (
                                       <div style={{ marginTop: 6, fontSize: 11, color: "#64748b", fontWeight: 600 }}>
                                         Ref: {v.refLow}–{v.refHigh}
@@ -1103,10 +1182,10 @@
                             </div>
                           )}
                         </div>
+
                         <div className="ocr-stats">
                           <div className="ocr-stat">Pass: <span>{item.pass || "—"}</span></div>
                           <div className="ocr-stat">OCR: <span>{Math.round(item.confidence)}%</span></div>
-                          {item.variant && <div className="ocr-stat">Pick: <span>{item.variant}</span></div>}
                         </div>
                       </div>
                     );
@@ -1131,6 +1210,7 @@
                             <div className="lab-image-date">{date}</div>
                             <div className="lab-image-time">{time}{count ? ` • ${count} values` : ""}</div>
                           </div>
+
                           <div className="lab-image-actions">
                             <select
                               className="inp"
@@ -1140,14 +1220,37 @@
                             >
                               {Object.keys(OCR_MODES).map(k => <option key={k} value={k}>{k}</option>)}
                             </select>
+
+                            <select
+                              className="inp"
+                              style={{ width: 95, padding: "4px 8px", fontSize: 11, background: "white" }}
+                              value={lab.psm || "6"}
+                              onChange={(e) => setLabImages(prev => prev.map(x => x.id === lab.id ? ({ ...x, psm: e.target.value }) : x))}
+                              title="PSM"
+                            >
+                              <option value="6">PSM 6</option>
+                              <option value="7">PSM 7</option>
+                            </select>
+
+                            <label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 11, fontWeight: 900 }}>
+                              <input
+                                type="checkbox"
+                                checked={lab.deskew !== false}
+                                onChange={(e) => setLabImages(prev => prev.map(x => x.id === lab.id ? ({ ...x, deskew: e.target.checked }) : x))}
+                              />
+                              Deskew
+                            </label>
+
                             <button className="lab-image-btn" onClick={() => setCropModal({ imgId: lab.id })}>✂️</button>
                             <button className="lab-image-btn" onClick={() => runOcrOnImage(lab)}>🔎</button>
                             <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)}>🗑️</button>
                           </div>
                         </div>
+
                         <div className="lab-image-container" onClick={() => setViewerIndex(idx)}>
                           <img src={lab.image} alt="Lab" />
                         </div>
+
                         <div className="lab-image-note">
                           <input
                             type="text"
@@ -1163,6 +1266,7 @@
                 </div>
               ))}
             </div>
+
             <div className="modal-foot">
               <button className="btn btn-white" onClick={onClose}>Cancel</button>
               <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
@@ -1170,7 +1274,9 @@
               </button>
             </div>
           </div>
+
           {viewerIndex !== null && <ImageViewer images={labImages} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
+
           {cropModal && (() => {
             const img = labImages.find(x => x.id === cropModal.imgId);
             if (!img) return null;
@@ -1247,6 +1353,7 @@
       const syncTimer = useRef(null);
 
       const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
+
       const scheduleSync = useCallback(() => {
         setSyncing(true);
         if (syncTimer.current) clearTimeout(syncTimer.current);
@@ -1267,6 +1374,7 @@
 
       const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved"));
       const saveLabImages = (patientId, labImages) => db.ref(`patients/${patientId}/labImages`).set(labImages).then(() => { showToast("✓ Labs saved"); scheduleSync(); });
+
       const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
 
       const update = useCallback((id, field, value) => {
@@ -1326,7 +1434,9 @@
               <button className="btn btn-blue" onClick={() => { setSyncing(true); pingSheets(); showToast("🔄 Syncing..."); setTimeout(() => setSyncing(false), 2000); }}>🔄</button>
             </div>
           </div>
+
           <NoticeBanner notice={notice} onSave={saveNotice} />
+
           <div className="controls-container">
             <div className="filter-row">
               {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
@@ -1335,12 +1445,14 @@
             </div>
             <input className="search-bar" placeholder="Search patients..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
+
           {groups.keys.map(ward => (
             <div key={ward} className="ward-section">
               <div className="ward-header" onClick={() => setCollapsedWards(p => ({ ...p, [ward]: !p[ward] }))}>
                 <div><span className={`arrow ${collapsedWards[ward] ? 'collapsed' : ''}`}>▼</span> {ward}</div>
                 <span className="ward-count">{groups.g[ward].length}</span>
               </div>
+
               <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
                 {groups.g[ward].map(p => (
                   <div className="p-card" key={p.id}>
@@ -1348,6 +1460,7 @@
                       <input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
                       <input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} />
                     </div>
+
                     <div className="col-2">
                       <div style={{ display: 'flex', gap: 8 }}>
                         <input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} />
@@ -1355,13 +1468,16 @@
                       </div>
                       <input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} />
                     </div>
+
                     <div className="col-3">
                       <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
                     </div>
+
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                       <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>
                         🧪 Labs{getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}
                       </button>
+
                       <select
                         className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`}
                         value={p.status || ""}
@@ -1370,6 +1486,7 @@
                         <option value="">-</option>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
                       </select>
+
                       <button className="btn-del" onClick={() => del(p.id)}>×</button>
                     </div>
                   </div>
@@ -1377,6 +1494,7 @@
               </div>
             </div>
           ))}
+
           {addModal && (
             <div className="modalOverlay">
               <div className="modal" style={{ maxWidth: '450px' }}>
@@ -1388,6 +1506,7 @@
                       {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
                     </select>
                   </div>
+
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Bed</label>
@@ -1398,10 +1517,12 @@
                       <input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} />
                     </div>
                   </div>
+
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Name</label>
                     <input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} />
                   </div>
+
                   <div style={{ display: 'flex', gap: 10 }}>
                     <div style={{ flex: 1 }}>
                       <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>MRN</label>
@@ -1414,15 +1535,18 @@
                       </select>
                     </div>
                   </div>
+
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Diagnosis</label>
                     <input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} />
                   </div>
+
                   <div>
                     <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Plan</label>
                     <textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} />
                   </div>
                 </div>
+
                 <div className="modal-foot">
                   <button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button>
                   <button className="btn btn-blue" onClick={saveNew}>Save</button>
@@ -1430,7 +1554,9 @@
               </div>
             </div>
           )}
+
           {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabImages} />}
+
           {toast && <div className="toast">{toast}</div>}
         </div>
       );
