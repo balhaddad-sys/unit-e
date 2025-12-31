@@ -13,7 +13,7 @@
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
   <style>
-    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; }
+    :root{ --green:#15803d; --blue:#1e40af; --bg:#f1f5f9; --text:#0f172a; --border:#cbd5e1; --orange:#c2410c; --purple:#7e22ce; --yellow:#ca8a04; }
     body{ margin:0; font-family:-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background:var(--bg); color:var(--text); padding-bottom:100px; }
     .wrap{ max-width:1200px; margin:0 auto; padding:10px; }
 
@@ -29,6 +29,84 @@
     .btn-red{ background:#fee2e2; color:#dc2626; }
     .btn-green{ background:#d1fae5; color:var(--green); }
 
+    /* Notice Banner Styles */
+    .notice-banner { 
+      background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); 
+      border: 2px solid #f59e0b; 
+      border-radius: 12px; 
+      padding: 12px 16px; 
+      margin-bottom: 12px; 
+      box-shadow: 0 2px 8px rgba(245, 158, 11, 0.2);
+    }
+    .notice-header { 
+      display: flex; 
+      justify-content: space-between; 
+      align-items: center; 
+      margin-bottom: 8px;
+    }
+    .notice-title { 
+      font-weight: 800; 
+      color: #92400e; 
+      font-size: 13px; 
+      text-transform: uppercase; 
+      display: flex; 
+      align-items: center; 
+      gap: 6px;
+    }
+    .notice-actions { display: flex; gap: 6px; }
+    .notice-btn { 
+      background: white; 
+      border: 1px solid #f59e0b; 
+      border-radius: 6px; 
+      padding: 4px 10px; 
+      font-size: 12px; 
+      font-weight: 600; 
+      color: #92400e; 
+      cursor: pointer;
+      transition: all 0.15s;
+    }
+    .notice-btn:hover { background: #fffbeb; }
+    .notice-btn.save { background: #15803d; color: white; border-color: #15803d; }
+    .notice-btn.cancel { background: #f1f5f9; color: #64748b; border-color: #cbd5e1; }
+    .notice-content { 
+      color: #78350f; 
+      font-size: 14px; 
+      line-height: 1.5;
+      white-space: pre-wrap;
+    }
+    .notice-content.empty { 
+      color: #a16207; 
+      font-style: italic; 
+    }
+    .notice-textarea { 
+      width: 100%; 
+      min-height: 60px; 
+      padding: 10px; 
+      border: 1px solid #f59e0b; 
+      border-radius: 8px; 
+      font-size: 14px; 
+      font-family: inherit; 
+      resize: vertical; 
+      background: white;
+      box-sizing: border-box;
+    }
+    .notice-textarea:focus { outline: none; border-color: #d97706; box-shadow: 0 0 0 3px rgba(217, 119, 6, 0.2); }
+    .notice-meta { 
+      font-size: 11px; 
+      color: #a16207; 
+      margin-top: 8px; 
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+    .notice-collapsed { 
+      padding: 10px 16px; 
+      cursor: pointer;
+    }
+    .notice-collapsed .notice-header { margin-bottom: 0; }
+    .notice-collapsed:hover { background: linear-gradient(135deg, #fef9c3 0%, #fde047 100%); }
+    .notice-expand-hint { font-size: 11px; color: #a16207; }
+    
     .controls-container { background: white; padding: 12px; border-radius: 12px; border: 1px solid var(--border); margin-bottom: 20px; }
     .filter-row { display: flex; gap: 8px; margin-bottom: 12px; overflow-x: auto; padding-bottom: 4px; }
     .filter-btn { padding: 6px 12px; border-radius: 20px; border: 1px solid var(--border); background: #f8fafc; color: #64748b; font-size: 12px; font-weight: 600; cursor: pointer; white-space: nowrap; }
@@ -140,8 +218,103 @@
       return `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
     };
 
+    // Format timestamp
+    const formatTime = (ts) => {
+      if (!ts) return "";
+      const d = new Date(ts);
+      return d.toLocaleString('en-GB', { 
+        day: 'numeric', 
+        month: 'short', 
+        hour: '2-digit', 
+        minute: '2-digit'
+      });
+    };
+
+    // Notice Banner Component
+    const NoticeBanner = ({ notice, onSave }) => {
+      const [isEditing, setIsEditing] = useState(false);
+      const [isCollapsed, setIsCollapsed] = useState(false);
+      const [editText, setEditText] = useState(notice?.text || "");
+
+      useEffect(() => {
+        setEditText(notice?.text || "");
+      }, [notice?.text]);
+
+      const handleSave = () => {
+        onSave(editText);
+        setIsEditing(false);
+      };
+
+      const handleCancel = () => {
+        setEditText(notice?.text || "");
+        setIsEditing(false);
+      };
+
+      const handleClear = () => {
+        if (confirm("Clear the notice?")) {
+          onSave("");
+          setIsEditing(false);
+        }
+      };
+
+      // Collapsed view
+      if (isCollapsed && !isEditing) {
+        return (
+          <div className="notice-banner notice-collapsed" onClick={() => setIsCollapsed(false)}>
+            <div className="notice-header">
+              <span className="notice-title">📢 Notice Board</span>
+              <span className="notice-expand-hint">tap to expand ▼</span>
+            </div>
+          </div>
+        );
+      }
+
+      return (
+        <div className="notice-banner">
+          <div className="notice-header">
+            <span className="notice-title">📢 Notice Board</span>
+            <div className="notice-actions">
+              {isEditing ? (
+                <>
+                  <button className="notice-btn cancel" onClick={handleCancel}>Cancel</button>
+                  <button className="notice-btn save" onClick={handleSave}>Save</button>
+                </>
+              ) : (
+                <>
+                  <button className="notice-btn" onClick={() => setIsCollapsed(true)}>▲</button>
+                  <button className="notice-btn" onClick={() => setIsEditing(true)}>✏️ Edit</button>
+                  {notice?.text && <button className="notice-btn" onClick={handleClear}>Clear</button>}
+                </>
+              )}
+            </div>
+          </div>
+          
+          {isEditing ? (
+            <textarea 
+              className="notice-textarea"
+              value={editText}
+              onChange={e => setEditText(e.target.value)}
+              placeholder="Enter important notices, updates, or reminders for the team..."
+              autoFocus
+            />
+          ) : (
+            <div className={`notice-content ${!notice?.text ? 'empty' : ''}`}>
+              {notice?.text || "No current notices. Tap Edit to add one."}
+            </div>
+          )}
+          
+          {notice?.updatedAt && !isEditing && (
+            <div className="notice-meta">
+              <span>Last updated: {formatTime(notice.updatedAt)}</span>
+            </div>
+          )}
+        </div>
+      );
+    };
+
     const App = () => {
       const [patients, setPatients] = useState([]);
+      const [notice, setNotice] = useState({ text: "", updatedAt: null });
       const [search, setSearch] = useState("");
       const [viewFilter, setViewFilter] = useState("All");
       const [addModal, setAddModal] = useState(false);
@@ -166,6 +339,20 @@
         }, 500);
       }, []);
 
+      // Listen to notice changes
+      useEffect(() => {
+        const ref = db.ref('notice');
+        ref.on('value', snap => {
+          const val = snap.val();
+          if (val) {
+            setNotice(val);
+          } else {
+            setNotice({ text: "", updatedAt: null });
+          }
+        });
+        return () => ref.off();
+      }, []);
+
       useEffect(() => {
         const ref = db.ref('patients');
         ref.on('value', snap => {
@@ -182,6 +369,16 @@
         });
         return () => ref.off();
       }, []);
+
+      // Save notice
+      const saveNotice = (text) => {
+        db.ref('notice').set({
+          text: text.trim(),
+          updatedAt: Date.now()
+        }).then(() => {
+          showToast("✓ Notice updated");
+        });
+      };
 
       // Check for duplicate
       const isDuplicate = (ward, name, excludeId = null) => {
@@ -369,6 +566,9 @@
               <button className="btn btn-red" onClick={cleanupDuplicates}>🧹</button>
             </div>
           </div>
+
+          {/* Notice Banner */}
+          <NoticeBanner notice={notice} onSave={saveNotice} />
 
           <div className="controls-container">
             <div className="filter-row">
