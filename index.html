@@ -43,9 +43,14 @@
     .arrow.collapsed { transform: rotate(-90deg); }
     .ward-body.is-hidden { display: none; }
     .ward-count { background: rgba(255,255,255,0.2); padding: 2px 8px; border-radius: 10px; font-size: 11px; margin-left: auto; margin-right: 10px; }
+    .new-count { background: #dc2626; color: white; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 700; margin-right: 5px; animation: blink 1.5s ease-in-out infinite; }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
     .p-card{ padding:12px; border-bottom:1px solid var(--border); display:flex; flex-direction:column; gap:10px; position: relative; }
     .p-card:last-child{ border-bottom:none; }
+    .p-card.new-admission{ background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%); border-left: 5px solid #f59e0b; animation: pulse-glow 2s ease-in-out infinite; position: relative; padding-top: 20px; }
+    .p-card.new-admission::before{ content: "⚡ NEW ADMISSION"; position: absolute; top: -8px; left: 12px; background: #dc2626; color: white; padding: 4px 12px; border-radius: 12px; font-size: 10px; font-weight: 800; letter-spacing: 0.5px; box-shadow: 0 2px 8px rgba(220, 38, 38, 0.4); z-index: 1; }
+    @keyframes pulse-glow { 0%, 100% { box-shadow: 0 0 0 rgba(245, 158, 11, 0.4); } 50% { box-shadow: 0 0 20px rgba(245, 158, 11, 0.6); } }
 
     .inp{ width:100%; padding:6px 8px; border:1px solid #e2e8f0; border-radius:6px; font-size:14px; background:#f8fafc; font-family:inherit; box-sizing: border-box; }
     .inp:focus{ background:white; border-color:var(--green); outline:none; }
@@ -346,8 +351,29 @@
             if (!g[w]) g[w] = [];
             g[w].push(p);
           });
+        
+        // Sort each ward: New status first, then others
+        Object.keys(g).forEach(ward => {
+          g[ward].sort((a, b) => {
+            // New status gets priority (comes first)
+            const aIsNew = (a.status || "").toLowerCase() === "new";
+            const bIsNew = (b.status || "").toLowerCase() === "new";
+            if (aIsNew && !bIsNew) return -1;
+            if (!aIsNew && bIsNew) return 1;
+            // If both same status priority, sort by bed
+            return String(a.bed || "").localeCompare(String(b.bed || ""));
+          });
+        });
+        
         const sortedKeys = Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b));
-        return { g, sortedKeys, totalCount: filtered.length };
+        
+        // Calculate new admission counts per ward
+        const newCounts = {};
+        Object.keys(g).forEach(ward => {
+          newCounts[ward] = g[ward].filter(p => (p.status || "").toLowerCase() === "new").length;
+        });
+        
+        return { g, sortedKeys, totalCount: filtered.length, newCounts };
       }, [patients, search, viewFilter]);
 
       return (
@@ -383,102 +409,13 @@
             <div key={ward} className="ward-section">
               <div className="ward-header" onClick={() => toggleWard(ward)}>
                 <div><span className={`arrow ${!collapsedWards[ward] ? '' : 'collapsed'}`}>▼</span> {ward}</div>
-                <span className="ward-count">{groups.g[ward].length}</span>
+                <div>
+                  {groups.newCounts[ward] > 0 && <span className="new-count">⚡ {groups.newCounts[ward]} NEW</span>}
+                  <span className="ward-count">{groups.g[ward].length}</span>
+                </div>
               </div>
               <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
                 {groups.g[ward].map(p => (
-                  <div className="p-card" key={p.id}>
+                  <div className={`p-card ${(p.status || "").toLowerCase() === "new" ? "new-admission" : ""}`} key={p.id}>
                     <div className="mobile-row col-1">
-                      <input className="inp inp-bed" value={cleanBed(p.bed)} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
-                      <input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} />
-                    </div>
-                    <div className="col-2">
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        <input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} />
-                        <input className="inp" style={{ width: '90px' }} value={p.mrn || ''} placeholder="MRN" onChange={e => update(p.id, 'mrn', e.target.value)} />
-                      </div>
-                      <input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} />
-                    </div>
-                    <div className="col-3">
-                      <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
-                    </div>
-                    <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
-                      <select
-                        className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`}
-                        value={p.status || ""}
-                        onChange={e => update(p.id, 'status', e.target.value)}
-                      >
-                        <option value="">-</option>
-                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                      <button className="btn-del" onClick={() => del(p.id)}>×</button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          ))}
-
-          {addModal && (
-            <div className="modalOverlay">
-              <div className="modal">
-                <div className="modal-head">Add Patient</div>
-                <div className="modal-body">
-                  <div className="form-group">
-                    <label>Ward</label>
-                    <select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>
-                      {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
-                    </select>
-                  </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>Bed</label>
-                      <input className="inp" value={newP.bed} placeholder="e.g. 12-2" onChange={e => setNewP({ ...newP, bed: e.target.value })} />
-                    </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>Doctor</label>
-                      <input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} />
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Name</label>
-                    <input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} />
-                  </div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>MRN</label>
-                      <input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} />
-                    </div>
-                    <div className="form-group" style={{ flex: 1 }}>
-                      <label>Status</label>
-                      <select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>
-                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
-                    </div>
-                  </div>
-                  <div className="form-group">
-                    <label>Diagnosis</label>
-                    <input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} />
-                  </div>
-                  <div className="form-group">
-                    <label>Plan / Notes</label>
-                    <textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} />
-                  </div>
-                </div>
-                <div className="modal-foot">
-                  <button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button>
-                  <button className="btn btn-blue" onClick={saveNew}>Save</button>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {toast && <div className="toast">{toast}</div>}
-        </div>
-      );
-    };
-
-    ReactDOM.createRoot(document.getElementById('root')).render(<App />);
-  </script>
-</body>
-</html>
+                      <input className="inp inp-bed" value={cleanBed(p.bed)} placeholder="Bed" o
