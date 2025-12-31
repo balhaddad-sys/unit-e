@@ -8,11 +8,10 @@
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
 
-  <!-- OCR -->
   <script crossorigin src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
 
+  <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
 
@@ -84,7 +83,6 @@
     .modal-head{ background:var(--purple); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); }
-    .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
 
     .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
@@ -92,7 +90,10 @@
 
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; }
 
-    /* Lab Image Styles */
+    .tabs { display:flex; gap:8px; margin-bottom: 4px; }
+    .tab { padding:8px 12px; border-radius: 999px; border:1px solid var(--border); background:#f8fafc; cursor:pointer; font-weight:700; font-size:12px; color:#64748b; }
+    .tab.active { background: var(--purple); color:white; border-color: var(--purple); }
+
     .add-lab-area { border: 2px dashed var(--purple); border-radius: 12px; padding: 24px; text-align: center; background: #faf5ff; cursor: pointer; transition: all 0.2s; }
     .add-lab-area:hover { background: #f3e8ff; border-color: #a855f7; }
     .add-lab-area.dragging { background: #e9d5ff; border-color: #9333ea; }
@@ -100,16 +101,14 @@
     .add-lab-text { font-weight: 600; color: var(--purple); margin-bottom: 4px; }
     .add-lab-hint { font-size: 12px; color: #a855f7; }
 
-    .tabs { display:flex; gap:8px; margin-bottom: 4px; }
-    .tab { padding:8px 12px; border-radius: 999px; border:1px solid var(--border); background:#f8fafc; cursor:pointer; font-weight:700; font-size:12px; color:#64748b; }
-    .tab.active { background: var(--purple); color:white; border-color: var(--purple); }
-
     .lab-values-card { border:1px solid var(--border); border-radius: 12px; overflow:hidden; }
     .lab-values-head { padding:10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color:white; display:flex; justify-content:space-between; align-items:center; gap:8px; }
     .lab-values-title { font-weight:800; font-size:12px; }
     .lab-values-sub { font-size:11px; opacity:0.85; }
+
     .pill { padding:3px 10px; border-radius: 999px; background: rgba(255,255,255,0.18); font-size:11px; font-weight:800; }
     .lab-values-body { padding: 10px 12px; background: white; }
+
     .kv-grid { display:grid; grid-template-columns: 1fr 1fr; gap:10px; }
     .kv { border:1px solid #e2e8f0; border-radius:10px; padding:10px; background:#f8fafc; }
     .kv .k { font-size:11px; font-weight:800; color:#475569; text-transform:uppercase; margin-bottom:4px; }
@@ -123,33 +122,27 @@
 
     .lab-images-grid { display: flex; flex-direction: column; gap: 12px; }
     .lab-image-card { background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
-    .lab-image-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color: white; }
+    .lab-image-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color: white; gap: 8px; }
     .lab-image-date { font-size: 12px; font-weight: 600; }
     .lab-image-time { font-size: 11px; opacity: 0.8; }
-    .lab-image-actions { display: flex; gap: 8px; }
+    .lab-image-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
     .lab-image-btn { background: rgba(255,255,255,0.2); border: none; color: white; padding: 0 10px; height: 28px; border-radius: 8px; cursor: pointer; font-size: 12px; font-weight: 800; display:flex; align-items:center; gap:6px; }
     .lab-image-btn:hover { background: rgba(255,255,255,0.3); }
     .lab-image-btn.delete:hover { background: rgba(239,68,68,0.8); }
+
     .lab-image-container { position: relative; cursor: pointer; }
     .lab-image-container img { width: 100%; display: block; }
-    .lab-image-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
-    .lab-image-container:hover .lab-image-overlay { opacity: 1; }
-    .lab-image-overlay span { color: white; font-weight: 600; font-size: 14px; background: rgba(0,0,0,0.5); padding: 8px 16px; border-radius: 20px; }
+
     .lab-image-note { padding: 10px 12px; border-top: 1px solid var(--border); }
     .lab-image-note input { width: 100%; border: none; background: transparent; font-size: 13px; color: var(--text); }
     .lab-image-note input::placeholder { color: #94a3b8; }
 
-    /* Fullscreen Image Viewer */
     .image-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: flex; flex-direction: column; }
     .image-viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; color: white; }
     .image-viewer-title { font-weight: 600; }
     .image-viewer-close { background: rgba(255,255,255,0.1); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; }
     .image-viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; }
     .image-viewer-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
-    .image-viewer-nav { display: flex; justify-content: center; gap: 12px; padding: 16px; }
-    .image-viewer-nav button { background: rgba(255,255,255,0.1); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
-    .image-viewer-nav button:hover { background: rgba(255,255,255,0.2); }
-    .image-viewer-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
 
     .empty-labs { text-align: center; padding: 40px 20px; color: #94a3b8; }
     .empty-labs-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
@@ -181,7 +174,7 @@
       appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
     };
 
-    if (window.firebase && !firebase.apps.length) { firebase.initializeApp(firebaseConfig); }
+    if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
     const SHEETS_SYNC_URL = "https://script.google.com/macros/s/AKfycbzeCRMInJT0ipKr3xgVvDpr6O3Y21dX7qqxoXipDdYz-JvrLZoC71xLicQO2lKxz6Rwzg/exec";
@@ -210,29 +203,69 @@
       };
     };
 
-    // ---------- OCR ENGINE (high accuracy client-side) ----------
+    // ---------- OCR (GitHub Pages FIX) ----------
     let _ocrWorkerPromise = null;
 
     const getOcrWorker = async (loggerFn) => {
       if (_ocrWorkerPromise) return _ocrWorkerPromise;
+
+      const TESS_BASE = "https://unpkg.com/tesseract.js@5.0.5/dist";
+      const LANG_BASE = "https://tessdata.projectnaptha.com/4.0.0";
+
       _ocrWorkerPromise = (async () => {
         const worker = await Tesseract.createWorker({
-          logger: (m) => loggerFn && loggerFn(m)
+          logger: (m) => loggerFn && loggerFn(m),
+          workerPath: `${TESS_BASE}/worker.min.js`,
+          corePath: `${TESS_BASE}/tesseract-core.wasm.js`,
+          langPath: LANG_BASE
         });
-        await worker.loadLanguage('eng');
-        await worker.initialize('eng');
-        // Strong defaults for lab tables
+
+        await worker.loadLanguage("eng");
+        await worker.initialize("eng");
         await worker.setParameters({
-          preserve_interword_spaces: '1',
-          tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.%/()-+<>:=,",
-          user_defined_dpi: "300"
+          preserve_interword_spaces: "1",
+          user_defined_dpi: "300",
+          tessedit_char_whitelist: "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz.%/()-+<>:=,"
         });
         return worker;
       })();
+
       return _ocrWorkerPromise;
     };
 
-    // Otsu threshold for binarization
+    // ---------- OCR MODES + CROPPING ----------
+    const OCR_MODES = ["CBC", "Chemistry", "ABG", "Other"];
+    const clamp01 = (x) => Math.max(0, Math.min(1, x));
+
+    const presetCrop = (mode) => {
+      switch (mode) {
+        case "CBC":       return { top: 0.10, bottom: 0.07, left: 0.05, right: 0.05 };
+        case "Chemistry": return { top: 0.12, bottom: 0.08, left: 0.05, right: 0.05 };
+        case "ABG":       return { top: 0.18, bottom: 0.14, left: 0.10, right: 0.10 };
+        default:          return { top: 0.06, bottom: 0.06, left: 0.05, right: 0.05 };
+      }
+    };
+
+    const applyCropToCanvas = (img, crop) => {
+      const c = {
+        top: clamp01(crop?.top ?? 0),
+        bottom: clamp01(crop?.bottom ?? 0),
+        left: clamp01(crop?.left ?? 0),
+        right: clamp01(crop?.right ?? 0),
+      };
+      const sx = Math.floor(img.width * c.left);
+      const sy = Math.floor(img.height * c.top);
+      const sw = Math.floor(img.width * (1 - c.left - c.right));
+      const sh = Math.floor(img.height * (1 - c.top - c.bottom));
+
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, sw);
+      canvas.height = Math.max(1, sh);
+      const ctx = canvas.getContext("2d", { willReadFrequently: true });
+      ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+      return canvas;
+    };
+
     const otsuThreshold = (gray) => {
       const hist = new Array(256).fill(0);
       for (let i = 0; i < gray.length; i++) hist[gray[i]]++;
@@ -241,11 +274,8 @@
       let sum = 0;
       for (let t = 0; t < 256; t++) sum += t * hist[t];
 
-      let sumB = 0;
-      let wB = 0;
-      let wF = 0;
-      let varMax = 0;
-      let threshold = 128;
+      let sumB = 0, wB = 0, wF = 0;
+      let varMax = 0, threshold = 128;
 
       for (let t = 0; t < 256; t++) {
         wB += hist[t];
@@ -265,164 +295,156 @@
       return threshold;
     };
 
-    const preprocessForOCR = async (dataUrl, scale = 2.2) => {
+    const preprocessForOCR = async (dataUrl, { mode = "CBC", smartCrop = true, manualCrop = null } = {}) => {
       const img = new Image();
       img.src = dataUrl;
       await new Promise(res => img.onload = res);
 
-      const canvas = document.createElement('canvas');
-      canvas.width = Math.floor(img.width * scale);
-      canvas.height = Math.floor(img.height * scale);
-      const ctx = canvas.getContext('2d', { willReadFrequently: true });
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = 'high';
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      const crop = manualCrop ? manualCrop : (smartCrop ? presetCrop(mode) : { top:0, bottom:0, left:0, right:0 });
+      const croppedCanvas = applyCropToCanvas(img, crop);
 
-      // grayscale + contrast + otsu threshold
-      const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+      // MOBILE SAFE SCALE (prevents freeze)
+      const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+      const big = (croppedCanvas.width * croppedCanvas.height) > 2_000_000;
+      const scale = (isMobile || big) ? 1.6 : 2.2;
+
+      const up = document.createElement("canvas");
+      up.width = Math.floor(croppedCanvas.width * scale);
+      up.height = Math.floor(croppedCanvas.height * scale);
+      const upCtx = up.getContext("2d", { willReadFrequently: true });
+      upCtx.imageSmoothingEnabled = true;
+      upCtx.imageSmoothingQuality = "high";
+      upCtx.drawImage(croppedCanvas, 0, 0, up.width, up.height);
+
+      const imageData = upCtx.getImageData(0, 0, up.width, up.height);
       const d = imageData.data;
-      const gray = new Uint8ClampedArray(canvas.width * canvas.height);
+      const gray = new Uint8ClampedArray(up.width * up.height);
 
       for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-        // luminance
         let g = (0.2126 * d[i] + 0.7152 * d[i+1] + 0.0722 * d[i+2]) | 0;
-        // slight contrast boost
-        g = Math.min(255, Math.max(0, (g - 128) * 1.25 + 128));
+        g = Math.min(255, Math.max(0, (g - 128) * 1.30 + 128));
         gray[j] = g;
       }
 
-      const th = otsuThreshold(gray);
-      for (let i = 0, j = 0; i < d.length; i += 4, j++) {
-        const v = gray[j] > th ? 255 : 0;
-        d[i] = d[i+1] = d[i+2] = v;
-        d[i+3] = 255;
+      const grayCanvas = document.createElement("canvas");
+      grayCanvas.width = up.width;
+      grayCanvas.height = up.height;
+      const gctx = grayCanvas.getContext("2d", { willReadFrequently: true });
+      const gimg = gctx.createImageData(up.width, up.height);
+      for (let i = 0, j = 0; i < gimg.data.length; i += 4, j++) {
+        const v = gray[j];
+        gimg.data[i] = gimg.data[i+1] = gimg.data[i+2] = v;
+        gimg.data[i+3] = 255;
       }
-      ctx.putImageData(imageData, 0, 0);
+      gctx.putImageData(gimg, 0, 0);
 
-      return canvas.toDataURL('image/png');
+      const th = otsuThreshold(gray);
+      const binCanvas = document.createElement("canvas");
+      binCanvas.width = up.width;
+      binCanvas.height = up.height;
+      const bctx = binCanvas.getContext("2d", { willReadFrequently: true });
+      const bimg = bctx.createImageData(up.width, up.height);
+      for (let i = 0, j = 0; i < bimg.data.length; i += 4, j++) {
+        const v = gray[j] > th ? 255 : 0;
+        bimg.data[i] = bimg.data[i+1] = bimg.data[i+2] = v;
+        bimg.data[i+3] = 255;
+      }
+      bctx.putImageData(bimg, 0, 0);
+
+      return {
+        gray: grayCanvas.toDataURL("image/png"),
+        bin: binCanvas.toDataURL("image/png"),
+        cropUsed: crop
+      };
     };
 
-    // Multi-pass OCR: try 2 modes and pick best confidence
-    const runOCR = async (dataUrl, setProgress) => {
+    const runOCR = async (dataUrl, { mode = "CBC", smartCrop = true, manualCrop = null } = {}, setProgress) => {
       const worker = await getOcrWorker((m) => {
         if (m?.status === "recognizing text" && typeof m.progress === "number") {
           setProgress && setProgress(Math.round(m.progress * 100));
         }
       });
 
-      const pre = await preprocessForOCR(dataUrl, 2.2);
+      const psmList = (mode === "ABG") ? ["6","11"] : ["6","4"];
+      const pre = await preprocessForOCR(dataUrl, { mode, smartCrop, manualCrop });
 
-      const passes = [
-        { name: "PSM6", params: { tessedit_pageseg_mode: "6" } }, // assume a uniform block of text (tables OK)
-        { name: "PSM4", params: { tessedit_pageseg_mode: "4" } }, // single column of text
+      const candidates = [
+        { name: "BIN", img: pre.bin, bonus: 6 },
+        { name: "GRAY", img: pre.gray, bonus: 4 },
       ];
 
-      let best = { text: "", confidence: 0, pass: "N/A" };
+      let best = { text: "", confidence: 0, pass: "N/A", cropUsed: pre.cropUsed };
 
-      for (const p of passes) {
-        await worker.setParameters(p.params);
-        const res = await worker.recognize(pre);
-        const text = (res?.data?.text || "").trim();
-        const conf = Number(res?.data?.confidence || 0);
+      for (const cand of candidates) {
+        for (const psm of psmList) {
+          await worker.setParameters({ tessedit_pageseg_mode: psm });
+          const res = await worker.recognize(cand.img);
+          const text = (res?.data?.text || "").trim();
+          const conf = Number(res?.data?.confidence || 0);
 
-        // Simple quality score: confidence + bonus for detecting known lab keys
-        const bonus = /WBC|RBC|Hb|HGB|Hct|MCV|MCHC|PLT|Plate|Na|K|Cl|Urea|Creat|CRP/i.test(text) ? 6 : 0;
-        const score = conf + bonus;
+          const bonus =
+            /WBC|RBC|Hb|HGB|Hct|MCV|MCHC|RDW|PLT|Plate|MPV|Na|K|Cl|Urea|Creat|CRP|pH|pCO2|pO2|HCO3|Lactate/i.test(text)
+              ? cand.bonus
+              : 0;
 
-        if (score > (best.confidence + (best.pass === "N/A" ? 0 : 0))) {
-          best = { text, confidence: conf, pass: p.name };
+          const score = conf + bonus;
+          if (score > (best.confidence + 0.1)) {
+            best = { text, confidence: conf, pass: `${cand.name}-PSM${psm}`, cropUsed: pre.cropUsed };
+          }
         }
       }
 
       return best;
     };
 
-    // Parse common lab patterns into structured values
+    // ---------- PARSER ----------
     const TEST_UNITS = {
-      WBC: "10^9/L",
-      RBC: "10^12/L",
-      HGB: "g/L",
-      Hb: "g/L",
-      HCT: "L/L",
-      Hct: "L/L",
-      MCV: "fL",
-      MCH: "pg",
-      MCHC: "g/L",
-      RDW: "%",
-      PLT: "10^9/L",
-      Plt: "10^9/L",
-      MPV: "fL",
-
-      Na: "mmol/L",
-      K: "mmol/L",
-      Cl: "mmol/L",
-      HCO3: "mmol/L",
-      Urea: "mmol/L",
-      Creatinine: "µmol/L",
-      Cr: "µmol/L",
-      Glucose: "mmol/L",
-      CRP: "mg/L"
+      WBC: "10^9/L", RBC: "10^12/L", Hb: "g/L", Hct: "L/L",
+      MCV: "fL", MCH: "pg", MCHC: "g/L", RDW: "%", Plt: "10^9/L", MPV: "fL",
+      Na: "mmol/L", K: "mmol/L", Cl: "mmol/L", Urea: "mmol/L", Cr: "µmol/L", Glucose: "mmol/L", CRP: "mg/L",
+      pH: "", pCO2: "mmHg", pO2: "mmHg", HCO3: "mmol/L", Lactate: "mmol/L"
     };
 
     const normalizeTest = (raw) => {
       const s = String(raw || "").trim();
       const map = {
-        "HGB": "Hb",
-        "HG": "Hb",
-        "HEMOGLOBIN": "Hb",
-        "PLATELETS": "Plt",
-        "PLT": "Plt",
-        "CREAT": "Cr",
-        "CREATININE": "Cr",
-        "SODIUM": "Na",
-        "POTASSIUM": "K",
-        "CHLORIDE": "Cl"
+        "HGB": "Hb", "HEMOGLOBIN": "Hb",
+        "HCT": "Hct", "PLT": "Plt", "PLATELETS": "Plt",
+        "CREAT": "Cr", "CREATININE": "Cr",
+        "SODIUM": "Na", "POTASSIUM": "K", "CHLORIDE": "Cl"
       };
-      const up = s.toUpperCase().replace(/[^A-Z]/g,'');
+      const up = s.toUpperCase().replace(/[^A-Z0-9]/g,'');
       if (map[up]) return map[up];
-      // Keep common abbreviations
-      const common = ["WBC","RBC","Hb","Hct","MCV","MCH","MCHC","RDW","Plt","MPV","Na","K","Cl","Urea","Cr","Glucose","CRP"];
+
+      const common = ["WBC","RBC","Hb","Hct","MCV","MCH","MCHC","RDW","Plt","MPV","Na","K","Cl","Urea","Cr","Glucose","CRP","pH","pCO2","pO2","HCO3","Lactate"];
       for (const c of common) {
-        if (up === c.toUpperCase().replace(/[^A-Z]/g,'')) return c;
+        if (up === c.toUpperCase().replace(/[^A-Z0-9]/g,'')) return c;
       }
       return s;
     };
 
     const parseLabsFromText = (text) => {
-      const lines = String(text || "")
-        .split(/\r?\n/)
-        .map(l => l.trim())
-        .filter(Boolean);
+      const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(Boolean);
 
       const values = [];
       const seen = new Set();
-
-      // patterns like: "RBC 3.02 L 4.5-5.5"
       const numeric = /([<>]?\d+(?:\.\d+)?)/;
       const range = /(\d+(?:\.\d+)?)\s*[-–]\s*(\d+(?:\.\d+)?)/;
 
       for (const line of lines) {
-        // Detect test token at line start
         const mTest = line.match(/^([A-Za-z][A-Za-z0-9%\/\-\(\)\+]{1,12})\b/);
         if (!mTest) continue;
+        const test = normalizeTest(mTest[1]);
 
-        const rawTest = mTest[1];
-        const test = normalizeTest(rawTest);
-
-        // Try capture result
         const mVal = line.match(numeric);
         if (!mVal) continue;
+        const val = mVal[1];
+        if (val.length > 7 && !val.includes(".")) continue;
 
-        let val = mVal[1];
-        // Heuristic: avoid capturing sample numbers like "250135..."
-        if (val.length > 6 && !val.includes(".")) continue;
-
-        // Flag
         let flag = "N";
         if (/\bH\b/.test(line)) flag = "H";
         if (/\bL\b/.test(line)) flag = "L";
 
-        // Reference range
         let refLow = "", refHigh = "";
         const mRange = line.match(range);
         if (mRange) { refLow = mRange[1]; refHigh = mRange[2]; }
@@ -436,14 +458,12 @@
         values.push({ test, value: val, flag, unit, refLow, refHigh, raw: line });
       }
 
-      // Sort in a friendly order
-      const order = ["WBC","RBC","Hb","Hct","MCV","MCH","MCHC","RDW","Plt","MPV","Na","K","Cl","Urea","Cr","Glucose","CRP"];
+      const order = ["WBC","RBC","Hb","Hct","MCV","MCH","MCHC","RDW","Plt","MPV","Na","K","Cl","Urea","Cr","Glucose","CRP","pH","pCO2","pO2","HCO3","Lactate"];
       values.sort((a,b) => (order.indexOf(a.test) - order.indexOf(b.test)));
-
       return values;
     };
 
-    // Compress image before storing (kept)
+    // ---------- IMAGES ----------
     const compressImage = (file, maxWidth = 1200) => {
       return new Promise((resolve) => {
         const reader = new FileReader();
@@ -471,54 +491,103 @@
       });
     };
 
-    const fileToDataURL = (file) => new Promise((resolve, reject) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.onerror = reject;
-      r.readAsDataURL(file);
-    });
+    // ---------- Crop Modal ----------
+    const CropModal = ({ image, initialCrop, onClose, onApply }) => {
+      const [crop, setCrop] = useState(initialCrop || { top:0.10, bottom:0.07, left:0.05, right:0.05 });
+      const set = (k, v) => setCrop(prev => ({ ...prev, [k]: Math.max(0, Math.min(0.40, Number(v))) }));
 
-    // Image Viewer Component
-    const ImageViewer = ({ images, currentIndex, onClose, onNavigate }) => {
-      const current = images[currentIndex];
-      if (!current) return null;
+      const boxStyle = {
+        position: "absolute",
+        top: `${crop.top * 100}%`,
+        bottom: `${crop.bottom * 100}%`,
+        left: `${crop.left * 100}%`,
+        right: `${crop.right * 100}%`,
+        border: "2px solid #f59e0b",
+        boxShadow: "0 0 0 9999px rgba(0,0,0,0.35)",
+        borderRadius: 10,
+        pointerEvents: "none",
+      };
 
       return (
-        <div className="image-viewer" onClick={onClose}>
-          <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
-            <div className="image-viewer-title">
-              {formatDateTime(current.timestamp).date} • {formatDateTime(current.timestamp).time}
-              {current.note && ` • ${current.note}`}
+        <div className="modalOverlay" onClick={onClose}>
+          <div className="modal" style={{ maxWidth: 760 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-head" style={{ background: "#f59e0b" }}>
+              ✂️ Manual Crop
+              <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: 18, cursor: 'pointer' }}>×</button>
             </div>
-            <button className="image-viewer-close" onClick={onClose}>×</button>
-          </div>
-          <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
-            <img src={current.image} alt="Lab result" />
-          </div>
-          {images.length > 1 && (
-            <div className="image-viewer-nav" onClick={e => e.stopPropagation()}>
-              <button onClick={() => onNavigate(currentIndex - 1)} disabled={currentIndex === 0}>
-                ← Previous
-              </button>
-              <span style={{ color: 'white', padding: '10px' }}>{currentIndex + 1} / {images.length}</span>
-              <button onClick={() => onNavigate(currentIndex + 1)} disabled={currentIndex === images.length - 1}>
-                Next →
+            <div className="modal-body" style={{ gap: 14 }}>
+              <div style={{ position:"relative", borderRadius:12, overflow:"hidden", border:"1px solid #e2e8f0" }}>
+                <img src={image} style={{ width:"100%", display:"block" }} />
+                <div style={boxStyle}></div>
+              </div>
+
+              <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:12 }}>
+                {["top","bottom","left","right"].map(k => (
+                  <div key={k} style={{ border:"1px solid #e2e8f0", borderRadius:12, padding:10, background:"#f8fafc" }}>
+                    <div style={{ fontSize:12, fontWeight:900, color:"#334155", marginBottom:6, textTransform:"uppercase" }}>{k}</div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="0.40"
+                      step="0.01"
+                      value={crop[k]}
+                      onChange={(e)=>set(k, e.target.value)}
+                      style={{ width:"100%" }}
+                    />
+                    <div style={{ fontSize:12, fontWeight:800, color:"#64748b" }}>{Math.round(crop[k]*100)}%</div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ fontSize: 12, color:"#475569", fontWeight:700 }}>
+                Tip: crop away headers/footers and margins. Keep only the results table.
+              </div>
+            </div>
+
+            <div className="modal-foot">
+              <button className="btn btn-white" onClick={onClose}>Cancel</button>
+              <button className="btn" style={{ background:"#f59e0b", color:"white" }} onClick={() => onApply(crop)}>
+                Apply Crop
               </button>
             </div>
-          )}
+          </div>
         </div>
       );
     };
 
-    // Lab Modal Component (now: OCR values + images)
+    // ---------- Image Viewer ----------
+    const ImageViewer = ({ images, currentIndex, onClose }) => {
+      const current = images[currentIndex];
+      if (!current) return null;
+      const { date, time } = formatDateTime(current.timestamp);
+
+      return (
+        <div className="image-viewer" onClick={onClose}>
+          <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
+            <div className="image-viewer-title">{date} • {time} {current.note ? `• ${current.note}` : ""}</div>
+            <button className="image-viewer-close" onClick={onClose}>×</button>
+          </div>
+          <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
+            <img src={current.image} alt="Lab" />
+          </div>
+        </div>
+      );
+    };
+
+    // ---------- Labs Modal ----------
     const LabModal = ({ patient, onClose, onSave }) => {
       const [labImages, setLabImages] = useState(patient.labImages || []);
       const [dragging, setDragging] = useState(false);
       const [viewerIndex, setViewerIndex] = useState(null);
       const [uploading, setUploading] = useState(false);
-      const [tab, setTab] = useState("Values"); // Values | Images
+      const [tab, setTab] = useState("Values");
+
       const [ocrBusyId, setOcrBusyId] = useState(null);
       const [ocrProgress, setOcrProgress] = useState(0);
+
+      const [defaultOcrMode, setDefaultOcrMode] = useState("CBC");
+      const [defaultSmartCrop, setDefaultSmartCrop] = useState(true);
+      const [cropModal, setCropModal] = useState(null); // { imgId }
 
       const fileRef = useRef(null);
       const cameraRef = useRef(null);
@@ -527,7 +596,11 @@
         setOcrBusyId(imgObj.id);
         setOcrProgress(0);
         try {
-          const best = await runOCR(imgObj.image, setOcrProgress);
+          const best = await runOCR(
+            imgObj.image,
+            { mode: imgObj.ocrMode || "CBC", smartCrop: !!imgObj.smartCrop, manualCrop: imgObj.manualCrop || null },
+            setOcrProgress
+          );
           const values = parseLabsFromText(best.text);
 
           setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
@@ -537,12 +610,13 @@
               values,
               confidence: best.confidence,
               pass: best.pass,
+              cropUsed: best.cropUsed || null,
               updatedAt: Date.now()
             }
           } : x));
         } catch (e) {
-          console.error(e);
-          alert("OCR failed. Try a clearer photo (straight, zoom, no glare).");
+          console.error("OCR ERROR:", e);
+          alert("OCR failed: " + (e?.message || e));
         }
         setOcrBusyId(null);
         setOcrProgress(0);
@@ -550,6 +624,7 @@
 
       const handleFile = async (file) => {
         if (!file || !file.type.startsWith('image/')) return;
+
         setUploading(true);
         try {
           const compressed = await compressImage(file);
@@ -558,21 +633,18 @@
             image: compressed,
             timestamp: Date.now(),
             note: "",
-            ocr: { text: "", values: [], confidence: 0, pass: "", updatedAt: null }
+            ocrMode: defaultOcrMode,
+            smartCrop: defaultSmartCrop,
+            manualCrop: null,
+            ocr: { text: "", values: [], confidence: 0, pass: "", updatedAt: null, cropUsed: null }
           };
           setLabImages(prev => [newImage, ...prev]);
-          // Auto OCR
+
           setTimeout(() => runOcrOnImage(newImage), 150);
         } catch (err) {
-          console.error("Error processing image:", err);
+          console.error(err);
         }
         setUploading(false);
-      };
-
-      const handleFileInput = (e) => {
-        const file = e.target.files?.[0];
-        if (file) handleFile(file);
-        e.target.value = '';
       };
 
       const handleDrop = (e) => {
@@ -582,25 +654,18 @@
         if (file) handleFile(file);
       };
 
-      const handlePaste = useCallback((e) => {
-        const items = e.clipboardData?.items;
-        if (items) {
-          for (const item of items) {
-            if (item.type.startsWith('image/')) {
-              handleFile(item.getAsFile());
-              break;
-            }
-          }
-        }
-      }, []);
-
-      useEffect(() => {
-        document.addEventListener('paste', handlePaste);
-        return () => document.removeEventListener('paste', handlePaste);
-      }, [handlePaste]);
+      const handleFileInput = (e) => {
+        const file = e.target.files?.[0];
+        if (file) handleFile(file);
+        e.target.value = '';
+      };
 
       const updateNote = (id, note) => {
         setLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
+      };
+
+      const deleteImage = (id) => {
+        if (confirm("Delete this lab image?")) setLabImages(prev => prev.filter(img => img.id !== id));
       };
 
       const updateOcrValue = (imgId, test, newVal) => {
@@ -612,21 +677,8 @@
         }));
       };
 
-      const deleteImage = (id) => {
-        if (confirm("Delete this lab image?")) {
-          setLabImages(prev => prev.filter(img => img.id !== id));
-        }
-      };
-
-      const handleSave = () => {
-        onSave(patient.id, labImages);
-        onClose();
-      };
-
-      // Flatten values for "Values" tab (latest first)
       const valuesFeed = useMemo(() => {
         const items = (labImages || []).slice().sort((a,b)=> (b.timestamp||0)-(a.timestamp||0));
-        // For each image, keep its parsed values
         return items.map(img => ({
           id: img.id,
           timestamp: img.timestamp,
@@ -636,6 +688,11 @@
           values: img.ocr?.values || [],
         }));
       }, [labImages]);
+
+      const handleSave = () => {
+        onSave(patient.id, labImages);
+        onClose();
+      };
 
       return (
         <div className="modalOverlay" onClick={onClose}>
@@ -651,7 +708,23 @@
                 <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼️ Images</button>
               </div>
 
-              {/* Add New Lab Image */}
+              {/* OCR defaults */}
+              <div style={{ display:"flex", gap:10, flexWrap:"wrap", alignItems:"center", justifyContent:"space-between",
+                            border:"1px solid #e9d5ff", background:"#faf5ff", borderRadius:12, padding:"10px 12px" }}>
+                <div style={{ display:"flex", gap:10, alignItems:"center", flexWrap:"wrap" }}>
+                  <div style={{ fontWeight:900, color:"#6b21a8" }}>OCR Default:</div>
+                  <select className="inp" style={{ width: 150, background:"white" }} value={defaultOcrMode} onChange={(e)=>setDefaultOcrMode(e.target.value)}>
+                    {OCR_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                  </select>
+                  <label style={{ display:"flex", alignItems:"center", gap:6, fontWeight:800, color:"#6b21a8" }}>
+                    <input type="checkbox" checked={defaultSmartCrop} onChange={e=>setDefaultSmartCrop(e.target.checked)} />
+                    Smart crop
+                  </label>
+                </div>
+                <div style={{ fontSize:12, fontWeight:800, color:"#7c3aed" }}>Best: straight photo + zoom + no glare</div>
+              </div>
+
+              {/* Add image */}
               <div
                 className={`add-lab-area ${dragging ? 'dragging' : ''}`}
                 onClick={() => fileRef.current?.click()}
@@ -668,18 +741,14 @@
                   <>
                     <div className="add-lab-icon">📷</div>
                     <div className="add-lab-text">Add Lab Image (Auto OCR)</div>
-                    <div className="add-lab-hint">Best: straight photo, zoomed, no glare</div>
+                    <div className="add-lab-hint">Tap to upload / take photo</div>
                   </>
                 )}
               </div>
 
               <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>
-                  📸 Camera
-                </button>
-                <button className="btn btn-white" onClick={() => fileRef.current?.click()}>
-                  📁 Gallery
-                </button>
+                <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
+                <button className="btn btn-white" onClick={() => fileRef.current?.click()}>📁 Gallery</button>
               </div>
 
               <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
@@ -691,7 +760,7 @@
                 </div>
               )}
 
-              {/* VALUES TAB */}
+              {/* VALUES */}
               {tab === "Values" && (
                 <>
                   {valuesFeed.length === 0 ? (
@@ -731,7 +800,7 @@
                             <div className="lab-values-body">
                               {!hasVals ? (
                                 <div style={{ color:"#94a3b8", fontWeight:700 }}>
-                                  No values detected. Try re-run OCR or add a clearer image.
+                                  No values detected. Try re-run OCR or use Manual Crop.
                                 </div>
                               ) : (
                                 <div className="kv-grid">
@@ -739,10 +808,7 @@
                                     <div key={v.test} className="kv">
                                       <div className="k">{v.test}</div>
                                       <div className="v">
-                                        <input
-                                          value={v.value || ""}
-                                          onChange={e => updateOcrValue(item.id, v.test, e.target.value)}
-                                        />
+                                        <input value={v.value || ""} onChange={e => updateOcrValue(item.id, v.test, e.target.value)} />
                                         <span className="u">{v.unit || ""}</span>
                                         <span className={`flag ${v.flag || "N"}`}>{v.flag || "N"}</span>
                                       </div>
@@ -764,13 +830,13 @@
                 </>
               )}
 
-              {/* IMAGES TAB */}
+              {/* IMAGES */}
               {tab === "Images" && (
                 <>
                   {labImages.length === 0 ? (
                     <div className="empty-labs">
                       <div className="empty-labs-icon">🔬</div>
-                      <div className="empty-labs-text">No lab images yet.<br/>Take a photo or upload a screenshot.</div>
+                      <div className="empty-labs-text">No lab images yet.</div>
                     </div>
                   ) : (
                     <div className="lab-images-grid">
@@ -783,26 +849,46 @@
                               <div>
                                 <div className="lab-image-date">{date}</div>
                                 <div className="lab-image-time">
-                                  {time}
-                                  {count > 0 ? ` • ${count} values` : ""}
-                                  {lab.ocr?.confidence ? ` • OCR ${Math.round(lab.ocr.confidence)}%` : ""}
+                                  {time}{count ? ` • ${count} values` : ""}{lab.ocr?.confidence ? ` • OCR ${Math.round(lab.ocr.confidence)}%` : ""}
                                 </div>
                               </div>
                               <div className="lab-image-actions">
+                                <select
+                                  className="inp"
+                                  style={{ width: 130, padding: "4px 8px", fontSize: 12, background: "white" }}
+                                  value={lab.ocrMode || "CBC"}
+                                  onChange={(e)=>setLabImages(prev => prev.map(x => x.id === lab.id ? ({ ...x, ocrMode: e.target.value }) : x))}
+                                >
+                                  {OCR_MODES.map(m => <option key={m} value={m}>{m}</option>)}
+                                </select>
+
+                                <label style={{ display:"flex", alignItems:"center", gap:6, fontWeight:900, fontSize:12 }}>
+                                  <input
+                                    type="checkbox"
+                                    checked={!!lab.smartCrop}
+                                    onChange={(e)=>setLabImages(prev => prev.map(x => x.id === lab.id ? ({ ...x, smartCrop: e.target.checked }) : x))}
+                                  />
+                                  Crop
+                                </label>
+
+                                <button className="lab-image-btn" onClick={() => setCropModal({ imgId: lab.id })}>
+                                  ✂️ Manual
+                                </button>
+
                                 <button className="lab-image-btn" onClick={() => runOcrOnImage(lab)}>
                                   🔎 OCR
                                 </button>
+
                                 <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)}>
                                   🗑️ Delete
                                 </button>
                               </div>
                             </div>
+
                             <div className="lab-image-container" onClick={() => setViewerIndex(idx)}>
                               <img src={lab.image} alt="Lab result" />
-                              <div className="lab-image-overlay">
-                                <span>👆 Tap to enlarge</span>
-                              </div>
                             </div>
+
                             <div className="lab-image-note">
                               <input
                                 type="text"
@@ -824,25 +910,35 @@
             <div className="modal-foot">
               <button className="btn btn-white" onClick={onClose}>Cancel</button>
               <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
-                Save ({labImages.length} {labImages.length === 1 ? 'item' : 'items'})
+                Save ({labImages.length} item{labImages.length === 1 ? "" : "s"})
               </button>
             </div>
           </div>
 
-          {/* Fullscreen Image Viewer */}
           {viewerIndex !== null && (
-            <ImageViewer
-              images={labImages}
-              currentIndex={viewerIndex}
-              onClose={() => setViewerIndex(null)}
-              onNavigate={setViewerIndex}
-            />
+            <ImageViewer images={labImages} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />
           )}
+
+          {cropModal && (() => {
+            const img = labImages.find(x => x.id === cropModal.imgId);
+            if (!img) return null;
+            return (
+              <CropModal
+                image={img.image}
+                initialCrop={img.manualCrop || presetCrop(img.ocrMode || "CBC")}
+                onClose={() => setCropModal(null)}
+                onApply={(crop) => {
+                  setLabImages(prev => prev.map(x => x.id === img.id ? ({ ...x, manualCrop: crop }) : x));
+                  setCropModal(null);
+                }}
+              />
+            );
+          })()}
         </div>
       );
     };
 
-    // Notice Banner
+    // ---------- Notice Banner ----------
     const NoticeBanner = ({ notice, onSave }) => {
       const [editing, setEditing] = useState(false);
       const [collapsed, setCollapsed] = useState(false);
@@ -887,7 +983,7 @@
       );
     };
 
-    // Main App
+    // ---------- Main App ----------
     const App = () => {
       const [patients, setPatients] = useState([]);
       const [notice, setNotice] = useState({ text: "", updatedAt: null });
@@ -922,7 +1018,7 @@
 
       const saveLabImages = (patientId, labImages) => {
         db.ref(`patients/${patientId}/labImages`).set(labImages).then(() => {
-          showToast(`✓ Labs saved`);
+          showToast("✓ Labs saved");
           scheduleSync();
         });
       };
@@ -1032,18 +1128,22 @@
               <div className="modal" style={{ maxWidth: '450px' }}>
                 <div className="modal-head" style={{ background: 'var(--green)' }}>Add Patient</div>
                 <div className="modal-body">
-                  <div className="form-group"><label>Ward</label><select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
-                  <div style={{ display: 'flex', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1 }}><label>Bed</label><input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} /></div>
-                    <div className="form-group" style={{ flex: 1 }}><label>Doctor</label><input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Ward</label>
+                    <select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select>
                   </div>
-                  <div className="form-group"><label>Name</label><input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} /></div>
                   <div style={{ display: 'flex', gap: 10 }}>
-                    <div className="form-group" style={{ flex: 1 }}><label>MRN</label><input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} /></div>
-                    <div className="form-group" style={{ flex: 1 }}><label>Status</label><select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></div>
+                    <div style={{ flex: 1 }}><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Bed</label><input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} /></div>
+                    <div style={{ flex: 1 }}><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Doctor</label><input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} /></div>
                   </div>
-                  <div className="form-group"><label>Diagnosis</label><input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} /></div>
-                  <div className="form-group"><label>Plan</label><textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Name</label><input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} /></div>
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <div style={{ flex: 1 }}><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>MRN</label><input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} /></div>
+                    <div style={{ flex: 1 }}><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Status</label>
+                      <select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                    </div>
+                  </div>
+                  <div><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Diagnosis</label><input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} /></div>
+                  <div><label style={{ fontSize:11, fontWeight:800, color:"#64748b", textTransform:"uppercase" }}>Plan</label><textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} /></div>
                 </div>
                 <div className="modal-foot">
                   <button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button>
@@ -1053,10 +1153,7 @@
             </div>
           )}
 
-          {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={(id, imgs) => {
-            db.ref(`patients/${id}/labImages`).set(imgs).then(() => { pingSheets(); });
-          }} />}
-
+          {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabImages} />}
           {toast && <div className="toast">{toast}</div>}
         </div>
       );
