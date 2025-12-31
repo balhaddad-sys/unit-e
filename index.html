@@ -405,17 +405,18 @@
             <input className="search-bar" placeholder="Search patients..." value={search} onChange={e => setSearch(e.target.value)} />
           </div>
 
-          {groups.sortedKeys.map(ward => (
+          {groups.sortedKeys.map(ward => {
+            const newCount = groups.newCounts?.[ward] || 0;
+            return (
             <div key={ward} className="ward-section">
               <div className="ward-header" onClick={() => toggleWard(ward)}>
                 <div><span className={`arrow ${!collapsedWards[ward] ? '' : 'collapsed'}`}>▼</span> {ward}</div>
-                <div>
-                  {groups.newCounts[ward] > 0 && <span className="new-count">⚡ {groups.newCounts[ward]} NEW</span>}
+                <div style={{ display: 'flex', alignItems: 'center', marginLeft: 'auto' }}>
+                  {newCount > 0 && <span className="new-count">⚡ {newCount} NEW</span>}
                   <span className="ward-count">{groups.g[ward].length}</span>
                 </div>
               </div>
               <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
                 {groups.g[ward].map(p => (
                   <div className={`p-card ${(p.status || "").toLowerCase() === "new" ? "new-admission" : ""}`} key={p.id}>
-                    <div className="mobile-row col-1">
-                      <input className="inp inp-bed" value={cleanBed(p.bed)} placeholder="Bed" o
+                    <div cla
