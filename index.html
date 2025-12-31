@@ -71,36 +71,16 @@
     .status-non { background: #f3e8ff; color: var(--purple); }
 
     .btn-del{ width:28px; height:28px; border-radius:6px; background:#fef2f2; color:#ef4444; border:1px solid #fee2e2; font-weight:bold; cursor:pointer; }
-    .btn-lab{ padding:4px 8px; border-radius:6px; background:#f3e8ff; color:var(--purple); border:1px solid #e9d5ff; font-weight:600; font-size:11px; cursor:pointer; }
+    .btn-lab{ padding:4px 8px; border-radius:6px; background:#f3e8ff; color:var(--purple); border:1px solid #e9d5ff; font-weight:600; font-size:11px; cursor:pointer; position: relative; }
     .btn-lab.has-labs{ background:#d946ef; color:white; border-color:#d946ef; }
+    .lab-count{ position:absolute; top:-6px; right:-6px; background:var(--red); color:white; font-size:10px; width:16px; height:16px; border-radius:50%; display:flex; align-items:center; justify-content:center; }
 
-    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.7); display:flex; align-items:center; justify-content:center; z-index:100; padding:15px; }
-    .modal{ background:white; width:100%; max-width:550px; border-radius:12px; display:flex; flex-direction:column; max-height:90vh; overflow:hidden; }
-    .modal-head{ background:var(--green); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
-    .modal-head.purple{ background:var(--purple); }
+    .modalOverlay{ position:fixed; inset:0; background:rgba(0,0,0,0.85); display:flex; align-items:center; justify-content:center; z-index:100; padding:10px; }
+    .modal{ background:white; width:100%; max-width:600px; border-radius:12px; display:flex; flex-direction:column; max-height:95vh; overflow:hidden; }
+    .modal-head{ background:var(--purple); padding:14px; color:white; font-weight:bold; display:flex; justify-content:space-between; align-items:center; }
     .modal-body{ padding:16px; overflow-y:auto; display:flex; flex-direction:column; gap:12px; }
     .modal-foot{ display:flex; justify-content:flex-end; gap:10px; padding:12px 16px; border-top:1px solid var(--border); }
     .form-group label{ font-size:11px; font-weight:700; color:#64748b; text-transform:uppercase; margin-bottom:4px; display:block; }
-
-    .lab-section { background: #f8fafc; border-radius: 8px; padding: 12px; margin-bottom: 12px; }
-    .lab-section-title { font-size: 12px; font-weight: 700; color: var(--purple); margin-bottom: 10px; text-transform: uppercase; }
-    .lab-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); gap: 8px; }
-    .lab-field { display: flex; flex-direction: column; }
-    .lab-field label { font-size: 10px; font-weight: 600; color: #64748b; margin-bottom: 2px; }
-    .lab-field input { padding: 8px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 14px; text-align: center; font-weight: 600; }
-    .lab-field input:focus { border-color: var(--purple); outline: none; background: white; }
-    .lab-field input.abnormal-high { background: #fef2f2; border-color: #fca5a5; color: var(--red); }
-    .lab-field input.abnormal-low { background: #eff6ff; border-color: #93c5fd; color: var(--blue); }
-    .lab-field input.filled { background: #f0fdf4; border-color: #86efac; }
-
-    .scan-area { border: 2px dashed var(--border); border-radius: 12px; padding: 20px; text-align: center; background: #fafafa; }
-    .scan-area.dragover { border-color: var(--purple); background: #faf5ff; }
-    .scan-btn { background: var(--purple); color: white; border: none; padding: 12px 24px; border-radius: 8px; font-weight: 600; cursor: pointer; font-size: 14px; margin: 8px 4px; }
-    .scan-btn:disabled { background: #cbd5e1; cursor: not-allowed; }
-    .scan-btn.secondary { background: white; color: var(--purple); border: 2px solid var(--purple); }
-    .scan-progress { margin-top: 12px; font-size: 13px; color: #64748b; }
-    .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid #e2e8f0; border-top-color: var(--purple); border-radius: 50%; animation: spin 1s linear infinite; margin-right: 8px; vertical-align: middle; }
-    @keyframes spin { to { transform: rotate(360deg); } }
 
     .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
     .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
@@ -108,24 +88,47 @@
 
     .toast { position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%); background: #1e293b; color: white; padding: 12px 20px; border-radius: 8px; font-size: 14px; z-index: 200; }
 
-    .image-preview { max-width: 100%; max-height: 120px; border-radius: 8px; margin-top: 8px; border: 1px solid var(--border); }
+    /* Lab Image Styles */
+    .add-lab-area { border: 2px dashed var(--purple); border-radius: 12px; padding: 24px; text-align: center; background: #faf5ff; cursor: pointer; transition: all 0.2s; }
+    .add-lab-area:hover { background: #f3e8ff; border-color: #a855f7; }
+    .add-lab-area.dragging { background: #e9d5ff; border-color: #9333ea; }
+    .add-lab-icon { font-size: 32px; margin-bottom: 8px; }
+    .add-lab-text { font-weight: 600; color: var(--purple); margin-bottom: 4px; }
+    .add-lab-hint { font-size: 12px; color: #a855f7; }
 
-    .ocr-result { background: #1e293b; color: #e2e8f0; border-radius: 8px; padding: 12px; margin-top: 12px; font-size: 11px; max-height: 150px; overflow-y: auto; font-family: monospace; white-space: pre-wrap; }
-    .ocr-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
-    .ocr-title { color: #94a3b8; font-size: 10px; text-transform: uppercase; }
-    .ocr-toggle { background: #334155; border: none; color: #e2e8f0; padding: 4px 8px; border-radius: 4px; font-size: 10px; cursor: pointer; }
+    .lab-images-grid { display: flex; flex-direction: column; gap: 12px; }
+    .lab-image-card { background: #f8fafc; border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+    .lab-image-header { display: flex; justify-content: space-between; align-items: center; padding: 10px 12px; background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%); color: white; }
+    .lab-image-date { font-size: 12px; font-weight: 600; }
+    .lab-image-time { font-size: 11px; opacity: 0.8; }
+    .lab-image-actions { display: flex; gap: 8px; }
+    .lab-image-btn { background: rgba(255,255,255,0.2); border: none; color: white; width: 28px; height: 28px; border-radius: 6px; cursor: pointer; font-size: 14px; }
+    .lab-image-btn:hover { background: rgba(255,255,255,0.3); }
+    .lab-image-btn.delete:hover { background: rgba(239,68,68,0.8); }
+    .lab-image-container { position: relative; cursor: pointer; }
+    .lab-image-container img { width: 100%; display: block; }
+    .lab-image-overlay { position: absolute; inset: 0; background: rgba(0,0,0,0.4); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s; }
+    .lab-image-container:hover .lab-image-overlay { opacity: 1; }
+    .lab-image-overlay span { color: white; font-weight: 600; font-size: 14px; background: rgba(0,0,0,0.5); padding: 8px 16px; border-radius: 20px; }
+    .lab-image-note { padding: 10px 12px; border-top: 1px solid var(--border); }
+    .lab-image-note input { width: 100%; border: none; background: transparent; font-size: 13px; color: var(--text); }
+    .lab-image-note input::placeholder { color: #94a3b8; }
 
-    .extracted-list { background: #f0fdf4; border: 1px solid #86efac; border-radius: 8px; padding: 12px; margin-top: 12px; }
-    .extracted-title { font-size: 12px; font-weight: 700; color: var(--green); margin-bottom: 8px; }
-    .extracted-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
-    .extracted-item { display: flex; justify-content: space-between; background: white; padding: 6px 10px; border-radius: 4px; font-size: 12px; }
-    .extracted-item .lab-name { color: #64748b; }
-    .extracted-item .lab-value { font-weight: 700; color: var(--green); }
+    /* Fullscreen Image Viewer */
+    .image-viewer { position: fixed; inset: 0; background: rgba(0,0,0,0.95); z-index: 200; display: flex; flex-direction: column; }
+    .image-viewer-header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; color: white; }
+    .image-viewer-title { font-weight: 600; }
+    .image-viewer-close { background: rgba(255,255,255,0.1); border: none; color: white; width: 40px; height: 40px; border-radius: 50%; cursor: pointer; font-size: 20px; }
+    .image-viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 16px; overflow: auto; }
+    .image-viewer-body img { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 8px; }
+    .image-viewer-nav { display: flex; justify-content: center; gap: 12px; padding: 16px; }
+    .image-viewer-nav button { background: rgba(255,255,255,0.1); border: none; color: white; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-weight: 600; }
+    .image-viewer-nav button:hover { background: rgba(255,255,255,0.2); }
+    .image-viewer-nav button:disabled { opacity: 0.3; cursor: not-allowed; }
 
-    .custom-lab-row { display: flex; gap: 8px; margin-bottom: 8px; }
-    .custom-lab-row input { flex: 1; }
-    .custom-lab-row input:first-child { max-width: 100px; }
-    .add-custom-btn { background: #f8fafc; border: 1px dashed var(--border); border-radius: 6px; padding: 8px; width: 100%; cursor: pointer; color: #64748b; font-size: 12px; }
+    .empty-labs { text-align: center; padding: 40px 20px; color: #94a3b8; }
+    .empty-labs-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.5; }
+    .empty-labs-text { font-size: 14px; }
 
     @media(min-width: 768px){
       .p-card{ flex-direction:row; align-items:flex-start; gap:14px; }
@@ -159,10 +162,6 @@
     const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
     const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
-    // OCR.space free API key (free tier: 25000 requests/month)
-    const OCR_API_KEY = "K86882838788957";
-    const OCR_API_URL = "https://api.ocr.space/parse/image";
-
     const pingSheets = () => {
       const url = `${SHEETS_SYNC_URL}?t=${Date.now()}`;
       if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
@@ -172,265 +171,118 @@
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 
-    // Lab configuration
-    const LAB_CONFIG = {
-      cbc: {
-        title: "CBC",
-        fields: [
-          { key: "wbc", label: "WBC", low: 4, high: 11 },
-          { key: "hgb", label: "Hgb", low: 12, high: 17 },
-          { key: "hct", label: "Hct", low: 36, high: 50 },
-          { key: "plt", label: "Plt", low: 150, high: 400 },
-          { key: "mcv", label: "MCV", low: 80, high: 100 },
-        ]
-      },
-      chem: {
-        title: "Chemistry",
-        fields: [
-          { key: "na", label: "Na", low: 136, high: 145 },
-          { key: "k", label: "K", low: 3.5, high: 5.0 },
-          { key: "cl", label: "Cl", low: 98, high: 106 },
-          { key: "co2", label: "CO2", low: 23, high: 29 },
-          { key: "bun", label: "BUN", low: 7, high: 20 },
-          { key: "cr", label: "Cr", low: 0.6, high: 1.2 },
-          { key: "glu", label: "Glu", low: 70, high: 100 },
-          { key: "ca", label: "Ca", low: 8.5, high: 10.5 },
-          { key: "mg", label: "Mg", low: 1.7, high: 2.2 },
-        ]
-      },
-      lft: {
-        title: "LFT / Other",
-        fields: [
-          { key: "ast", label: "AST", low: 10, high: 40 },
-          { key: "alt", label: "ALT", low: 7, high: 56 },
-          { key: "alp", label: "ALP", low: 44, high: 147 },
-          { key: "tbili", label: "Bili", low: 0.1, high: 1.2 },
-          { key: "alb", label: "Alb", low: 3.5, high: 5.0 },
-          { key: "inr", label: "INR", low: 0.8, high: 1.1 },
-          { key: "crp", label: "CRP", low: 0, high: 10 },
-          { key: "pct", label: "PCT", low: 0, high: 0.5 },
-          { key: "lactate", label: "Lact", low: 0.5, high: 2.0 },
-        ]
-      },
-      drugs: {
-        title: "Drug Levels",
-        fields: [
-          { key: "vanco", label: "Vanc", low: 10, high: 20 },
-          { key: "gent", label: "Gent", low: 0, high: 2 },
-          { key: "dig", label: "Dig", low: 0.8, high: 2.0 },
-        ]
-      },
-    };
-
-    // Comprehensive lab aliases for parsing - very extensive matching
-    const LAB_MATCHERS = [
-      // CBC
-      { key: "wbc", patterns: [/wbc/i, /white\s*blood/i, /leucocyte/i, /leukocyte/i, /w\.?b\.?c/i], range: [0.1, 100] },
-      { key: "hgb", patterns: [/\bhgb\b/i, /\bhb\b/i, /hemoglobin/i, /haemoglobin/i], range: [3, 25] },
-      { key: "hct", patterns: [/\bhct\b/i, /hematocrit/i, /haematocrit/i, /\bpcv\b/i], range: [10, 70] },
-      { key: "plt", patterns: [/\bplt\b/i, /platelet/i, /thrombocyte/i], range: [5, 1000] },
-      { key: "mcv", patterns: [/\bmcv\b/i, /mean\s*corp/i, /mean\s*cell\s*vol/i], range: [50, 150] },
-      // Chemistry
-      { key: "na", patterns: [/\bna\b/i, /\bna\+/i, /sodium/i, /\bs\.?\s*na\b/i], range: [100, 180] },
-      { key: "k", patterns: [/\bk\b(?![a-z])/i, /\bk\+/i, /potassium/i, /\bs\.?\s*k\b/i], range: [1.5, 9] },
-      { key: "cl", patterns: [/\bcl\b/i, /\bcl-/i, /chloride/i], range: [70, 130] },
-      { key: "co2", patterns: [/\bco2\b/i, /\btco2\b/i, /bicarb/i, /\bhco3\b/i], range: [5, 50] },
-      { key: "bun", patterns: [/\bbun\b/i, /\burea\b/i, /blood\s*urea/i], range: [1, 200] },
-      { key: "cr", patterns: [/\bcr\b/i, /creatinine/i, /\bcreat\b/i, /s\.?\s*creat/i], range: [0.1, 30] },
-      { key: "glu", patterns: [/\bglu\b/i, /glucose/i, /blood\s*sugar/i, /\brbs\b/i, /\bfbs\b/i], range: [20, 800] },
-      { key: "ca", patterns: [/\bca\b(?!\s*rbon)/i, /calcium/i, /\bca\+\+/i], range: [4, 15] },
-      { key: "mg", patterns: [/\bmg\b(?!\s*\/)/i, /magnesium/i], range: [0.5, 5] },
-      // LFT
-      { key: "ast", patterns: [/\bast\b/i, /\bsgot\b/i, /aspartate/i], range: [1, 5000] },
-      { key: "alt", patterns: [/\balt\b/i, /\bsgpt\b/i, /alanine/i], range: [1, 5000] },
-      { key: "alp", patterns: [/\balp\b/i, /alk.*phos/i, /alkaline/i], range: [10, 2000] },
-      { key: "tbili", patterns: [/bili/i, /\bbil\b/i], range: [0.01, 50] },
-      { key: "alb", patterns: [/\balb\b/i, /albumin/i], range: [1, 6] },
-      // Coag/Other
-      { key: "inr", patterns: [/\binr\b/i], range: [0.5, 15] },
-      { key: "crp", patterns: [/\bcrp\b/i, /c-?\s*reactive/i], range: [0, 500] },
-      { key: "pct", patterns: [/\bpct\b/i, /procalcitonin/i], range: [0, 200] },
-      { key: "lactate", patterns: [/lactate/i, /lactic/i], range: [0.1, 30] },
-      // Drug levels
-      { key: "vanco", patterns: [/vancomycin/i, /vanco/i, /vanc/i], range: [0, 100] },
-      { key: "gent", patterns: [/gent/i, /gentamicin/i], range: [0, 20] },
-      { key: "dig", patterns: [/digoxin/i, /\bdig\b/i], range: [0, 5] },
-    ];
-
-    // Smart lab value parser
-    const parseLabsFromText = (text) => {
-      const results = {};
-      const lines = text.split(/[\r\n]+/);
-      const allText = text.toLowerCase();
-      
-      // Process line by line
-      for (const line of lines) {
-        const lineLower = line.toLowerCase();
-        
-        for (const matcher of LAB_MATCHERS) {
-          if (results[matcher.key]) continue; // Already found
-          
-          for (const pattern of matcher.patterns) {
-            const match = lineLower.match(pattern);
-            if (!match) continue;
-            
-            // Find position of match
-            const matchIdx = match.index;
-            const afterMatch = line.substring(matchIdx + match[0].length);
-            const beforeMatch = line.substring(0, matchIdx);
-            
-            // Look for number AFTER the lab name (most common format)
-            // Match formats: "WBC: 8.5", "WBC 8.5", "WBC  8.5", "WBC:8.5", "WBC = 8.5"
-            const afterPatterns = [
-              /^[\s:=]+([<>]?\s*\d+\.?\d*)/,
-              /^[^\d]*?(\d+\.?\d*)/,
-            ];
-            
-            for (const ap of afterPatterns) {
-              const numMatch = afterMatch.match(ap);
-              if (numMatch) {
-                const val = parseFloat(numMatch[1].replace(/[<>]/g, ''));
-                if (!isNaN(val) && val >= matcher.range[0] && val <= matcher.range[1]) {
-                  results[matcher.key] = val;
-                  break;
-                }
-              }
-            }
-            
-            if (results[matcher.key]) break;
-            
-            // Also check for number BEFORE (format: "8.5 WBC")
-            const beforeMatch2 = beforeMatch.match(/(\d+\.?\d*)\s*$/);
-            if (beforeMatch2) {
-              const val = parseFloat(beforeMatch2[1]);
-              if (!isNaN(val) && val >= matcher.range[0] && val <= matcher.range[1]) {
-                results[matcher.key] = val;
-                break;
-              }
-            }
-          }
-        }
-      }
-      
-      // Second pass: look for tabular data patterns
-      // Format: numbers with specific ranges even without labels
-      const numbers = text.match(/\d+\.?\d*/g) || [];
-      
-      return results;
-    };
-
-    // Cloud OCR using OCR.space API
-    const cloudOCR = async (imageBase64) => {
-      const formData = new FormData();
-      formData.append('base64Image', imageBase64);
-      formData.append('apikey', OCR_API_KEY);
-      formData.append('language', 'eng');
-      formData.append('isOverlayRequired', 'false');
-      formData.append('scale', 'true');
-      formData.append('isTable', 'true');
-      formData.append('OCREngine', '2'); // Engine 2 is better for tables
-      
-      try {
-        const response = await fetch(OCR_API_URL, {
-          method: 'POST',
-          body: formData
-        });
-        
-        const data = await response.json();
-        
-        if (data.ParsedResults && data.ParsedResults[0]) {
-          return data.ParsedResults[0].ParsedText || "";
-        }
-        return "";
-      } catch (err) {
-        console.error("OCR API error:", err);
-        return "";
-      }
-    };
-
     const isTimestamp = (val) => String(val || "").match(/^\d{4}-\d{2}-\d{2}|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s|\d{13,}|T\d{2}:\d{2}/);
     const cleanBed = (val) => isTimestamp(val) ? "" : String(val || "").trim();
     const makeKey = (ward, name) => `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
-    const formatTime = (ts) => ts ? new Date(ts).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : "";
+    
+    const formatDateTime = (ts) => {
+      if (!ts) return { date: "", time: "" };
+      const d = new Date(ts);
+      return {
+        date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
+        time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
+      };
+    };
 
-    // Lab Modal
+    // Compress image before storing
+    const compressImage = (file, maxWidth = 1200) => {
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement('canvas');
+            let width = img.width;
+            let height = img.height;
+            
+            if (width > maxWidth) {
+              height = (height * maxWidth) / width;
+              width = maxWidth;
+            }
+            
+            canvas.width = width;
+            canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, 0, 0, width, height);
+            resolve(canvas.toDataURL('image/jpeg', 0.7));
+          };
+          img.src = e.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+    };
+
+    // Image Viewer Component
+    const ImageViewer = ({ images, currentIndex, onClose, onNavigate }) => {
+      const current = images[currentIndex];
+      if (!current) return null;
+
+      return (
+        <div className="image-viewer" onClick={onClose}>
+          <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
+            <div className="image-viewer-title">
+              {formatDateTime(current.timestamp).date} • {formatDateTime(current.timestamp).time}
+              {current.note && ` • ${current.note}`}
+            </div>
+            <button className="image-viewer-close" onClick={onClose}>×</button>
+          </div>
+          <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
+            <img src={current.image} alt="Lab result" />
+          </div>
+          {images.length > 1 && (
+            <div className="image-viewer-nav" onClick={e => e.stopPropagation()}>
+              <button onClick={() => onNavigate(currentIndex - 1)} disabled={currentIndex === 0}>
+                ← Previous
+              </button>
+              <span style={{ color: 'white', padding: '10px' }}>{currentIndex + 1} / {images.length}</span>
+              <button onClick={() => onNavigate(currentIndex + 1)} disabled={currentIndex === images.length - 1}>
+                Next →
+              </button>
+            </div>
+          )}
+        </div>
+      );
+    };
+
+    // Lab Modal Component
     const LabModal = ({ patient, onClose, onSave }) => {
-      const [labs, setLabs] = useState(patient.labs || {});
-      const [customLabs, setCustomLabs] = useState(patient.labs?.custom || []);
-      const [scanning, setScanning] = useState(false);
-      const [scanProgress, setScanProgress] = useState("");
-      const [extracted, setExtracted] = useState(null);
-      const [rawText, setRawText] = useState("");
-      const [showRaw, setShowRaw] = useState(false);
-      const [imagePreview, setImagePreview] = useState(null);
-      const [dragOver, setDragOver] = useState(false);
+      const [labImages, setLabImages] = useState(patient.labImages || []);
+      const [dragging, setDragging] = useState(false);
+      const [viewerIndex, setViewerIndex] = useState(null);
+      const [uploading, setUploading] = useState(false);
       const fileRef = useRef(null);
       const cameraRef = useRef(null);
 
-      const updateLab = (key, value) => setLabs(prev => ({ ...prev, [key]: value }));
-
-      const getFieldClass = (field, value) => {
-        if (!value || value === "") return "";
-        const num = parseFloat(value);
-        if (isNaN(num)) return "";
-        if (num < field.low) return "abnormal-low";
-        if (num > field.high) return "abnormal-high";
-        return "filled";
-      };
-
-      const processImage = async (file) => {
-        setScanning(true);
-        setScanProgress("Uploading to OCR service...");
-        setExtracted(null);
-        setRawText("");
+      const handleFile = async (file) => {
+        if (!file || !file.type.startsWith('image/')) return;
         
-        const reader = new FileReader();
-        reader.onload = async (e) => {
-          const base64 = e.target.result;
-          setImagePreview(base64);
-          
-          try {
-            setScanProgress("Reading text (Cloud OCR)...");
-            const text = await cloudOCR(base64);
-            
-            if (text) {
-              setRawText(text);
-              setShowRaw(true);
-              
-              setScanProgress("Extracting lab values...");
-              const extractedLabs = parseLabsFromText(text);
-              
-              const count = Object.keys(extractedLabs).length;
-              if (count > 0) {
-                setExtracted(extractedLabs);
-                setLabs(prev => ({ ...prev, ...extractedLabs }));
-                setScanProgress(`✓ Found ${count} lab values!`);
-              } else {
-                setScanProgress("Text read but no labs found. Check raw text below.");
-              }
-            } else {
-              setScanProgress("Could not read image. Try a clearer screenshot.");
-            }
-          } catch (err) {
-            console.error("OCR error:", err);
-            setScanProgress("Error processing image.");
-          }
-          
-          setScanning(false);
-        };
-        reader.readAsDataURL(file);
+        setUploading(true);
+        try {
+          const compressed = await compressImage(file);
+          const newImage = {
+            id: Date.now().toString(),
+            image: compressed,
+            timestamp: Date.now(),
+            note: ""
+          };
+          setLabImages(prev => [newImage, ...prev]);
+        } catch (err) {
+          console.error("Error processing image:", err);
+        }
+        setUploading(false);
       };
 
-      const handleFile = (e) => {
+      const handleFileInput = (e) => {
         const file = e.target.files?.[0];
-        if (file) processImage(file);
+        if (file) handleFile(file);
+        e.target.value = '';
       };
 
       const handleDrop = (e) => {
         e.preventDefault();
-        setDragOver(false);
+        setDragging(false);
         const file = e.dataTransfer.files?.[0];
-        if (file?.type.startsWith('image/')) processImage(file);
+        if (file) handleFile(file);
       };
 
       const handlePaste = useCallback((e) => {
@@ -438,7 +290,7 @@
         if (items) {
           for (const item of items) {
             if (item.type.startsWith('image/')) {
-              processImage(item.getAsFile());
+              handleFile(item.getAsFile());
               break;
             }
           }
@@ -450,137 +302,122 @@
         return () => document.removeEventListener('paste', handlePaste);
       }, [handlePaste]);
 
-      const handleSave = () => {
-        onSave(patient.id, { ...labs, custom: customLabs.filter(c => c.name && c.value), updatedAt: Date.now() });
-        onClose();
+      const updateNote = (id, note) => {
+        setLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
       };
 
-      const clearAll = () => {
-        if (confirm("Clear all?")) {
-          setLabs({});
-          setCustomLabs([]);
-          setExtracted(null);
-          setRawText("");
-          setImagePreview(null);
+      const deleteImage = (id) => {
+        if (confirm("Delete this lab image?")) {
+          setLabImages(prev => prev.filter(img => img.id !== id));
         }
+      };
+
+      const handleSave = () => {
+        onSave(patient.id, labImages);
+        onClose();
       };
 
       return (
         <div className="modalOverlay" onClick={onClose}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <div className="modal-head purple">
+            <div className="modal-head">
               <span>🧪 Labs - {patient.name}</span>
               <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
             </div>
             <div className="modal-body">
-              {/* Scan Area */}
+              {/* Add New Lab Image */}
               <div 
-                className={`scan-area ${dragOver ? 'dragover' : ''}`}
-                onDragOver={e => { e.preventDefault(); setDragOver(true); }}
-                onDragLeave={() => setDragOver(false)}
+                className={`add-lab-area ${dragging ? 'dragging' : ''}`}
+                onClick={() => fileRef.current?.click()}
+                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                onDragLeave={() => setDragging(false)}
                 onDrop={handleDrop}
               >
-                <div style={{ fontSize: '24px', marginBottom: '8px' }}>📷</div>
-                <div style={{ fontWeight: '600', marginBottom: '4px' }}>Scan Lab Report</div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginBottom: '12px' }}>
-                  Screenshot works best! Photo of screen also works.
-                </div>
-                <div>
-                  <button className="scan-btn" onClick={() => cameraRef.current?.click()} disabled={scanning}>📸 Camera</button>
-                  <button className="scan-btn secondary" onClick={() => fileRef.current?.click()} disabled={scanning}>📁 Upload</button>
-                </div>
-                <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} style={{ display: 'none' }} />
-                <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFile} style={{ display: 'none' }} />
-                
-                {imagePreview && <img src={imagePreview} alt="Preview" className="image-preview" />}
-                
-                {scanProgress && (
-                  <div className="scan-progress">
-                    {scanning && <span className="spinner"></span>}
-                    {scanProgress}
-                  </div>
+                {uploading ? (
+                  <>
+                    <div className="add-lab-icon">⏳</div>
+                    <div className="add-lab-text">Processing...</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="add-lab-icon">📷</div>
+                    <div className="add-lab-text">Add Lab Image</div>
+                    <div className="add-lab-hint">Tap to take photo, upload, or paste (Ctrl+V)</div>
+                  </>
                 )}
               </div>
-
-              {/* Extracted Preview */}
-              {extracted && Object.keys(extracted).length > 0 && (
-                <div className="extracted-list">
-                  <div className="extracted-title">✓ Extracted Values</div>
-                  <div className="extracted-grid">
-                    {Object.entries(extracted).map(([key, val]) => (
-                      <div key={key} className="extracted-item">
-                        <span className="lab-name">{key.toUpperCase()}</span>
-                        <span className="lab-value">{val}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* Raw OCR Text */}
-              {rawText && (
-                <div className="ocr-result">
-                  <div className="ocr-header">
-                    <span className="ocr-title">Raw OCR Text</span>
-                    <button className="ocr-toggle" onClick={() => setShowRaw(!showRaw)}>
-                      {showRaw ? 'Hide' : 'Show'}
-                    </button>
-                  </div>
-                  {showRaw && <div>{rawText}</div>}
-                </div>
-              )}
-
-              {/* Lab Entry Fields */}
-              {Object.entries(LAB_CONFIG).map(([sectionKey, section]) => (
-                <div key={sectionKey} className="lab-section">
-                  <div className="lab-section-title">{section.title}</div>
-                  <div className="lab-grid">
-                    {section.fields.map(field => (
-                      <div key={field.key} className="lab-field">
-                        <label>{field.label}</label>
-                        <input
-                          type="text"
-                          inputMode="decimal"
-                          value={labs[field.key] || ""}
-                          onChange={e => updateLab(field.key, e.target.value)}
-                          className={getFieldClass(field, labs[field.key])}
-                          placeholder={`${field.low}-${field.high}`}
-                        />
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              ))}
-
-              {/* Custom Labs */}
-              <div className="lab-section">
-                <div className="lab-section-title">Custom Labs</div>
-                {customLabs.map((lab, idx) => (
-                  <div key={idx} className="custom-lab-row">
-                    <input className="inp" placeholder="Name" value={lab.name} onChange={e => {
-                      const updated = [...customLabs];
-                      updated[idx].name = e.target.value;
-                      setCustomLabs(updated);
-                    }} />
-                    <input className="inp" placeholder="Value" value={lab.value} onChange={e => {
-                      const updated = [...customLabs];
-                      updated[idx].value = e.target.value;
-                      setCustomLabs(updated);
-                    }} />
-                    <button className="btn-del" onClick={() => setCustomLabs(customLabs.filter((_, i) => i !== idx))}>×</button>
-                  </div>
-                ))}
-                <button className="add-custom-btn" onClick={() => setCustomLabs([...customLabs, { name: "", value: "" }])}>+ Add Custom Lab</button>
+              
+              <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>
+                  📸 Camera
+                </button>
+                <button className="btn btn-white" onClick={() => fileRef.current?.click()}>
+                  📁 Gallery
+                </button>
               </div>
 
-              {labs.updatedAt && <div style={{ fontSize: '11px', color: '#94a3b8', textAlign: 'right' }}>Updated: {formatTime(labs.updatedAt)}</div>}
+              <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
+              <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
+
+              {/* Lab Images List */}
+              {labImages.length === 0 ? (
+                <div className="empty-labs">
+                  <div className="empty-labs-icon">🔬</div>
+                  <div className="empty-labs-text">No lab images yet.<br/>Take a photo or upload a screenshot.</div>
+                </div>
+              ) : (
+                <div className="lab-images-grid">
+                  {labImages.map((lab, idx) => {
+                    const { date, time } = formatDateTime(lab.timestamp);
+                    return (
+                      <div key={lab.id} className="lab-image-card">
+                        <div className="lab-image-header">
+                          <div>
+                            <div className="lab-image-date">{date}</div>
+                            <div className="lab-image-time">{time}</div>
+                          </div>
+                          <div className="lab-image-actions">
+                            <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)}>🗑️</button>
+                          </div>
+                        </div>
+                        <div className="lab-image-container" onClick={() => setViewerIndex(idx)}>
+                          <img src={lab.image} alt="Lab result" />
+                          <div className="lab-image-overlay">
+                            <span>👆 Tap to enlarge</span>
+                          </div>
+                        </div>
+                        <div className="lab-image-note">
+                          <input 
+                            type="text" 
+                            placeholder="Add a note (e.g., CBC, Renal panel...)"
+                            value={lab.note || ""}
+                            onChange={e => updateNote(lab.id, e.target.value)}
+                            onClick={e => e.stopPropagation()}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div className="modal-foot">
-              <button className="btn btn-red" onClick={clearAll}>Clear</button>
               <button className="btn btn-white" onClick={onClose}>Cancel</button>
-              <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>Save Labs</button>
+              <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
+                Save ({labImages.length} {labImages.length === 1 ? 'image' : 'images'})
+              </button>
             </div>
           </div>
+
+          {/* Fullscreen Image Viewer */}
+          {viewerIndex !== null && (
+            <ImageViewer 
+              images={labImages}
+              currentIndex={viewerIndex}
+              onClose={() => setViewerIndex(null)}
+              onNavigate={setViewerIndex}
+            />
+          )}
         </div>
       );
     };
@@ -662,7 +499,13 @@
       }, []);
 
       const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved"));
-      const saveLabs = (id, labs) => db.ref(`patients/${id}/labs`).set(labs).then(() => { showToast("✓ Labs saved"); scheduleSync(); });
+      
+      const saveLabImages = (patientId, labImages) => {
+        db.ref(`patients/${patientId}/labImages`).set(labImages).then(() => {
+          showToast(`✓ ${labImages.length} lab image${labImages.length !== 1 ? 's' : ''} saved`);
+          scheduleSync();
+        });
+      };
       
       const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
 
@@ -690,7 +533,7 @@
         return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) };
       }, [patients, search, viewFilter]);
 
-      const hasLabs = (p) => p.labs && Object.keys(p.labs).some(k => !['updatedAt', 'custom'].includes(k) && p.labs[k]);
+      const getLabCount = (p) => (p.labImages || []).length;
 
       return (
         <div className="wrap">
@@ -743,7 +586,10 @@
                       <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
                     </div>
                     <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                      <button className={`btn-lab ${hasLabs(p) ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>🧪 Labs</button>
+                      <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>
+                        🧪 Labs
+                        {getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}
+                      </button>
                       <select className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e => update(p.id, 'status', e.target.value)}>
                         <option value="">-</option>
                         {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
@@ -758,8 +604,8 @@
 
           {addModal && (
             <div className="modalOverlay">
-              <div className="modal">
-                <div className="modal-head">Add Patient</div>
+              <div className="modal" style={{ maxWidth: '450px' }}>
+                <div className="modal-head" style={{ background: 'var(--green)' }}>Add Patient</div>
                 <div className="modal-body">
                   <div className="form-group"><label>Ward</label><select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
                   <div style={{ display: 'flex', gap: 10 }}>
@@ -782,7 +628,7 @@
             </div>
           )}
 
-          {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabs} />}
+          {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabImages} />}
           {toast && <div className="toast">{toast}</div>}
         </div>
       );
