@@ -3,13 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-  <title>Unit E Ward Rounds - OCR Enabled</title>
+  <title>Unit E Ward Rounds</title>
 
   <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
   <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-  
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
   <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
   
@@ -146,7 +145,6 @@
 
     const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
     const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
-    const isTimestamp = (val) => String(val || "").match(/^\d{4}-\d{2}-\d{2}|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s|\d{13,}|T\d{2}:\d{2}/);
     
     const formatDateTime = (ts) => {
       if (!ts) return { date: "", time: "" };
@@ -177,7 +175,7 @@
       });
     };
 
-    // --- NEW: IMAGE PRE-PROCESSING (Binzarization) ---
+    // --- ENHANCED PRE-PROCESSING: UPSCALE + CONTRAST ---
     const preprocessImage = (imageFile) => {
       return new Promise((resolve) => {
         const img = new Image();
@@ -185,59 +183,95 @@
         img.onload = () => {
           const canvas = document.createElement('canvas');
           const ctx = canvas.getContext('2d');
-          canvas.width = img.width;
-          canvas.height = img.height;
+          
+          // 1. UPSCALING: We multiply dims by 2.5. 
+          // This makes text large enough for Tesseract to see dots vs commas.
+          const scaleFactor = 2.5; 
+          canvas.width = img.width * scaleFactor;
+          canvas.height = img.height * scaleFactor;
+          
+          // Draw image scaled up
+          ctx.scale(scaleFactor, scaleFactor);
           ctx.drawImage(img, 0, 0);
           
           const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
           const data = imgData.data;
           
-          // Make image Black & White for better OCR reading
+          // 2. ADAPTIVE BINARIZATION
+          // Instead of simple contrast, we check pixel brightness.
+          // If a pixel is lighter than grey (128), we make it WHITE. Otherwise BLACK.
+          // This removes paper texture and shadows.
           for (let i = 0; i < data.length; i += 4) {
             const r = data[i], g = data[i + 1], b = data[i + 2];
-            const brightness = 0.2126 * r + 0.7152 * g + 0.0722 * b;
-            const val = brightness > 130 ? 255 : 0; 
+            // Human perception of brightness
+            const brightness = 0.299 * r + 0.587 * g + 0.114 * b;
+            
+            // Threshold: 140 is usually good for black text on white paper
+            const val = brightness > 140 ? 255 : 0; 
+            
             data[i] = data[i + 1] = data[i + 2] = val;
           }
           
           ctx.putImageData(imgData, 0, 0);
-          resolve(canvas.toDataURL('image/jpeg'));
+          resolve(canvas.toDataURL('image/jpeg', 0.8));
         };
       });
     };
 
-    // --- NEW: ROBUST TEXT PARSER ---
+    // --- ENHANCED PARSER: Fuzzy Matching for Lab Labels ---
     const robustParse = (text) => {
+      // Common OCR error fixes
       const clean = text.replace(/\|/g, 'I').replace(/O/g, '0').replace(/o/g, '0');
       const results = {};
       
+      // Regex Logic:
+      // (?:...) non-capturing group for synonyms
+      // [^0-9]*?  Skip any garbage chars (like ":", ".", " ", "-") until the number
+      // (\d+[.,]?\d*) Capture the number
       const patterns = [
-        { key: 'WBC', regex: /(?:WBC|W8C|VBC|Leukocytes).*?(\d+[.,]?\d*)/i },
-        { key: 'Hb',  regex: /(?:Hb|HGB|Hemoglobin|H6B|H8).*?(\d+[.,]?\d*)/i },
-        { key: 'Plt', regex: /(?:PLT|P1T|Platelets).*?(\d{2,})/i },
-        { key: 'Cr',  regex: /(?:Cre|Creatinine|Cr).*?(\d+[.,]?\d*)/i }
+        // WBC: matches "WBC", "Leukocytes", "W.B.C"
+        { key: 'WBC', regex: /(?:WBC|W\.B\.C|Leukocytes|White\sBlood)[^0-9]*?(\d+[.,]?\d*)/i },
+        // Hb: matches "Hb", "HGB", "Hemoglobin"
+        { key: 'Hb',  regex: /(?:Hb|HGB|H\.G\.B|Hemoglobin)[^0-9]*?(\d+[.,]?\d*)/i },
+        // Plt: matches "PLT", "Platelet", "Plts"
+        { key: 'Plt', regex: /(?:PLT|P1T|Platelet)[^0-9]*?(\d{2,})/i },
+        // Cr: matches "Cr", "Creatinine", "CRE"
+        { key: 'Cr',  regex: /(?:Cre|Creatinine|Cr\.|Cr)[^0-9]*?(\d+[.,]?\d*)/i }
       ];
 
       patterns.forEach(p => {
+        // Try line by line first (Highest Precision)
         const lines = clean.split('\n');
         let found = null;
+        
         for(let line of lines) {
-          const match = line.match(p.regex);
-          if (match && match[1]) {
-            found = match[1].replace(',', '.');
-            break; 
-          }
+           // Skip lines that are too short to be valid results
+           if(line.length < 5) continue;
+           
+           const match = line.match(p.regex);
+           if (match && match[1]) {
+             // Valid Lab Logic: WBC < 50, Hb < 20. If it reads "200" for Hb, it's likely wrong.
+             const num = parseFloat(match[1].replace(',', '.'));
+             // Basic Sanity Check (Optional, but helps precision)
+             if(p.key === 'Hb' && num > 25) continue; // Unlikely Hb
+             
+             found = match[1].replace(',', '.');
+             break; 
+           }
         }
+        
+        // Fallback: Search whole text if line-search fails
         if (!found) {
             const match = clean.match(p.regex);
             if(match && match[1]) found = match[1].replace(',', '.');
         }
+
         if (found) results[p.key] = found;
       });
+
       return results;
     };
 
-    // --- UPDATED LAB MODAL WITH OCR ---
     const LabModal = ({ patient, onClose, onSave }) => {
       const [labImages, setLabImages] = useState(() => {
         const data = patient.labImages;
@@ -257,18 +291,21 @@
         if (!file) return;
 
         setProcessing(true);
-        setStatusMsg("Cleaning image...");
+        setStatusMsg("Enhancing image & reading...");
         
         try {
           const compressed = await compressImage(file);
+          
+          // 1. Process with Upscaling
           const cleanImageBase64 = await preprocessImage(file);
           
-          setStatusMsg("Reading numbers...");
+          // 2. OCR with Specific Whitelist (Only allow lab characters)
           let extracted = {};
           try {
             const worker = await Tesseract.createWorker('eng');
             await worker.setParameters({
-              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,: '
+              // Only allow letters, numbers, dots, commas, spaces, % and /
+              tessedit_char_whitelist: 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.,%:/ '
             });
             const ret = await worker.recognize(cleanImageBase64);
             extracted = robustParse(ret.data.text);
@@ -286,7 +323,7 @@
              setViewMode('table'); 
              setStatusMsg(`Found: WBC ${extracted.WBC||'-'}, Hb ${extracted.Hb||'-'}`);
           } else {
-             setStatusMsg("Could not read values automatically. Please enter manually.");
+             setStatusMsg("Could not read values. Please enter manually.");
              setViewMode('table');
           }
 
@@ -330,7 +367,7 @@
                 <>
                   <div className="add-lab-area" onClick={() => !processing && fileRef.current?.click()} style={{opacity: processing?0.5:1}}>
                     <input type="file" ref={fileRef} hidden accept="image/*" onChange={handleFile} />
-                    {processing ? <div className="add-lab-text">⏳ Scanning...</div> : 
+                    {processing ? <div className="add-lab-text">⏳ Enhancing & Scanning...</div> : 
                     <><div className="add-lab-icon">📸</div><div className="add-lab-text">Add Lab Photo</div></>}
                   </div>
                   <div className="lab-images-grid">
@@ -478,25 +515,15 @@
         }
       };
 
-      // --- UPDATED SAVE FUNCTION ---
       const saveLabs = async (patientId, data) => {
         const pIndex = patients.findIndex(p => p.id === patientId);
         if (pIndex === -1) return;
-
-        // data = { labImages: [], labValues: [] }
-        const updatedPatient = { 
-            ...patients[pIndex], 
-            labImages: data.labImages, 
-            labValues: data.labValues 
-        };
+        const updatedPatient = { ...patients[pIndex], labImages: data.labImages, labValues: data.labValues };
         const updatedPatients = [...patients];
         updatedPatients[pIndex] = updatedPatient;
         setPatients(updatedPatients);
         
-        await db.ref(`patients/${patientId}`).update({ 
-            labImages: data.labImages,
-            labValues: data.labValues 
-        });
+        await db.ref(`patients/${patientId}`).update({ labImages: data.labImages, labValues: data.labValues });
       };
 
       const saveNotice = () => {
@@ -670,3 +697,4 @@
   </script>
 </body>
 </html>
+
