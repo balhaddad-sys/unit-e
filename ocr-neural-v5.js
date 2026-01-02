@@ -11,8 +11,8 @@
     // Complete test database with flexible ranges
     const TESTS = {
         // Hematology
-        WBC:  { cat: 'CBC', min: 4, max: 11, unit: '10^9/L', dec: 1, range: [0.5, 50], names: ['WBC','WHITE','LEUKOCYTE','WCC','LEUCOCYTE','W.B.C'] },
-        RBC:  { cat: 'CBC', min: 4, max: 6, unit: '10^12/L', dec: 2, range: [2, 8], names: ['RBC','RED','ERYTHROCYTE','R.B.C'] },
+        WBC:  { cat: 'CBC', min: 4, max: 11, unit: '10^9/L', dec: 1, range: [0.5, 50], names: ['WBC','WHITE','LEUKOCYTE','WCC','LEUCOCYTE','W.B.C','WHITE BLOOD'] },
+        RBC:  { cat: 'CBC', min: 4, max: 6, unit: '10^12/L', dec: 2, range: [2, 8], names: ['RBC','RED','ERYTHROCYTE','R.B.C','RED BLOOD'] },
         HB:   { cat: 'CBC', min: 120, max: 170, unit: 'g/L', dec: 0, range: [50, 220], names: ['HB','HGB','HEMOGLOBIN','HAEMOGLOBIN','HG'] },
         HCT:  { cat: 'CBC', min: 36, max: 52, unit: '%', dec: 1, range: [15, 65], names: ['HCT','HEMATOCRIT','PCV','PACKED CELL'] },
         MCV:  { cat: 'CBC', min: 80, max: 100, unit: 'fL', dec: 1, range: [50, 130], names: ['MCV','MEAN CELL VOL','M.C.V'] },
@@ -22,28 +22,29 @@
         PLT:  { cat: 'CBC', min: 150, max: 400, unit: '10^9/L', dec: 0, range: [20, 1200], names: ['PLT','PLATELET','PLATELETS','THROMBOCYTE'] },
         MPV:  { cat: 'CBC', min: 7, max: 11, unit: 'fL', dec: 1, range: [4, 15], names: ['MPV','MEAN PLATELET'] },
         
-        // Chemistry
+        // Chemistry / Renal (KFT)
         NA:   { cat: 'CHEM', min: 136, max: 145, unit: 'mmol/L', dec: 0, range: [110, 170], names: ['NA','SODIUM','NA+','NATRIUM'] },
         K:    { cat: 'CHEM', min: 3.5, max: 5.0, unit: 'mmol/L', dec: 1, range: [2, 8], names: ['K','POTASSIUM','K+','KALIUM'] },
-        CL:   { cat: 'CHEM', min: 98, max: 106, unit: 'mmol/L', dec: 0, range: [80, 130], names: ['CL','CHLORIDE','CL-'] },
+        CL:   { cat: 'CHEM', min: 98, max: 107, unit: 'mmol/L', dec: 0, range: [80, 130], names: ['CL','CHLORIDE','CL-'] },
         CO2:  { cat: 'CHEM', min: 22, max: 29, unit: 'mmol/L', dec: 0, range: [10, 40], names: ['CO2','TCO2','BICARB','CARBON DIOXIDE'] },
-        BUN:  { cat: 'CHEM', min: 7, max: 20, unit: 'mg/dL', dec: 0, range: [2, 80], names: ['BUN','UREA','BLOOD UREA'] },
-        UREA: { cat: 'CHEM', min: 2.5, max: 7.8, unit: 'mmol/L', dec: 1, range: [1, 50], names: ['UREA'] },
+        BUN:  { cat: 'CHEM', min: 7, max: 20, unit: 'mg/dL', dec: 0, range: [2, 80], names: ['BUN','BLOOD UREA NITROGEN'] },
+        UREA: { cat: 'CHEM', min: 13, max: 43, unit: 'mg/dL', dec: 0, range: [5, 150], names: ['UREA','UREA NITROGEN'] },
         CR:   { cat: 'CHEM', min: 0.7, max: 1.3, unit: 'mg/dL', dec: 2, range: [0.2, 15], names: ['CR','CREATININE','CREAT','CREA'] },
+        URIC: { cat: 'CHEM', min: 3.5, max: 7.2, unit: 'mg/dL', dec: 1, range: [1, 15], names: ['URIC','URIC ACID','URICACID'] },
         GLUCOSE: { cat: 'CHEM', min: 70, max: 100, unit: 'mg/dL', dec: 0, range: [30, 600], names: ['GLUCOSE','GLU','GLUC','SUGAR','BS','BG','FBS','RBS'] },
-        CA:   { cat: 'CHEM', min: 8.5, max: 10.5, unit: 'mg/dL', dec: 1, range: [5, 15], names: ['CA','CALCIUM','CA++'] },
-        MG:   { cat: 'CHEM', min: 1.7, max: 2.2, unit: 'mg/dL', dec: 1, range: [0.5, 5], names: ['MG','MAGNESIUM','MG++'] },
-        PHOS: { cat: 'CHEM', min: 2.5, max: 4.5, unit: 'mg/dL', dec: 1, range: [1, 10], names: ['PHOS','PHOSPHORUS','PO4','PHOSPHATE'] },
+        CA:   { cat: 'CHEM', min: 8.5, max: 10.5, unit: 'mg/dL', dec: 1, range: [5, 15], names: ['CA','CALCIUM','CA++','CALCIUMTOTAL','TOTAL CALCIUM'] },
+        MG:   { cat: 'CHEM', min: 1.7, max: 2.5, unit: 'mg/dL', dec: 1, range: [0.5, 5], names: ['MG','MAGNESIUM','MG++'] },
+        PHOS: { cat: 'CHEM', min: 2.4, max: 5.1, unit: 'mg/dL', dec: 1, range: [1, 10], names: ['PHOS','PHOSPHORUS','PO4','PHOSPHATE'] },
         
-        // Liver
+        // Liver (LFT)
         ALT:  { cat: 'LFT', min: 7, max: 56, unit: 'U/L', dec: 0, range: [1, 2000], names: ['ALT','SGPT','GPT','ALANINE'] },
         AST:  { cat: 'LFT', min: 10, max: 40, unit: 'U/L', dec: 0, range: [1, 2000], names: ['AST','SGOT','GOT','ASPARTATE'] },
-        ALP:  { cat: 'LFT', min: 40, max: 130, unit: 'U/L', dec: 0, range: [10, 1000], names: ['ALP','ALK PHOS','ALKALINE'] },
+        ALP:  { cat: 'LFT', min: 30, max: 120, unit: 'U/L', dec: 0, range: [10, 1000], names: ['ALP','ALK PHOS','ALKALINE','ALKALINE PHOSPHATASE'] },
         GGT:  { cat: 'LFT', min: 9, max: 48, unit: 'U/L', dec: 0, range: [1, 1000], names: ['GGT','GAMMA GT','GAMMA'] },
-        TBIL: { cat: 'LFT', min: 0.1, max: 1.2, unit: 'mg/dL', dec: 1, range: [0, 30], names: ['TBIL','BILIRUBIN','BILI','T.BILI','TOTAL BILI'] },
-        DBIL: { cat: 'LFT', min: 0, max: 0.3, unit: 'mg/dL', dec: 2, range: [0, 20], names: ['DBIL','DIRECT BILI','D.BILI'] },
-        ALB:  { cat: 'LFT', min: 3.5, max: 5.0, unit: 'g/dL', dec: 1, range: [1, 7], names: ['ALB','ALBUMIN'] },
-        TP:   { cat: 'LFT', min: 6.0, max: 8.3, unit: 'g/dL', dec: 1, range: [3, 12], names: ['TP','TOTAL PROTEIN','PROTEIN'] },
+        TBIL: { cat: 'LFT', min: 0.1, max: 1.2, unit: 'mg/dL', dec: 1, range: [0, 30], names: ['TBIL','BILIRUBIN','BILI','T.BILI','TOTAL BILI','TOTAL BILIRUBIN'] },
+        DBIL: { cat: 'LFT', min: 0, max: 0.3, unit: 'mg/dL', dec: 2, range: [0, 20], names: ['DBIL','DIRECT BILI','D.BILI','DIRECT BILIRUBIN'] },
+        ALB:  { cat: 'LFT', min: 3.2, max: 4.8, unit: 'g/dL', dec: 1, range: [1, 7], names: ['ALB','ALBUMIN'] },
+        TP:   { cat: 'LFT', min: 5.7, max: 8.2, unit: 'g/dL', dec: 1, range: [3, 12], names: ['TP','TOTAL PROTEIN','PROTEIN','TOTALPROTEIN'] },
         
         // ABG
         PH:   { cat: 'ABG', min: 7.35, max: 7.45, unit: '', dec: 2, range: [6.8, 7.8], names: ['PH','BLOOD PH','ARTERIAL PH'] },
@@ -99,34 +100,47 @@
     // Smart test name recognition
     function identifyTest(raw) {
         if (!raw) return null;
-        const input = String(raw).toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const original = String(raw).trim();
+        const input = original.toUpperCase().replace(/[^A-Z0-9\s]/g, '').trim();
         if (!input || input.length < 1) return null;
         
-        // Direct match
+        // Direct match (exact)
         if (TESTS[input]) return { test: input, conf: 100 };
         
-        // Search all aliases
+        // Clean version without spaces
+        const noSpace = input.replace(/\s+/g, '');
+        if (TESTS[noSpace]) return { test: noSpace, conf: 98 };
+        
+        // Search all aliases (including multi-word)
         for (const [name, data] of Object.entries(TESTS)) {
             for (const alias of data.names) {
-                const clean = alias.replace(/[^A-Z0-9]/g, '');
-                if (input === clean) return { test: name, conf: 98 };
-                if (input.length > 2 && (input.includes(clean) || clean.includes(input))) return { test: name, conf: 85 };
+                const cleanAlias = alias.toUpperCase().replace(/[^A-Z0-9\s]/g, '').trim();
+                const cleanAliasNoSpace = cleanAlias.replace(/\s+/g, '');
+                
+                // Exact match with alias
+                if (input === cleanAlias || input === cleanAliasNoSpace) return { test: name, conf: 98 };
+                if (noSpace === cleanAliasNoSpace) return { test: name, conf: 95 };
+                
+                // Input contains full alias or vice versa
+                if (input.includes(cleanAlias) && cleanAlias.length >= 3) return { test: name, conf: 90 };
+                if (cleanAlias.includes(input) && input.length >= 3) return { test: name, conf: 85 };
+                
+                // Word-start match (e.g., "CREAT" matches "CREATININE")
+                if (cleanAliasNoSpace.startsWith(noSpace) && noSpace.length >= 3) return { test: name, conf: 82 };
             }
         }
         
-        // Fuzzy match for short inputs
+        // Fuzzy match for close matches
         let best = null, bestScore = 0;
         for (const [name, data] of Object.entries(TESTS)) {
-            // Check similarity
-            const sim = similarity(input, name);
-            if (sim > bestScore && sim > 0.6) {
+            const sim = similarity(noSpace, name);
+            if (sim > bestScore && sim > 0.7) {
                 bestScore = sim;
                 best = name;
             }
-            // Check against aliases
             for (const alias of data.names) {
-                const asim = similarity(input, alias.replace(/[^A-Z0-9]/g, ''));
-                if (asim > bestScore && asim > 0.6) {
+                const asim = similarity(noSpace, alias.replace(/[^A-Z0-9]/gi, '').toUpperCase());
+                if (asim > bestScore && asim > 0.7) {
                     bestScore = asim;
                     best = name;
                 }
@@ -446,24 +460,24 @@
     // Test function
     window.testOCR = function() {
         const samples = [
+            // KFT Panel (from image)
+            { test: 'Urea', value: '15' },
+            { test: 'Creatinine', value: '1.5' },
+            { test: 'Uric Acid', value: '5.5' },
+            { test: 'Calcium, Total', value: '10.2' },
+            { test: 'Phosphorus', value: '1.4' },
+            { test: 'Alkaline Phosphatase (ALP)', value: '80' },
+            { test: 'Total Protein', value: '5.9' },
+            { test: 'Albumin', value: '4.1' },
+            { test: 'Sodium', value: '139' },
+            { test: 'Potassium', value: '3.9' },
+            { test: 'Chloride', value: '100' },
             // CBC
             { test: 'WBC', value: '8.5' },
-            { test: 'RBC', value: '51' },        // → 5.1
             { test: 'HGB', value: '125' },
-            { test: 'HCT', value: '42' },        // 42%
-            { test: 'PLT', value: '250' },
-            // Chemistry
-            { test: 'NA', value: '14' },         // → 140
-            { test: 'K', value: '4.2' },
-            { test: 'CREAT', value: '9' },       // → 0.9 or 90?
-            { test: 'GLUCOSE', value: '110' },
             // ABG
             { test: 'PH', value: '735' },        // → 7.35
-            { test: 'PCO2', value: '38' },
-            { test: 'BE', value: '-3' },
-            // Coag
-            { test: 'INR', value: '12' },        // → 1.2
-            { test: 'PTT', value: '28' }
+            { test: 'BE', value: '-3' }
         ];
         
         console.log('%c[TEST INPUT]', 'color: yellow; font-weight: bold');
@@ -475,6 +489,7 @@
         console.log('%c[RESULTS]', 'color: #0f0; font-weight: bold');
         console.table(results.map(r => ({
             test: r.test,
+            original: r.originalTest,
             raw: r.rawOcr,
             value: r.value,
             flag: r.flag,
