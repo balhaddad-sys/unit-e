@@ -809,15 +809,18 @@ const callVisionAPI = async (base64Image, setProgress, setStage, debugLog) => {
         
         debugLog && debugLog('info', `Request payload size: ${JSON.stringify(requestBody).length} bytes`);
         
+        // Google Apps Script requires redirect: 'follow' and specific handling
         const response = await fetch(VISION_API_PROXY_URL, {
             method: 'POST',
             headers: { 
-                'Content-Type': 'application/json'
+                'Content-Type': 'text/plain;charset=utf-8'
             },
-            body: JSON.stringify(requestBody)
+            body: JSON.stringify(requestBody),
+            redirect: 'follow'
         });
         
         debugLog && debugLog('info', `Response status: ${response.status} ${response.statusText}`);
+        debugLog && debugLog('info', `Response URL: ${response.url}`);
         setProgress && setProgress(60);
         setStage && setStage("Processing Vision API response...");
         
@@ -847,7 +850,7 @@ const callVisionAPI = async (base64Image, setProgress, setStage, debugLog) => {
         
         return {
             text: result.text || "",
-            confidence: result.confidence || 85, // Vision API typically has high confidence
+            confidence: result.confidence || 85,
             lines: result.lines || [],
             source: 'google_vision',
             wordCount: result.wordCount || 0
@@ -1486,11 +1489,17 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const testVisionAPI = async () => {
         addDebugLog('info', 'Testing Vision API connection...');
         try {
-            const response = await fetch(VISION_API_PROXY_URL + '?action=test', {
-                method: 'GET'
+            const response = await fetch(VISION_API_PROXY_URL, {
+                method: 'POST',
+                headers: { 
+                    'Content-Type': 'text/plain;charset=utf-8'
+                },
+                body: JSON.stringify({ action: 'test' }),
+                redirect: 'follow'
             });
+            addDebugLog('info', `Response status: ${response.status}`);
             const text = await response.text();
-            addDebugLog('info', `Test response: ${text.substring(0, 200)}`);
+            addDebugLog('success', `Test response: ${text.substring(0, 300)}`);
         } catch (err) {
             addDebugLog('error', `Test failed: ${err.message}`);
         }
