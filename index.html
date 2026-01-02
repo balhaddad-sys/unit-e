@@ -11,8 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <!-- Neural OCR Module v4 - Learning Engine -->
-    <script src="ocr-neural-v4.js"></script>
+    <!-- Neural OCR v5 - Auto-Detect -->
+    <script src="ocr-neural-v5.js"></script>
     <style>
         :root {
             --green: #15803d;
@@ -686,37 +686,8 @@ const formatDateTime = (ts) => {
     };
 };
 
-// ============ OCR CONFIGURATION ============
-const OCR_MODES = {
-    CBC: { name: "CBC / Hematology", crop: { top: 0.08, bottom: 0.06, left: 0.04, right: 0.04 }, expectedTests: ["WBC", "RBC", "Hb", "Hct", "MCV", "MCH", "MCHC", "RDW", "Plt", "MPV"] },
-    Chemistry: { name: "Chemistry / Metabolic", crop: { top: 0.10, bottom: 0.06, left: 0.04, right: 0.04 }, expectedTests: ["Na", "K", "Cl", "CO2", "Urea", "Cr", "Glucose", "Ca", "Mg"] },
-    ABG: { name: "ABG / Blood Gas", crop: { top: 0.15, bottom: 0.12, left: 0.08, right: 0.08 }, expectedTests: ["pH", "pCO2", "pO2", "HCO3", "BE", "SaO2", "Lactate"] },
-    Coagulation: { name: "Coagulation", crop: { top: 0.10, bottom: 0.08, left: 0.05, right: 0.05 }, expectedTests: ["PT", "INR", "PTT", "aPTT", "Fibrinogen", "D-Dimer"] },
-    Other: { name: "Other / General", crop: { top: 0.05, bottom: 0.05, left: 0.04, right: 0.04 }, expectedTests: [] }
-};
-
-const TEST_DEFINITIONS = {
-    WBC: { unit: "10^9/L", refLow: 4.0, refHigh: 11.0, critLow: 2.0, critHigh: 30.0, aliases: ["WHITE BLOOD CELL", "LEUKOCYTES"] },
-    RBC: { unit: "10^12/L", refLow: 4.0, refHigh: 6.0, critLow: 2.5, critHigh: 8.0, aliases: ["RED BLOOD CELL", "ERYTHROCYTES"] },
-    Hb: { unit: "g/L", refLow: 120, refHigh: 170, critLow: 70, critHigh: 200, aliases: ["HGB", "HEMOGLOBIN", "HB"] },
-    Hct: { unit: "L/L", refLow: 0.36, refHigh: 0.52, critLow: 0.20, critHigh: 0.65, aliases: ["HEMATOCRIT", "PCV", "HCT"] },
-    MCV: { unit: "fL", refLow: 80, refHigh: 100, critLow: 60, critHigh: 120, aliases: ["MEAN CELL VOLUME"] },
-    MCH: { unit: "pg", refLow: 27, refHigh: 33, critLow: 20, critHigh: 40, aliases: ["MEAN CELL HEMOGLOBIN"] },
-    MCHC: { unit: "g/L", refLow: 320, refHigh: 360, critLow: 280, critHigh: 400, aliases: [] },
-    RDW: { unit: "%", refLow: 11.5, refHigh: 14.5, critLow: 10, critHigh: 25, aliases: ["RDW-CV"] },
-    Plt: { unit: "10^9/L", refLow: 150, refHigh: 400, critLow: 50, critHigh: 1000, aliases: ["PLT", "PLATELETS"] },
-    MPV: { unit: "fL", refLow: 7.5, refHigh: 11.5, critLow: 5, critHigh: 15, aliases: ["MEAN PLATELET VOLUME"] },
-    Na: { unit: "mmol/L", refLow: 136, refHigh: 145, critLow: 120, critHigh: 160, aliases: ["SODIUM", "NA+"] },
-    K: { unit: "mmol/L", refLow: 3.5, refHigh: 5.0, critLow: 2.5, critHigh: 6.5, aliases: ["POTASSIUM", "K+"] },
-    Cl: { unit: "mmol/L", refLow: 98, refHigh: 106, critLow: 80, critHigh: 120, aliases: ["CHLORIDE"] },
-    Urea: { unit: "mmol/L", refLow: 2.5, refHigh: 7.8, critLow: 1, critHigh: 40, aliases: ["BUN"] },
-    Cr: { unit: "μmol/L", refLow: 60, refHigh: 110, critLow: 30, critHigh: 800, aliases: ["CREATININE", "CR"] },
-    BE: { unit: "mmol/L", refLow: -2, refHigh: 2, critLow: -15, critHigh: 15, aliases: ["BASE EXCESS"] },
-    pH: { unit: "", refLow: 7.35, refHigh: 7.45, critLow: 7.0, critHigh: 7.8, aliases: ["BLOOD PH"] },
-    PT: { unit: "sec", refLow: 11, refHigh: 13.5, critLow: 8, critHigh: 50, aliases: ["PROTHROMBIN TIME"] },
-    INR: { unit: "", refLow: 0.9, refHigh: 1.1, critLow: 0.5, critHigh: 8, aliases: [] },
-    Fibrinogen: { unit: "g/L", refLow: 2, refHigh: 4, critLow: 0.5, critHigh: 8, aliases: ["FIB"] }
-};
+// Generic crop settings for lab images
+const DEFAULT_CROP = { top: 0.08, bottom: 0.06, left: 0.04, right: 0.04 };
 
 // ============ VISION TO NEURAL ADAPTER ============
 const parseVisionToNeuralInput = (rawText) => {
@@ -782,12 +753,11 @@ const applyCropToCanvas = (img, crop) => {
 };
 
 const preprocessForOCR = async (dataUrl, options = {}) => {
-    const { mode = "CBC", smartCrop = true, manualCrop = null } = options;
+    const { smartCrop = true, manualCrop = null } = options;
     const img = new Image();
     img.src = dataUrl;
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("Failed to load image")); });
-    const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
-    const crop = manualCrop || (smartCrop ? modeConfig.crop : { top: 0, bottom: 0, left: 0, right: 0 });
+    const crop = manualCrop || (smartCrop ? DEFAULT_CROP : { top: 0, bottom: 0, left: 0, right: 0 });
     const croppedCanvas = applyCropToCanvas(img, crop);
     const scale = (croppedCanvas.width < 900 ? 2.2 : 1.8);
     const upCanvas = document.createElement("canvas");
@@ -881,29 +851,20 @@ const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEng
 };
 
 // ============ FALLBACK PARSER ============
-const parseLabsFromTextFallback = (text, mode = "CBC") => {
+const parseLabsFromTextFallback = (text) => {
     const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(l => l);
     const values = [];
     const seen = new Set();
-    const valueRe = /[<>-]?\d{1,4}(?:\.\d{1,3})?/;
     for (const raw of lines) {
         if (/^(date|time|patient|name|id|mrn)/i.test(raw)) continue;
         const m = raw.match(/^([A-Za-z][A-Za-z0-9%\/\-\s]{1,15}?)\s*[:\.]?\s*([<>-]?\d{1,4}(?:\.\d{1,3})?)/);
         if (!m) continue;
         const testRaw = m[1].trim();
         const valRaw = m[2];
-        const test = testRaw.toUpperCase().replace(/[^A-Z0-9]/g, '');
-        const def = TEST_DEFINITIONS[test] || Object.entries(TEST_DEFINITIONS).find(([k, v]) => v.aliases?.some(a => a.toUpperCase().replace(/[^A-Z0-9]/g, '') === test))?.[1];
-        const key = `${test}|${valRaw}`;
+        const key = `${testRaw}|${valRaw}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        const numVal = parseFloat(valRaw);
-        let flag = 'N';
-        if (def) {
-            if (numVal < def.refLow) flag = 'L';
-            else if (numVal > def.refHigh) flag = 'H';
-        }
-        values.push({ test: testRaw, value: valRaw, flag, unit: def?.unit || '', confidence: 60, validation: { status: 'unknown' } });
+        values.push({ test: testRaw, value: valRaw, flag: 'N', unit: '', confidence: 40, validation: { status: 'unknown' } });
     }
     return values;
 };
@@ -960,8 +921,8 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [ocrProgress, setOcrProgress] = useState(0);
     const [ocrStage, setOcrStage] = useState("");
     const [ocrError, setOcrError] = useState(null);
-    const [defaultOcrMode, setDefaultOcrMode] = useState("CBC");
     const [ocrEngine, setOcrEngine] = useState("vision");
+    const [detectedLabType, setDetectedLabType] = useState(null);
     const [debugLogs, setDebugLogs] = useState([]);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
@@ -981,7 +942,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
         try {
             const result = await runHybridOCR(
                 imgObj.image,
-                { mode: imgObj.ocrMode || defaultOcrMode, smartCrop: true },
+                { smartCrop: true },
                 setOcrProgress,
                 setOcrStage,
                 ocrEngine,
@@ -989,13 +950,19 @@ const LabModal = ({ patient, onClose, onSave }) => {
             );
 
             let processedValues = [];
+            let labType = 'AUTO';
             
-            // Check if Neural v3 is loaded
+            // Use Neural v5 auto-detect
             if (window.LabOCR && window.LabOCR.isReady) {
-                addDebugLog('info', 'Sending to Neural Brain v3.0...');
+                addDebugLog('info', 'Processing with Neural v5 (auto-detect)...');
                 const rawNeuralInput = parseVisionToNeuralInput(result.text);
                 addDebugLog('info', `Parsed ${rawNeuralInput.length} items from raw text`);
-                const neuralResults = window.LabOCR.processVisionResults(rawNeuralInput, imgObj.ocrMode || "CBC");
+                
+                const { results: neuralResults, labType: detected } = window.LabOCR.process(rawNeuralInput);
+                labType = detected;
+                setDetectedLabType(detected);
+                addDebugLog('success', `Auto-detected: ${detected} panel`);
+                
                 processedValues = neuralResults.map(item => ({
                     test: item.test,
                     value: item.value,
@@ -1003,19 +970,20 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     flag: item.flag || 'N',
                     confidence: item.confidence || 50,
                     status: item.status,
-                    validation: { status: item.status === 'VALID' || item.status === 'AUTO_FIX' || item.status === 'LEARNED' ? 'normal' : 'invalid' },
-                    raw: item.rawOcr,
+                    validation: { status: ['OK', 'AUTO_FIX', 'LEARNED'].includes(item.status) ? 'normal' : 'invalid' },
                     rawOcr: item.rawOcr,
                     lowConfidence: item.confidence < 60,
                     corrected: item.corrected,
                     reason: item.reason,
-                    refLow: item.reference?.split('-')[0] || '',
-                    refHigh: item.reference?.split('-')[1] || ''
+                    refLow: item.refLow,
+                    refHigh: item.refHigh,
+                    category: item.category
                 }));
-                addDebugLog('success', `Neural Brain processed ${processedValues.length} values`);
+                
+                addDebugLog('success', `Processed ${processedValues.length} values`);
             } else {
-                addDebugLog('warn', 'Neural Brain offline. Using fallback parser.');
-                processedValues = parseLabsFromTextFallback(result.text, imgObj.ocrMode || defaultOcrMode);
+                addDebugLog('warn', 'Neural v5 offline. Using fallback.');
+                processedValues = parseLabsFromTextFallback(result.text);
             }
 
             const avgConfidence = processedValues.length > 0
@@ -1024,13 +992,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
             setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
                 ...x,
+                labType: labType,
                 ocr: {
                     text: redactPHI(result.text),
                     values: processedValues,
                     confidence: result.confidence,
                     avgValueConfidence: avgConfidence,
                     updatedAt: Date.now(),
-                    source: result.source || 'unknown'
+                    source: result.source || 'unknown',
+                    labType: labType
                 }
             } : x));
 
@@ -1056,8 +1026,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 image: compressed,
                 timestamp: Date.now(),
                 note: "",
-                ocrMode: defaultOcrMode,
-                ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null }
+                ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null, labType: null }
             };
             setLabImages(prev => [newImage, ...prev]);
             setUploading(false);
@@ -1095,7 +1064,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
             id: img.id,
             timestamp: img.timestamp,
             note: img.note,
-            ocrMode: img.ocrMode,
+            labType: img.ocr?.labType || img.labType,
             confidence: img.ocr?.confidence || 0,
             avgValueConfidence: img.ocr?.avgValueConfidence || 0,
             values: img.ocr?.values || [],
@@ -1165,16 +1134,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {tab !== "Debug" && (
                         <>
-                            <div className="ocr-settings-panel">
-                                <div className="ocr-settings-title">⚙ Settings</div>
-                                <div className="ocr-settings-grid">
-                                    <div className="ocr-setting">
-                                        <div className="ocr-setting-label">Lab Type</div>
-                                        <select className="inp" value={defaultOcrMode} onChange={(e) => setDefaultOcrMode(e.target.value)} style={{ background: "white" }}>
-                                            {Object.entries(OCR_MODES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
-                                        </select>
-                                    </div>
-                                </div>
+                            <div style={{ fontSize: 12, color: '#64748b', background: '#f0f9ff', padding: 10, borderRadius: 8, marginBottom: 8 }}>
+                                🧠 <strong>Auto-Detect:</strong> Just upload any lab image - the system automatically identifies tests and corrects values.
+                                {detectedLabType && <span style={{ marginLeft: 8, color: '#0d9488', fontWeight: 700 }}>Last: {detectedLabType}</span>}
                             </div>
 
                             <div className={`add-lab-area ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
@@ -1211,7 +1173,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                         <div className={`lab-values-head ${isVision ? 'vision' : ''}`}>
                                             <div>
                                                 <div className="lab-values-title">{date} • {time}</div>
-                                                <div className="lab-values-sub">{OCR_MODES[item.ocrMode]?.name || item.ocrMode}</div>
+                                                <div className="lab-values-sub">
+                                                    {item.labType && <span style={{ background: 'rgba(255,255,255,0.2)', padding: '2px 6px', borderRadius: 4, marginRight: 6 }}>{item.labType}</span>}
+                                                    {item.note || ''}
+                                                </div>
                                             </div>
                                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
                                                 <span className={`pill ${isVision ? 'vision' : 'tesseract'}`}>{isVision ? '🌐 Vision' : '📱 Tesseract'}</span>
@@ -1229,10 +1194,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                         <div key={v.test} className={`kv ${v.validation?.status === 'invalid' ? 'invalid' : ''}`}>
                                                             <div className="k">
                                                                 {v.test}
+                                                                {v.category && <span style={{ fontSize: 8, background: '#e2e8f0', color: '#475569', padding: '1px 4px', borderRadius: 3, marginLeft: 4 }}>{v.category}</span>}
                                                                 <span className={`confidence-dot ${getConfidenceClass(v.confidence)}`} title={`${Math.round(v.confidence)}%`}></span>
                                                                 {v.status === 'LEARNED' && <span style={{ background: '#0ff', color: '#000', fontWeight: 900, fontSize: 9, padding: '1px 4px', borderRadius: 4 }}>LEARNED</span>}
-                                                                {v.status === 'AUTO_FIX' && <span style={{ color: "#f59e0b", fontWeight: 900, fontSize: 10 }}>FIXED</span>}
-                                                                {v.corrected && v.reason && <span style={{ color: "#a855f7", fontWeight: 700, fontSize: 9 }}>{v.reason}</span>}
+                                                                {v.status === 'AUTO_FIX' && <span style={{ color: "#f59e0b", fontWeight: 900, fontSize: 10 }}>FIXED {v.reason}</span>}
                                                                 {v.lowConfidence && <span style={{ color: "#b45309", fontWeight: 900, fontSize: 11 }}>⚠</span>}
                                                             </div>
                                                             <div className="v">
