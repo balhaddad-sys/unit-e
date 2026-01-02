@@ -11,8 +11,8 @@
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <!-- Neural OCR Module - Load ONLY v3 -->
-    <script src="ocr-neural-v3.js"></script>
+    <!-- Neural OCR Module v4 - Learning Engine -->
+    <script src="ocr-neural-v4.js"></script>
     <style>
         :root {
             --green: #15803d;
@@ -1002,10 +1002,13 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     unit: item.unit || '',
                     flag: item.flag || 'N',
                     confidence: item.confidence || 50,
-                    validation: { status: item.status === 'VALID' || item.status === 'AUTO_CORRECTED' ? 'normal' : 'invalid' },
+                    status: item.status,
+                    validation: { status: item.status === 'VALID' || item.status === 'AUTO_FIX' || item.status === 'LEARNED' ? 'normal' : 'invalid' },
                     raw: item.rawOcr,
+                    rawOcr: item.rawOcr,
                     lowConfidence: item.confidence < 60,
                     corrected: item.corrected,
+                    reason: item.reason,
                     refLow: item.reference?.split('-')[0] || '',
                     refHigh: item.reference?.split('-')[1] || ''
                 }));
@@ -1074,7 +1077,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const updateOcrValue = (imgId, test, field, newVal) => {
         setLabImages(prev => prev.map(img => {
             if (img.id !== imgId) return img;
-            const vals = (img.ocr?.values || []).map(v => v.test !== test ? v : { ...v, [field]: newVal });
+            const vals = (img.ocr?.values || []).map(v => {
+                if (v.test !== test) return v;
+                // Learn from correction if value changed
+                if (field === 'value' && v.rawOcr && newVal !== v.value && window.LabOCR?.learnCorrection) {
+                    window.LabOCR.learnCorrection(test, v.rawOcr, newVal);
+                    addDebugLog('info', `Learned: ${test} "${v.rawOcr}" → "${newVal}"`);
+                }
+                return { ...v, [field]: newVal };
+            });
             return { ...img, ocr: { ...img.ocr, values: vals, updatedAt: Date.now() } };
         }));
     };
@@ -1118,10 +1129,28 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {tab === "Debug" && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ fontSize: 12, color: '#64748b' }}>
-                                Neural v3: <strong style={{ color: window.LabOCR?.isReady ? '#22c55e' : '#ef4444' }}>{window.LabOCR?.isReady ? 'ONLINE' : 'OFFLINE'}</strong>
+                            <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#64748b' }}>
+                                <span>Neural v4: <strong style={{ color: window.LabOCR?.isReady ? '#22c55e' : '#ef4444' }}>{window.LabOCR?.isReady ? 'ONLINE' : 'OFFLINE'}</strong></span>
+                                <span>Patterns: <strong style={{ color: '#0ff' }}>{window.LabOCR?.getStats?.()?.patterns || 0}</strong></span>
                             </div>
-                            <button className="btn btn-white" onClick={() => setDebugLogs([])}>🗑 Clear Logs</button>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <button className="btn btn-white" onClick={() => setDebugLogs([])}>🗑 Clear Logs</button>
+                                <button className="btn btn-blue" onClick={() => {
+                                    if (window.LabOCR?.clearLearning) {
+                                        if (confirm('Clear all learned patterns?')) {
+                                            window.LabOCR.clearLearning();
+                                            addDebugLog('info', 'Learning cleared');
+                                        }
+                                    }
+                                }}>🧹 Clear Learning</button>
+                                <button className="btn btn-green" onClick={() => {
+                                    window.testOCR && window.testOCR();
+                                    addDebugLog('info', 'Test run - check console');
+                                }}>🧪 Test OCR</button>
+                            </div>
+                            <div style={{ fontSize: 11, color: '#64748b', background: '#f0f9ff', padding: 10, borderRadius: 8 }}>
+                                💡 <strong>Learning:</strong> Edit any value manually and the system learns the correction for next time.
+                            </div>
                             <div className="debug-panel" style={{ minHeight: 200, maxHeight: 400, overflow: 'auto' }}>
                                 {debugLogs.length === 0 ? (
                                     <pre style={{ color: '#64748b' }}>No logs yet.</pre>
@@ -1201,7 +1230,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                             <div className="k">
                                                                 {v.test}
                                                                 <span className={`confidence-dot ${getConfidenceClass(v.confidence)}`} title={`${Math.round(v.confidence)}%`}></span>
-                                                                {v.corrected && <span style={{ color: "#f59e0b", fontWeight: 900, fontSize: 10 }}>FIXED</span>}
+                                                                {v.status === 'LEARNED' && <span style={{ background: '#0ff', color: '#000', fontWeight: 900, fontSize: 9, padding: '1px 4px', borderRadius: 4 }}>LEARNED</span>}
+                                                                {v.status === 'AUTO_FIX' && <span style={{ color: "#f59e0b", fontWeight: 900, fontSize: 10 }}>FIXED</span>}
+                                                                {v.corrected && v.reason && <span style={{ color: "#a855f7", fontWeight: 700, fontSize: 9 }}>{v.reason}</span>}
                                                                 {v.lowConfidence && <span style={{ color: "#b45309", fontWeight: 900, fontSize: 11 }}>⚠</span>}
                                                             </div>
                                                             <div className="v">
