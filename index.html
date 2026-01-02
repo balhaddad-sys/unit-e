@@ -8,14 +8,11 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script crossorigin src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
-    <script src="https://unpkg.com/brain.js"></script>
-
-<script src="ocr-neural.js" defer></script><script src="ocr-neural.js"></script>  <!-- your existing -->
-<script src="ocr-neural-v2.js"></script>  <!-- add this AFTER -->
-
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
+    <!-- Neural OCR Module - Load ONLY v3 -->
+    <script src="ocr-neural-v3.js"></script>
     <style>
         :root {
             --green: #15803d;
@@ -66,7 +63,6 @@
         .btn-white { background: white; color: var(--green); }
         .btn-blue { background: #dbeafe; color: var(--blue); }
         .btn-green { background: #d1fae5; color: var(--green); }
-        .btn-vision { background: linear-gradient(135deg, #4285f4 0%, #34a853 100%); color: white; }
         .notice-banner {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             border: 2px solid #f59e0b;
@@ -696,213 +692,50 @@ const OCR_MODES = {
     Chemistry: { name: "Chemistry / Metabolic", crop: { top: 0.10, bottom: 0.06, left: 0.04, right: 0.04 }, expectedTests: ["Na", "K", "Cl", "CO2", "Urea", "Cr", "Glucose", "Ca", "Mg"] },
     ABG: { name: "ABG / Blood Gas", crop: { top: 0.15, bottom: 0.12, left: 0.08, right: 0.08 }, expectedTests: ["pH", "pCO2", "pO2", "HCO3", "BE", "SaO2", "Lactate"] },
     Coagulation: { name: "Coagulation", crop: { top: 0.10, bottom: 0.08, left: 0.05, right: 0.05 }, expectedTests: ["PT", "INR", "PTT", "aPTT", "Fibrinogen", "D-Dimer"] },
-    Cardiac: { name: "Cardiac Markers", crop: { top: 0.10, bottom: 0.08, left: 0.05, right: 0.05 }, expectedTests: ["Troponin", "BNP", "CK", "CK-MB"] },
-    Liver: { name: "Liver Panel", crop: { top: 0.10, bottom: 0.08, left: 0.05, right: 0.05 }, expectedTests: ["ALT", "AST", "ALP", "GGT", "Bilirubin", "Albumin"] },
     Other: { name: "Other / General", crop: { top: 0.05, bottom: 0.05, left: 0.04, right: 0.04 }, expectedTests: [] }
 };
 
 const TEST_DEFINITIONS = {
-    WBC: { unit: "10^9/L", refLow: 4.0, refHigh: 11.0, critLow: 2.0, critHigh: 30.0, aliases: ["WHITE BLOOD CELL", "LEUKOCYTES", "WHITE"] },
-    RBC: { unit: "10^12/L", refLow: 4.0, refHigh: 6.0, critLow: 2.5, critHigh: 8.0, aliases: ["RED BLOOD CELL", "ERYTHROCYTES", "RED"] },
-    Hb: { unit: "g/L", refLow: 120, refHigh: 170, critLow: 70, critHigh: 200, aliases: ["HGB", "HEMOGLOBIN", "HAEMOGLOBIN", "HB"] },
+    WBC: { unit: "10^9/L", refLow: 4.0, refHigh: 11.0, critLow: 2.0, critHigh: 30.0, aliases: ["WHITE BLOOD CELL", "LEUKOCYTES"] },
+    RBC: { unit: "10^12/L", refLow: 4.0, refHigh: 6.0, critLow: 2.5, critHigh: 8.0, aliases: ["RED BLOOD CELL", "ERYTHROCYTES"] },
+    Hb: { unit: "g/L", refLow: 120, refHigh: 170, critLow: 70, critHigh: 200, aliases: ["HGB", "HEMOGLOBIN", "HB"] },
     Hct: { unit: "L/L", refLow: 0.36, refHigh: 0.52, critLow: 0.20, critHigh: 0.65, aliases: ["HEMATOCRIT", "PCV", "HCT"] },
     MCV: { unit: "fL", refLow: 80, refHigh: 100, critLow: 60, critHigh: 120, aliases: ["MEAN CELL VOLUME"] },
     MCH: { unit: "pg", refLow: 27, refHigh: 33, critLow: 20, critHigh: 40, aliases: ["MEAN CELL HEMOGLOBIN"] },
     MCHC: { unit: "g/L", refLow: 320, refHigh: 360, critLow: 280, critHigh: 400, aliases: [] },
-    RDW: { unit: "%", refLow: 11.5, refHigh: 14.5, critLow: 10, critHigh: 25, aliases: ["RED CELL DISTRIBUTION WIDTH", "RDW-CV"] },
-    Plt: { unit: "10^9/L", refLow: 150, refHigh: 400, critLow: 50, critHigh: 1000, aliases: ["PLT", "PLATELETS", "THROMBOCYTES", "PLATELET"] },
+    RDW: { unit: "%", refLow: 11.5, refHigh: 14.5, critLow: 10, critHigh: 25, aliases: ["RDW-CV"] },
+    Plt: { unit: "10^9/L", refLow: 150, refHigh: 400, critLow: 50, critHigh: 1000, aliases: ["PLT", "PLATELETS"] },
     MPV: { unit: "fL", refLow: 7.5, refHigh: 11.5, critLow: 5, critHigh: 15, aliases: ["MEAN PLATELET VOLUME"] },
     Na: { unit: "mmol/L", refLow: 136, refHigh: 145, critLow: 120, critHigh: 160, aliases: ["SODIUM", "NA+"] },
     K: { unit: "mmol/L", refLow: 3.5, refHigh: 5.0, critLow: 2.5, critHigh: 6.5, aliases: ["POTASSIUM", "K+"] },
-    Cl: { unit: "mmol/L", refLow: 98, refHigh: 106, critLow: 80, critHigh: 120, aliases: ["CHLORIDE", "CL-"] },
-    CO2: { unit: "mmol/L", refLow: 22, refHigh: 29, critLow: 15, critHigh: 40, aliases: ["BICARBONATE", "TCO2", "HCO3"] },
-    Urea: { unit: "mmol/L", refLow: 2.5, refHigh: 7.8, critLow: 1, critHigh: 40, aliases: ["BUN", "BLOOD UREA", "UREA NITROGEN"] },
-    Cr: { unit: "μmol/L", refLow: 60, refHigh: 110, critLow: 30, critHigh: 800, aliases: ["CREAT", "CREATININE", "CR"] },
-    Glucose: { unit: "mmol/L", refLow: 3.9, refHigh: 6.1, critLow: 2.0, critHigh: 25.0, aliases: ["GLU", "BLOOD SUGAR", "GLUC"] },
-    Ca: { unit: "mmol/L", refLow: 2.15, refHigh: 2.55, critLow: 1.6, critHigh: 3.5, aliases: ["CALCIUM", "CA++"] },
-    Mg: { unit: "mmol/L", refLow: 0.7, refHigh: 1.0, critLow: 0.4, critHigh: 2.0, aliases: ["MAGNESIUM", "MG++"] },
-    Albumin: { unit: "g/L", refLow: 35, refHigh: 50, critLow: 15, critHigh: 60, aliases: ["ALB"] },
-    Bilirubin: { unit: "μmol/L", refLow: 0, refHigh: 21, critLow: 0, critHigh: 200, aliases: ["BILI", "TOTAL BILIRUBIN", "T.BILI"] },
-    ALP: { unit: "U/L", refLow: 40, refHigh: 130, critLow: 20, critHigh: 500, aliases: ["ALK PHOS", "ALKALINE PHOSPHATASE"] },
-    ALT: { unit: "U/L", refLow: 7, refHigh: 56, critLow: 0, critHigh: 1000, aliases: ["SGPT", "GPT"] },
-    AST: { unit: "U/L", refLow: 10, refHigh: 40, critLow: 0, critHigh: 1000, aliases: ["SGOT", "GOT"] },
-    GGT: { unit: "U/L", refLow: 9, refHigh: 48, critLow: 0, critHigh: 500, aliases: ["GAMMA GT"] },
-    pH: { unit: "", refLow: 7.35, refHigh: 7.45, critLow: 7.0, critHigh: 7.8, aliases: ["BLOOD PH"] },
-    pCO2: { unit: "mmHg", refLow: 35, refHigh: 45, critLow: 20, critHigh: 80, aliases: ["PCO2", "PACO2"] },
-    pO2: { unit: "mmHg", refLow: 80, refHigh: 100, critLow: 40, critHigh: 500, aliases: ["PO2", "PAO2"] },
-    HCO3: { unit: "mmol/L", refLow: 22, refHigh: 26, critLow: 10, critHigh: 40, aliases: ["BICARBONATE"] },
+    Cl: { unit: "mmol/L", refLow: 98, refHigh: 106, critLow: 80, critHigh: 120, aliases: ["CHLORIDE"] },
+    Urea: { unit: "mmol/L", refLow: 2.5, refHigh: 7.8, critLow: 1, critHigh: 40, aliases: ["BUN"] },
+    Cr: { unit: "μmol/L", refLow: 60, refHigh: 110, critLow: 30, critHigh: 800, aliases: ["CREATININE", "CR"] },
     BE: { unit: "mmol/L", refLow: -2, refHigh: 2, critLow: -15, critHigh: 15, aliases: ["BASE EXCESS"] },
-    SaO2: { unit: "%", refLow: 95, refHigh: 100, critLow: 70, critHigh: 100, aliases: ["O2 SAT", "SPO2", "SAO2"] },
-    Lactate: { unit: "mmol/L", refLow: 0.5, refHigh: 2.0, critLow: 0, critHigh: 10, aliases: ["LACTIC ACID", "LAC"] },
+    pH: { unit: "", refLow: 7.35, refHigh: 7.45, critLow: 7.0, critHigh: 7.8, aliases: ["BLOOD PH"] },
     PT: { unit: "sec", refLow: 11, refHigh: 13.5, critLow: 8, critHigh: 50, aliases: ["PROTHROMBIN TIME"] },
     INR: { unit: "", refLow: 0.9, refHigh: 1.1, critLow: 0.5, critHigh: 8, aliases: [] },
-    PTT: { unit: "sec", refLow: 25, refHigh: 35, critLow: 15, critHigh: 100, aliases: ["APTT"] },
-    aPTT: { unit: "sec", refLow: 25, refHigh: 35, critLow: 15, critHigh: 100, aliases: ["ACTIVATED PTT"] },
-    Fibrinogen: { unit: "g/L", refLow: 2, refHigh: 4, critLow: 0.5, critHigh: 8, aliases: ["FIB"] },
-    "D-Dimer": { unit: "μg/L", refLow: 0, refHigh: 500, critLow: 0, critHigh: 10000, aliases: ["DDIMER", "D-DIMER"] },
-    Troponin: { unit: "ng/L", refLow: 0, refHigh: 14, critLow: 0, critHigh: 10000, aliases: ["TROP", "TNI", "TNT", "HS-TROP", "TROPONIN I", "TROPONIN T"] },
-    BNP: { unit: "pg/mL", refLow: 0, refHigh: 100, critLow: 0, critHigh: 5000, aliases: ["NT-PROBNP", "PROBNP"] },
-    CK: { unit: "U/L", refLow: 30, refHigh: 200, critLow: 10, critHigh: 10000, aliases: ["CREATINE KINASE", "CPK"] },
-    "CK-MB": { unit: "U/L", refLow: 0, refHigh: 25, critLow: 0, critHigh: 500, aliases: ["CKMB"] },
-    CRP: { unit: "mg/L", refLow: 0, refHigh: 5, critLow: 0, critHigh: 300, aliases: ["C-REACTIVE PROTEIN"] },
-    ESR: { unit: "mm/hr", refLow: 0, refHigh: 20, critLow: 0, critHigh: 120, aliases: ["SED RATE"] }
+    Fibrinogen: { unit: "g/L", refLow: 2, refHigh: 4, critLow: 0.5, critHigh: 8, aliases: ["FIB"] }
 };
-// ============ VISION TO NEURAL ADAPTER ============
-// Paste this BEFORE 'const App = () => {'
 
+// ============ VISION TO NEURAL ADAPTER ============
 const parseVisionToNeuralInput = (rawText) => {
     if (!rawText) return [];
-    
-    // 1. Clean up common monitor glare artifacts
-    const cleanLines = rawText.split(/\r?\n/)
-        .map(l => l.trim())
-        .filter(l => l.length > 2); // Ignore tiny noise
-        
+    const cleanLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
     const potentialItems = [];
-
-    // 2. The Regex: Looks for "TestName ... Number"
-    // Captures: "WBC 5.4", "Hb . 120", "Platelets: 250"
     const lineRegex = /([a-zA-Z%\/\-\(\)\+\s]{2,15})[:\.\s\|]+([<>]?\d{1,4}(?:\.\d{1,3})?)/;
-
     cleanLines.forEach(line => {
-        // Skip header trash
         if (/(Name|Date|Sex|Age|Page|Report|Unit|Ref)/i.test(line)) return;
-
         const match = line.match(lineRegex);
         if (match) {
-            potentialItems.push({
-                test: match[1].trim(), // e.g. "WBC"
-                value: match[2].trim() // e.g. "5.4"
-            });
+            potentialItems.push({ test: match[1].trim(), value: match[2].trim() });
         }
     });
-
     return potentialItems;
 };
-// ============ DEBUG LOGGER ============
-const createDebugLogger = () => {
-    const logs = [];
-    return {
-        log: (type, msg) => {
-            const entry = { type, msg, time: new Date().toISOString() };
-            logs.push(entry);
-            console.log(`[${type}]`, msg);
-        },
-        getLogs: () => [...logs],
-        clear: () => logs.length = 0
-    };
-};
 
-// ============ TESSERACT OCR (FALLBACK) ============
-let _ocrWorker = null;
-let _ocrWorkerReady = false;
-
-const getOcrWorker = async (loggerFn) => {
-    if (_ocrWorker && _ocrWorkerReady) return _ocrWorker;
-    if (_ocrWorker) {
-        try { await _ocrWorker.terminate(); } catch (e) { console.warn("Error terminating old worker:", e); }
-        _ocrWorker = null;
-        _ocrWorkerReady = false;
-    }
-    loggerFn && loggerFn({ status: "initializing", progress: 0 });
-    try {
-        _ocrWorker = await Tesseract.createWorker('eng', 1, {
-            logger: (m) => { console.log("Tesseract:", m); loggerFn && loggerFn(m); }
-        });
-        _ocrWorkerReady = true;
-        console.log("OCR Worker ready!");
-        return _ocrWorker;
-    } catch (err) {
-        console.error("Failed to create OCR worker:", err);
-        _ocrWorker = null;
-        _ocrWorkerReady = false;
-        throw err;
-    }
-};
-
-// ============ GOOGLE VISION API ============
-const callVisionAPI = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
-    debugLog && debugLog('info', 'Starting Vision API call...');
-    setStage && setStage("Preprocessing for Vision...");
-    setProgress && setProgress(5);
-
-    // ✅ Preprocess specifically for Vision (NO binarize)
-    const pre = await preprocessForOCR(dataUrl, {
-        mode: options.mode || "CBC",
-        smartCrop: options.smartCrop !== false,
-        manualCrop: options.manualCrop || null,
-        deskew: options.deskew !== false,
-        binarize: false,          // ✅ key change
-        contrastBoost: 1.2
-    });
-
-    setStage && setStage("Connecting to Google Vision API...");
-    setProgress && setProgress(15);
-
-    let imageData = pre.processed;
-    if (imageData.includes(',')) imageData = imageData.split(',')[1];
-
-    debugLog && debugLog('info', `Processed image length: ${imageData.length} chars`);
-    debugLog && debugLog('info', `Proxy URL: ${VISION_API_PROXY_URL}`);
-
-    try {
-        const requestBody = {
-            action: 'ocr',
-            image: imageData,
-            mode: 'DOCUMENT_TEXT_DETECTION',      // ✅ correct feature
-            // Extra hints (safe even if proxy ignores them)
-            languageHints: ['en'],                // add 'ar' if needed: ['en','ar']
-            clientMeta: {
-                ocrMode: options.mode || "CBC",
-                skewAngle: pre.skewAngle,
-                usedCrop: pre.cropUsed
-            }
-        };
-
-        debugLog && debugLog('info', `Request payload size: ${JSON.stringify(requestBody).length} bytes`);
-
-        const response = await fetch(VISION_API_PROXY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify(requestBody),
-            redirect: 'follow'
-        });
-
-        debugLog && debugLog('info', `Response status: ${response.status} ${response.statusText}`);
-        setProgress && setProgress(70);
-        setStage && setStage("Processing Vision API response...");
-
-        const responseText = await response.text();
-        debugLog && debugLog('info', `Response body (first 500): ${responseText.substring(0, 500)}`);
-
-        if (!response.ok) throw new Error(`Vision API HTTP ${response.status} - ${responseText}`);
-
-        let result;
-        try { result = JSON.parse(responseText); }
-        catch { throw new Error(`Failed to parse response: ${responseText.substring(0, 200)}`); }
-
-        if (result.error) throw new Error(result.error);
-
-        setProgress && setProgress(95);
-
-        return {
-            text: result.text || "",
-            confidence: result.confidence || 85,
-            lines: result.lines || [],
-            source: 'google_vision',
-            wordCount: result.wordCount || 0,
-            cropUsed: pre.cropUsed,
-            skewAngle: pre.skewAngle,
-            threshold: pre.threshold
-        };
-    } catch (err) {
-        debugLog && debugLog('error', `Vision API call failed: ${err.message}`);
-        throw err;
-    }
-};
 // ============ IMAGE PREPROCESSING ============
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
-
 const luminanceGray = (r, g, b) => (0.2126 * r + 0.7152 * g + 0.0722 * b) | 0;
 
 const boxBlurGray = (gray, w, h) => {
@@ -911,14 +744,10 @@ const boxBlurGray = (gray, w, h) => {
     for (let y = 1; y < h - 1; y++) {
         for (let x = 1; x < w - 1; x++) {
             let sum = 0;
-            sum += gray[idx(x-1, y-1)] + gray[idx(x, y-1)] + gray[idx(x+1, y-1)];
-            sum += gray[idx(x-1, y)] + gray[idx(x, y)] + gray[idx(x+1, y)];
-            sum += gray[idx(x-1, y+1)] + gray[idx(x, y+1)] + gray[idx(x+1, y+1)];
+            for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) sum += gray[idx(x+dx, y+dy)];
             out[idx(x, y)] = (sum / 9) | 0;
         }
     }
-    for (let x = 0; x < w; x++) { out[idx(x, 0)] = gray[idx(x, 0)]; out[idx(x, h-1)] = gray[idx(x, h-1)]; }
-    for (let y = 0; y < h; y++) { out[idx(0, y)] = gray[idx(0, y)]; out[idx(w-1, y)] = gray[idx(w-1, y)]; }
     return out;
 };
 
@@ -928,76 +757,18 @@ const otsuThreshold = (gray) => {
     const total = gray.length;
     let sum = 0;
     for (let t = 0; t < 256; t++) sum += t * hist[t];
-    let sumB = 0, wB = 0, wF = 0, varMax = 0, threshold = 128;
+    let sumB = 0, wB = 0, varMax = 0, threshold = 128;
     for (let t = 0; t < 256; t++) {
         wB += hist[t];
         if (wB === 0) continue;
-        wF = total - wB;
+        const wF = total - wB;
         if (wF === 0) break;
         sumB += t * hist[t];
-        const mB = sumB / wB;
-        const mF = (sum - sumB) / wF;
+        const mB = sumB / wB, mF = (sum - sumB) / wF;
         const between = wB * wF * (mB - mF) * (mB - mF);
         if (between > varMax) { varMax = between; threshold = t; }
     }
     return threshold;
-};
-
-const rotateCanvas = (srcCanvas, angleDeg) => {
-    const ang = angleDeg * Math.PI / 180;
-    const w = srcCanvas.width, h = srcCanvas.height;
-    const cos = Math.abs(Math.cos(ang));
-    const sin = Math.abs(Math.sin(ang));
-    const nw = Math.ceil(w * cos + h * sin);
-    const nh = Math.ceil(w * sin + h * cos);
-    const out = document.createElement("canvas");
-    out.width = nw; out.height = nh;
-    const ctx = out.getContext("2d", { willReadFrequently: true });
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, nw, nh);
-    ctx.translate(nw / 2, nh / 2);
-    ctx.rotate(ang);
-    ctx.drawImage(srcCanvas, -w / 2, -h / 2);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    return out;
-};
-
-const projectionScore = (binCanvas) => {
-    const ctx = binCanvas.getContext("2d", { willReadFrequently: true });
-    const { width: w, height: h } = binCanvas;
-    const data = ctx.getImageData(0, 0, w, h).data;
-    const rows = new Array(h).fill(0);
-    for (let y = 0; y < h; y++) {
-        let sum = 0;
-        for (let x = 0; x < w; x++) {
-            const i = (y * w + x) * 4;
-            if (data[i] < 128) sum++;
-        }
-        rows[y] = sum;
-    }
-    let mean = rows.reduce((a, b) => a + b, 0) / h;
-    let v = 0;
-    for (let y = 0; y < h; y++) { const d = rows[y] - mean; v += d * d; }
-    return v / h;
-};
-
-const detectSkewAngle = (binCanvas) => {
-    const maxW = 600;
-    const scale = binCanvas.width > maxW ? (maxW / binCanvas.width) : 1;
-    const proxy = document.createElement("canvas");
-    proxy.width = Math.floor(binCanvas.width * scale);
-    proxy.height = Math.floor(binCanvas.height * scale);
-    const pctx = proxy.getContext("2d", { willReadFrequently: true });
-    pctx.imageSmoothingEnabled = false;
-    pctx.drawImage(binCanvas, 0, 0, proxy.width, proxy.height);
-    let bestAngle = 0;
-    let bestScore = -Infinity;
-    for (let a = -6; a <= 6; a += 0.5) {
-        const rot = rotateCanvas(proxy, a);
-        const s = projectionScore(rot);
-        if (s > bestScore) { bestScore = s; bestAngle = a; }
-    }
-    return bestAngle;
 };
 
 const applyCropToCanvas = (img, crop) => {
@@ -1011,7 +782,7 @@ const applyCropToCanvas = (img, crop) => {
 };
 
 const preprocessForOCR = async (dataUrl, options = {}) => {
-    const { mode = "CBC", smartCrop = true, manualCrop = null, deskew = true } = options;
+    const { mode = "CBC", smartCrop = true, manualCrop = null } = options;
     const img = new Image();
     img.src = dataUrl;
     await new Promise((res, rej) => { img.onload = res; img.onerror = () => rej(new Error("Failed to load image")); });
@@ -1025,287 +796,119 @@ const preprocessForOCR = async (dataUrl, options = {}) => {
     const upCtx = upCanvas.getContext("2d", { willReadFrequently: true });
     upCtx.imageSmoothingEnabled = false;
     upCtx.drawImage(croppedCanvas, 0, 0, upCanvas.width, upCanvas.height);
-    const imageData = upCtx.getImageData(0, 0, upCanvas.width, upCanvas.height);
-    const d = imageData.data;
-    const gray = new Uint8ClampedArray(upCanvas.width * upCanvas.height);
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-        gray[p] = luminanceGray(d[i], d[i+1], d[i+2]);
-    }
-    const blurred = boxBlurGray(gray, upCanvas.width, upCanvas.height);
-    const th = otsuThreshold(blurred);
-    for (let i = 0, p = 0; i < d.length; i += 4, p++) {
-        const v = blurred[p] < th ? 0 : 255;
-        d[i] = d[i+1] = d[i+2] = v;
-        d[i+3] = 255;
-    }
-    upCtx.putImageData(imageData, 0, 0);
-    let finalCanvas = upCanvas;
-    let skewAngle = 0;
-    if (deskew) {
-        try {
-            skewAngle = detectSkewAngle(upCanvas);
-            if (Math.abs(skewAngle) >= 0.3) {
-                finalCanvas = rotateCanvas(upCanvas, -skewAngle);
-            }
-        } catch (e) { console.warn("Deskew failed; continuing without:", e); }
-    }
-    return { processed: finalCanvas.toDataURL("image/png"), cropUsed: crop, skewAngle, threshold: th };
+    return { processed: upCanvas.toDataURL("image/png"), cropUsed: crop, skewAngle: 0, threshold: 128 };
 };
 
-// ============ TESSERACT OCR (with preprocessing) ============
-const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
-    const { mode = "CBC", smartCrop = true, manualCrop = null, deskew = true, psm = "6" } = options;
-    debugLog && debugLog('info', 'Starting Tesseract OCR...');
+// ============ TESSERACT OCR ============
+let _ocrWorker = null;
+let _ocrWorkerReady = false;
+
+const getOcrWorker = async (loggerFn) => {
+    if (_ocrWorker && _ocrWorkerReady) return _ocrWorker;
+    if (_ocrWorker) { try { await _ocrWorker.terminate(); } catch (e) {} _ocrWorker = null; _ocrWorkerReady = false; }
     try {
-        setStage && setStage("Preprocessing (Otsu + deskew)...");
-        setProgress && setProgress(5);
-        const pre = await preprocessForOCR(dataUrl, { mode, smartCrop, manualCrop, deskew });
-        setStage && setStage("Initializing Tesseract...");
-        setProgress && setProgress(10);
-        const worker = await getOcrWorker((m) => {
-            if (m?.status === "recognizing text" && typeof m.progress === "number") {
-                setProgress && setProgress(10 + Math.round(m.progress * 80));
-            }
+        _ocrWorker = await Tesseract.createWorker('eng', 1, { logger: (m) => loggerFn && loggerFn(m) });
+        _ocrWorkerReady = true;
+        return _ocrWorker;
+    } catch (err) { throw err; }
+};
+
+// ============ GOOGLE VISION API ============
+const callVisionAPI = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
+    debugLog && debugLog('info', 'Starting Vision API call...');
+    setStage && setStage("Preprocessing...");
+    setProgress && setProgress(5);
+    const pre = await preprocessForOCR(dataUrl, options);
+    setStage && setStage("Connecting to Google Vision API...");
+    setProgress && setProgress(15);
+    let imageData = pre.processed;
+    if (imageData.includes(',')) imageData = imageData.split(',')[1];
+    try {
+        const response = await fetch(VISION_API_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'ocr', image: imageData, mode: 'DOCUMENT_TEXT_DETECTION' }),
+            redirect: 'follow'
         });
-        setStage && setStage("Recognizing text (Tesseract)...");
-        await worker.setParameters({
-            tessedit_pageseg_mode: String(psm),
-            preserve_interword_spaces: "1",
-            user_defined_dpi: "300",
-            tessedit_char_whitelist: "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789%/<>.-+μ^()[]{}:;,# "
-        });
-        const result = await worker.recognize(pre.processed);
+        setProgress && setProgress(70);
+        const responseText = await response.text();
+        if (!response.ok) throw new Error(`Vision API HTTP ${response.status}`);
+        let result;
+        try { result = JSON.parse(responseText); } catch { throw new Error(`Failed to parse response`); }
+        if (result.error) throw new Error(result.error);
         setProgress && setProgress(95);
-        setStage && setStage("Processing results...");
-        const text = result?.data?.text || "";
-        const confidence = Number(result?.data?.confidence || 0);
-        const lines = Array.isArray(result?.data?.lines)
-            ? result.data.lines.map(l => ({ text: String(l.text || "").trim(), confidence: Number(l.confidence || 0) })).filter(l => l.text)
-            : [];
-        setProgress && setProgress(100);
-        debugLog && debugLog('success', `Tesseract completed. Text length: ${text.length}, Confidence: ${confidence}`);
-        return { text, confidence, pass: `PSM ${psm}`, cropUsed: pre.cropUsed, skewAngle: pre.skewAngle, threshold: pre.threshold, lines, source: 'tesseract' };
+        return { text: result.text || "", confidence: result.confidence || 85, lines: result.lines || [], source: 'google_vision', cropUsed: pre.cropUsed };
     } catch (err) {
-        debugLog && debugLog('error', `Tesseract error: ${err.message}`);
-        console.error("Tesseract OCR Error:", err);
+        debugLog && debugLog('error', `Vision API failed: ${err.message}`);
         throw err;
     }
 };
 
-// ============ HYBRID OCR ENGINE ============
-const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEngine = 'hybrid', debugLog) => {
-    debugLog && debugLog('info', `OCR Engine: ${ocrEngine}`);
-    
-    if (ocrEngine === 'tesseract') {
-        return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
-    }
-    
-    if (ocrEngine === 'vision') {
-        try {
-            return await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
-        } catch (err) {
-            throw new Error(`Vision API failed: ${err.message}`);
-        }
-    }
-    
-    // Hybrid mode: Try Vision first, fallback to Tesseract
+// ============ TESSERACT OCR ============
+const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
+    debugLog && debugLog('info', 'Starting Tesseract OCR...');
     try {
-        debugLog && debugLog('info', 'Hybrid mode: Trying Vision API first...');
-        setStage && setStage("Trying Google Vision API (primary)...");
-        const visionResult = await callVisionAPI(dataUrl, setProgress, setStage, debugLog);
-        
-        // If Vision API returns good results, use them
-        if (visionResult.confidence >= 70 || visionResult.text.length > 50) {
-            debugLog && debugLog('success', 'Vision API returned good results');
-            return visionResult;
-        }
-        
-        // If Vision results are poor, try Tesseract as backup
-        debugLog && debugLog('info', 'Vision results unclear, falling back to Tesseract...');
-        setStage && setStage("Vision results unclear, trying Tesseract...");
-        const tesseractResult = await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
-        
-        // Return whichever has better confidence
-        if (tesseractResult.confidence > visionResult.confidence) {
-            debugLog && debugLog('info', 'Using Tesseract results (higher confidence)');
-            return tesseractResult;
-        }
-        debugLog && debugLog('info', 'Using Vision results');
-        return visionResult;
-        
-    } catch (visionErr) {
-        debugLog && debugLog('error', `Vision API failed: ${visionErr.message}`);
-        console.warn("Vision API failed, falling back to Tesseract:", visionErr);
-        setStage && setStage("Vision API unavailable, using Tesseract...");
+        setStage && setStage("Preprocessing...");
+        setProgress && setProgress(5);
+        const pre = await preprocessForOCR(dataUrl, options);
+        setStage && setStage("Initializing Tesseract...");
+        setProgress && setProgress(10);
+        const worker = await getOcrWorker((m) => {
+            if (m?.status === "recognizing text" && typeof m.progress === "number") setProgress && setProgress(10 + Math.round(m.progress * 80));
+        });
+        setStage && setStage("Recognizing text...");
+        const result = await worker.recognize(pre.processed);
+        setProgress && setProgress(95);
+        return { text: result?.data?.text || "", confidence: Number(result?.data?.confidence || 0), lines: [], source: 'tesseract', cropUsed: pre.cropUsed };
+    } catch (err) {
+        debugLog && debugLog('error', `Tesseract error: ${err.message}`);
+        throw err;
+    }
+};
+
+// ============ HYBRID OCR ============
+const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEngine = 'vision', debugLog) => {
+    if (ocrEngine === 'tesseract') return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
+    if (ocrEngine === 'vision') return await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
+    // Hybrid: Try Vision first
+    try {
+        const visionResult = await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
+        if (visionResult.text.length > 50) return visionResult;
+        return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
+    } catch {
         return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
     }
 };
 
-// ============ LAB VALUE PARSING ============
-const redactPHI = (text) => {
-    let t = String(text || "");
-    t = t.replace(/\b\d{3}-\d{2}-\d{4}\b/g, "███-██-████");
-    t = t.replace(/\b(MRN|MRN\.)\s*[:#]?\s*\d{5,}\b/gi, "MRN:█████");
-    return t;
-};
-
-const NUMERIC_SUB_MAP = new Map([
-    ["l", "1"], ["I", "1"], ["`", "1"], ["]", "1"], ["!", "1"], ["|", "1"],
-    ["O", "0"], ["D", "0"], ["o", "0"], ["Q", "0"],
-    ["S", "5"], ["s", "5"],
-    ["Z", "2"], ["z", "2"],
-    ["B", "8"], ["ß", "8"]
-]);
-
-const cleanNumericString = (raw) => {
-    let s = String(raw || "").trim();
-    s = s.replace(/[^0-9A-Za-z.<>\-+]/g, "");
-    if (/[A-Za-z]/.test(s)) {
-        s = s.split("").map(ch => NUMERIC_SUB_MAP.get(ch) ?? ch).join("");
-    }
-    const parts = s.split(".");
-    if (parts.length > 2) s = parts[0] + "." + parts.slice(1).join("");
-    s = s.replace(/(?!^[<>])[^0-9.<>-]/g, "");
-    return s;
-};
-
-const levenshtein = (a, b) => {
-    const matrix = Array.from({ length: b.length + 1 }, (_, i) => [i]);
-    for (let j = 0; j <= a.length; j++) matrix[0][j] = j;
-    for (let i = 1; i <= b.length; i++) {
-        for (let j = 1; j <= a.length; j++) {
-            matrix[i][j] = b[i - 1] === a[j - 1]
-                ? matrix[i - 1][j - 1]
-                : Math.min(matrix[i - 1][j - 1] + 1, matrix[i][j - 1] + 1, matrix[i - 1][j] + 1);
-        }
-    }
-    return matrix[b.length][a.length];
-};
-
-const normalizeTestName = (raw) => {
-    const s = String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
-    for (const [test, def] of Object.entries(TEST_DEFINITIONS)) {
-        if (s === test.toUpperCase().replace(/[^A-Z0-9]/g, '')) return test;
-        for (const alias of (def.aliases || [])) {
-            if (s === alias.toUpperCase().replace(/[^A-Z0-9]/g, '')) return test;
-        }
-    }
-    if (s.length >= 2 && s.length <= 12) {
-        let bestMatch = null, bestDist = Infinity;
-        for (const [test, def] of Object.entries(TEST_DEFINITIONS)) {
-            const testNorm = test.toUpperCase().replace(/[^A-Z0-9]/g, '');
-            const dist = levenshtein(s, testNorm);
-            if (dist < bestDist && dist <= Math.max(1, Math.floor(testNorm.length / 3))) {
-                bestDist = dist; bestMatch = test;
-            }
-            for (const alias of (def.aliases || [])) {
-                const aliasNorm = alias.toUpperCase().replace(/[^A-Z0-9]/g, '');
-                const aDist = levenshtein(s, aliasNorm);
-                if (aDist < bestDist && aDist <= Math.max(1, Math.floor(aliasNorm.length / 3))) {
-                    bestDist = aDist; bestMatch = test;
-                }
-            }
-        }
-        if (bestMatch) return bestMatch;
-    }
-    return raw.trim();
-};
-
-const validateValue = (test, value) => {
-    const def = TEST_DEFINITIONS[test];
-    if (!def) return { status: 'unknown', message: 'Unknown test' };
-    const numVal = parseFloat(value);
-    if (isNaN(numVal)) return { status: 'invalid', message: 'Non-numeric' };
-    if (numVal < def.critLow || numVal > def.critHigh) return { status: 'invalid', message: `Outside range` };
-    if (numVal < def.refLow || numVal > def.refHigh) return { status: 'abnormal', message: numVal < def.refLow ? 'Low' : 'High' };
-    return { status: 'normal', message: 'Normal' };
-};
-
-const determineFlag = (test, value, extractedFlag) => {
-    const def = TEST_DEFINITIONS[test];
-    if (!def) return extractedFlag || 'N';
-    const numVal = parseFloat(value);
-    if (isNaN(numVal)) return extractedFlag || 'N';
-    if (numVal < def.refLow) return 'L';
-    if (numVal > def.refHigh) return 'H';
-    return 'N';
-};
-
-const parseLabsFromText = (text, mode = "CBC", meta = {}) => {
-    const ocrLines = (meta?.lines?.length ? meta.lines : null);
-    const lines = ocrLines
-        ? ocrLines.map(x => ({ line: x.text, conf: x.confidence }))
-        : String(text || "").split(/\r?\n/).map(l => ({ line: l.trim(), conf: null }));
+// ============ FALLBACK PARSER ============
+const parseLabsFromTextFallback = (text, mode = "CBC") => {
+    const lines = String(text || "").split(/\r?\n/).map(l => l.trim()).filter(l => l);
     const values = [];
     const seen = new Set();
-    const UNIT_ANCHORS = [
-  "mmol/L", "mmol\\/L",
-  "μmol/L", "µmol/L", "umol/L", "u?mol/L",
-  "mg/L", "g/L", "U/L", "ng/L", "pg/mL",
-  "sec", "%", "fL", "pg", "mmHg", "L/L",
-  "10^9/L", "10^12/L",
-  "10*9/L", "10*12/L",
-  "10x9/L", "10x12/L",
-  "10 9/L", "10 12/L"
-];
-    const unitRe = new RegExp(`\\b(${UNIT_ANCHORS.join("|").replace(/\//g, "\\/")})\\b`, "i");
     const valueRe = /[<>-]?\d{1,4}(?:\.\d{1,3})?/;
-    
-    for (const obj of lines) {
-        const raw = obj.line;
-        if (!raw) continue;
-        if (/^(date|time|patient|name|id|mrn|dob|specimen|collected|received|printed|page|lab|hospital|report)/i.test(raw)) continue;
-        let testRaw = "";
-        let valRaw = "";
-        let unitRaw = "";
-        const unitMatch = raw.match(unitRe);
-        if (unitMatch) {
-            unitRaw = unitMatch[1];
-            const beforeUnit = raw.slice(0, unitMatch.index).trim();
-            const mVal = beforeUnit.match(new RegExp(`${valueRe.source}\\s*$`));
-            if (mVal) valRaw = mVal[0];
-            if (valRaw) testRaw = beforeUnit.slice(0, beforeUnit.length - valRaw.length).trim();
-        } else {
-            const m = raw.match(/^([A-Za-z][A-Za-z0-9%\/\-\(\)\+\s]{1,25}?)\s*[:\.]?\s*([<>-]?\S+)/);
-            if (m) { testRaw = m[1]; valRaw = m[2]; }
-        }
-        if (!testRaw || !valRaw) continue;
-        const test = normalizeTestName(testRaw);
-        const cleaned = cleanNumericString(valRaw);
-        const mNum = cleaned.match(new RegExp(`^${valueRe.source}$`)) ? cleaned : (cleaned.match(valueRe)?.[0] || "");
-        if (!mNum) continue;
-        if (/^\d{4}$/.test(mNum) || /^\d{2}:\d{2}/.test(mNum)) continue;
-        const def = TEST_DEFINITIONS[test];
-        const unit = unitRaw || def?.unit || "";
-        let flag = "N";
-        if (/\bH\b|\bHIGH\b|\*H\*/i.test(raw)) flag = "H";
-        else if (/\bL\b|\bLOW\b|\*L\*/i.test(raw)) flag = "L";
-        if (def) flag = determineFlag(test, mNum, flag);
-        let refLow = "", refHigh = "";
-        if (def) { refLow = String(def.refLow); refHigh = String(def.refHigh); }
-        const validation = def ? validateValue(test, mNum) : { status: "unknown" };
-        let conf = 65;
-        if (def) conf += 20;
-        if (flag !== "N") conf += 5;
-        if (typeof obj.conf === "number") conf = (conf * 0.5 + obj.conf * 0.5);
-        conf = Math.max(10, Math.min(100, conf));
-        const lowConfidence = (typeof obj.conf === "number" && obj.conf < 75);
-        const key = `${test}|${mNum}|${unit}`;
+    for (const raw of lines) {
+        if (/^(date|time|patient|name|id|mrn)/i.test(raw)) continue;
+        const m = raw.match(/^([A-Za-z][A-Za-z0-9%\/\-\s]{1,15}?)\s*[:\.]?\s*([<>-]?\d{1,4}(?:\.\d{1,3})?)/);
+        if (!m) continue;
+        const testRaw = m[1].trim();
+        const valRaw = m[2];
+        const test = testRaw.toUpperCase().replace(/[^A-Z0-9]/g, '');
+        const def = TEST_DEFINITIONS[test] || Object.entries(TEST_DEFINITIONS).find(([k, v]) => v.aliases?.some(a => a.toUpperCase().replace(/[^A-Z0-9]/g, '') === test))?.[1];
+        const key = `${test}|${valRaw}`;
         if (seen.has(key)) continue;
         seen.add(key);
-        values.push({ test, value: mNum, flag, unit, refLow, refHigh, validation, confidence: conf, lowConfidence, raw, lineConfidence: obj.conf });
+        const numVal = parseFloat(valRaw);
+        let flag = 'N';
+        if (def) {
+            if (numVal < def.refLow) flag = 'L';
+            else if (numVal > def.refHigh) flag = 'H';
+        }
+        values.push({ test: testRaw, value: valRaw, flag, unit: def?.unit || '', confidence: 60, validation: { status: 'unknown' } });
     }
-    const modeConfig = OCR_MODES[mode] || OCR_MODES.Other;
-    const expectedOrder = modeConfig.expectedTests || [];
-    values.sort((a, b) => {
-        const aIdx = expectedOrder.indexOf(a.test), bIdx = expectedOrder.indexOf(b.test);
-        if (aIdx === -1 && bIdx === -1) return 0;
-        if (aIdx === -1) return 1;
-        if (bIdx === -1) return -1;
-        return aIdx - bIdx;
-    });
     return values;
 };
+
+const redactPHI = (text) => String(text || "").replace(/\b\d{3}-\d{2}-\d{4}\b/g, "███-██-████");
 
 const compressImage = (file, maxWidth = 1400) => {
     return new Promise((resolve, reject) => {
@@ -1329,40 +932,6 @@ const compressImage = (file, maxWidth = 1400) => {
 };
 
 // ============ COMPONENTS ============
-
-const CropModal = ({ image, initialCrop, onClose, onApply }) => {
-    const [crop, setCrop] = useState(initialCrop || { top: 0.10, bottom: 0.07, left: 0.05, right: 0.05 });
-    const set = (k, v) => setCrop(prev => ({ ...prev, [k]: Math.max(0, Math.min(0.45, Number(v))) }));
-    const boxStyle = { position: "absolute", top: `${crop.top * 100}%`, bottom: `${crop.bottom * 100}%`, left: `${crop.left * 100}%`, right: `${crop.right * 100}%`, border: "3px solid #f59e0b", boxShadow: "0 0 0 9999px rgba(0,0,0,0.5)", borderRadius: 8, pointerEvents: "none" };
-    return (
-        <div className="modalOverlay" onClick={onClose}>
-            <div className="modal" style={{ maxWidth: 700 }} onClick={e => e.stopPropagation()}>
-                <div className="modal-head" style={{ background: "#f59e0b" }}>✂ Manual Crop<button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: 18, cursor: 'pointer' }}>×</button></div>
-                <div className="modal-body" style={{ gap: 14 }}>
-                    <div style={{ position: "relative", borderRadius: 12, overflow: "hidden", border: "1px solid #e2e8f0" }}>
-                        <img src={image} style={{ width: "100%", display: "block" }} alt="Crop" />
-                        <div style={boxStyle}></div>
-                    </div>
-                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
-                        {["top", "bottom", "left", "right"].map(k => (
-                            <div key={k} style={{ border: "1px solid #e2e8f0", borderRadius: 10, padding: 10, background: "#f8fafc" }}>
-                                <div style={{ fontSize: 11, fontWeight: 800, color: "#475569", marginBottom: 6, textTransform: "uppercase" }}>{k}</div>
-                                <input type="range" min="0" max="0.45" step="0.01" value={crop[k]} onChange={(e) => set(k, e.target.value)} style={{ width: "100%" }} />
-                                <div style={{ fontSize: 12, fontWeight: 700, color: "#64748b" }}>{Math.round(crop[k] * 100)}%</div>
-                            </div>
-                        ))}
-                    </div>
-                    <div style={{ fontSize: 12, color: "#475569", fontWeight: 600, background: "#fef3c7", padding: 10, borderRadius: 8 }}>💡 Crop away headers/footers. Keep only results table.</div>
-                </div>
-                <div className="modal-foot">
-                    <button className="btn btn-white" onClick={onClose}>Cancel</button>
-                    <button className="btn" style={{ background: "#f59e0b", color: "white" }} onClick={() => onApply(crop)}>Apply</button>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 const ImageViewer = ({ images, currentIndex, onClose }) => {
     const current = images[currentIndex];
     if (!current) return null;
@@ -1370,7 +939,7 @@ const ImageViewer = ({ images, currentIndex, onClose }) => {
     return (
         <div className="image-viewer" onClick={onClose}>
             <div className="image-viewer-header" onClick={e => e.stopPropagation()}>
-                <div style={{ fontWeight: 600 }}>{date} • {time} {current.note ? `• ${current.note}` : ""}</div>
+                <div style={{ fontWeight: 600 }}>{date} • {time}</div>
                 <button className="image-viewer-close" onClick={onClose}>×</button>
             </div>
             <div className="image-viewer-body" onClick={e => e.stopPropagation()}>
@@ -1392,12 +961,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [ocrStage, setOcrStage] = useState("");
     const [ocrError, setOcrError] = useState(null);
     const [defaultOcrMode, setDefaultOcrMode] = useState("CBC");
-    const [defaultSmartCrop, setDefaultSmartCrop] = useState(true);
-    const [defaultDeskew, setDefaultDeskew] = useState(true);
-    const [defaultPSM, setDefaultPSM] = useState("6");
-    const [ocrEngine, setOcrEngine] = useState("hybrid");
-    const [cropModal, setCropModal] = useState(null);
-    const [showDebug, setShowDebug] = useState(false);
+    const [ocrEngine, setOcrEngine] = useState("vision");
     const [debugLogs, setDebugLogs] = useState([]);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
@@ -1407,7 +971,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log(`[DEBUG ${type}]`, msg);
     };
 
-            const runOcrOnImage = async (imgObj) => {
+    const runOcrOnImage = async (imgObj) => {
         setOcrBusyId(imgObj.id);
         setOcrProgress(0);
         setOcrStage("Starting...");
@@ -1415,56 +979,42 @@ const LabModal = ({ patient, onClose, onSave }) => {
         addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
         
         try {
-            // 1. Get Raw Text from Vision/Tesseract
             const result = await runHybridOCR(
                 imgObj.image,
-                {
-                    mode: imgObj.ocrMode || defaultOcrMode,
-                    smartCrop: imgObj.smartCrop !== false,
-                    manualCrop: imgObj.manualCrop || null,
-                    deskew: imgObj.deskew !== false,
-                    psm: imgObj.psm || defaultPSM
-                },
+                { mode: imgObj.ocrMode || defaultOcrMode, smartCrop: true },
                 setOcrProgress,
                 setOcrStage,
                 ocrEngine,
                 addDebugLog
             );
 
-            // 2. NEURAL BRIDGE: Send raw text to the Brain
             let processedValues = [];
             
-            // Check if the neural script is loaded
+            // Check if Neural v3 is loaded
             if (window.LabOCR && window.LabOCR.isReady) {
-                addDebugLog('info', 'Sending data to Neural Brain v3.0...');
-                
-                // A. Convert text to "Brain Format"
+                addDebugLog('info', 'Sending to Neural Brain v3.0...');
                 const rawNeuralInput = parseVisionToNeuralInput(result.text);
-                
-                // B. Let the Brain fix errors
+                addDebugLog('info', `Parsed ${rawNeuralInput.length} items from raw text`);
                 const neuralResults = window.LabOCR.processVisionResults(rawNeuralInput, imgObj.ocrMode || "CBC");
-                
-                // C. Convert back for the UI
                 processedValues = neuralResults.map(item => ({
                     test: item.test,
                     value: item.value,
-                    unit: item.unit,
-                    flag: item.flag,
-                    confidence: item.confidence,
+                    unit: item.unit || '',
+                    flag: item.flag || 'N',
+                    confidence: item.confidence || 50,
                     validation: { status: item.status === 'VALID' || item.status === 'AUTO_CORRECTED' ? 'normal' : 'invalid' },
                     raw: item.rawOcr,
-                    lowConfidence: item.confidence < 60
+                    lowConfidence: item.confidence < 60,
+                    corrected: item.corrected,
+                    refLow: item.reference?.split('-')[0] || '',
+                    refHigh: item.reference?.split('-')[1] || ''
                 }));
-                
                 addDebugLog('success', `Neural Brain processed ${processedValues.length} values`);
             } else {
-                // Fallback (Old way)
-                console.warn("Neural Brain not ready. Using standard parser.");
-                addDebugLog('warn', 'Neural Brain offline. Using standard parser.');
-                processedValues = parseLabsFromText(result.text, imgObj.ocrMode || defaultOcrMode, { lines: result.lines });
+                addDebugLog('warn', 'Neural Brain offline. Using fallback parser.');
+                processedValues = parseLabsFromTextFallback(result.text, imgObj.ocrMode || defaultOcrMode);
             }
 
-            // 3. Save Results
             const avgConfidence = processedValues.length > 0
                 ? processedValues.reduce((sum, v) => sum + (v.confidence || 0), 0) / processedValues.length
                 : result.confidence;
@@ -1476,11 +1026,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     values: processedValues,
                     confidence: result.confidence,
                     avgValueConfidence: avgConfidence,
-                    pass: result.pass || result.source,
-                    cropUsed: result.cropUsed || null,
                     updatedAt: Date.now(),
-                    skewAngle: result.skewAngle,
-                    threshold: result.threshold,
                     source: result.source || 'unknown'
                 }
             } : x));
@@ -1495,89 +1041,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
         setOcrStage("");
     };
 
-
-        // C. Convert back for the UI
-        processedValues = neuralResults.map(item => ({
-            test: item.test,
-            value: item.value,
-            unit: item.unit,
-            flag: item.flag,
-            confidence: item.confidence,
-            validation: { status: item.status === 'VALID' || item.status === 'AUTO_CORRECTED' ? 'normal' : 'invalid' },
-            raw: item.rawOcr,
-            lowConfidence: item.confidence < 60
-        }));
-        
-        addDebugLog('success', `Neural Brain processed ${processedValues.length} values`);
-    } else {
-        // Fallback (Old way)
-        console.warn("Neural Brain not ready. Using standard parser.");
-        addDebugLog('warn', 'Neural Brain offline. Using standard parser.');
-        processedValues = parseLabsFromText(result.text, imgObj.ocrMode || defaultOcrMode, { lines: result.lines });
-    }
-
-    // 3. Save Results
-    const avgConfidence = processedValues.length > 0
-        ? processedValues.reduce((sum, v) => sum + (v.confidence || 0), 0) / processedValues.length
-        : result.confidence;
-
-    setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
-        ...x,
-        ocr: {
-            text: redactPHI(result.text),
-            values: processedValues,
-            confidence: result.confidence,
-            avgValueConfidence: avgConfidence,
-            pass: result.pass || result.source,
-            cropUsed: result.cropUsed || null,
-            updatedAt: Date.now(),
-            skewAngle: result.skewAngle,
-            threshold: result.threshold,
-            source: result.source || 'unknown'
-        }
-    } : x));
-
-} catch (e) {
-    // ... (keep your existing catch block)
-    console.error("OCR ERROR:", e);
-    // ...
-}
-;
-    } catch (e) {
-        console.error("OCR ERROR:", e);
-        addDebugLog('error', `OCR failed: ${e.message}`);
-        setOcrError(e?.message || "OCR failed");
-    }
-    setOcrBusyId(null);
-    setOcrProgress(0);
-    setOcrStage("");
-}; // <--- Added closing bracket here
-
     const handleFile = async (file) => {
         if (!file || !file.type.startsWith('image/')) return;
         setUploading(true);
         setOcrError(null);
-        addDebugLog('info', `Processing file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
+        addDebugLog('info', `Processing file: ${file.name}`);
         try {
             const compressed = await compressImage(file);
-            addDebugLog('info', `Compressed image size: ${(compressed.length / 1024).toFixed(1)} KB`);
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
                 timestamp: Date.now(),
                 note: "",
                 ocrMode: defaultOcrMode,
-                smartCrop: defaultSmartCrop,
-                manualCrop: null,
-                psm: defaultPSM,
-                deskew: defaultDeskew,
-                ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, pass: "", updatedAt: null, cropUsed: null, skewAngle: 0, threshold: null, source: null }
+                ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null }
             };
             setLabImages(prev => [newImage, ...prev]);
             setUploading(false);
             setTimeout(() => runOcrOnImage(newImage), 300);
         } catch (err) {
-            console.error(err);
             addDebugLog('error', `File processing failed: ${err.message}`);
             setOcrError("Failed to process image");
             setUploading(false);
@@ -1592,17 +1074,8 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const updateOcrValue = (imgId, test, field, newVal) => {
         setLabImages(prev => prev.map(img => {
             if (img.id !== imgId) return img;
-            const o = img.ocr || {};
-            const vals = (o.values || []).map(v => {
-                if (v.test !== test) return v;
-                const updated = { ...v, [field]: newVal };
-                if (field === 'value') {
-                    updated.flag = determineFlag(test, newVal, v.flag);
-                    updated.validation = validateValue(test, newVal);
-                }
-                return updated;
-            });
-            return { ...img, ocr: { ...o, values: vals, updatedAt: Date.now() } };
+            const vals = (img.ocr?.values || []).map(v => v.test !== test ? v : { ...v, [field]: newVal });
+            return { ...img, ocr: { ...img.ocr, values: vals, updatedAt: Date.now() } };
         }));
     };
 
@@ -1614,37 +1087,14 @@ const LabModal = ({ patient, onClose, onSave }) => {
             ocrMode: img.ocrMode,
             confidence: img.ocr?.confidence || 0,
             avgValueConfidence: img.ocr?.avgValueConfidence || 0,
-            pass: img.ocr?.pass || "",
             values: img.ocr?.values || [],
             rawText: img.ocr?.text || "",
-            skewAngle: img.ocr?.skewAngle || 0,
-            threshold: img.ocr?.threshold ?? null,
             source: img.ocr?.source || null
         }));
     }, [labImages]);
 
     const handleSave = () => { onSave(patient.id, labImages); onClose(); };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
-    
-    // Test Vision API connection
-    const testVisionAPI = async () => {
-        addDebugLog('info', 'Testing Vision API connection...');
-        try {
-            const response = await fetch(VISION_API_PROXY_URL, {
-                method: 'POST',
-                headers: { 
-                    'Content-Type': 'text/plain;charset=utf-8'
-                },
-                body: JSON.stringify({ action: 'test' }),
-                redirect: 'follow'
-            });
-            addDebugLog('info', `Response status: ${response.status}`);
-            const text = await response.text();
-            addDebugLog('success', `Test response: ${text.substring(0, 300)}`);
-        } catch (err) {
-            addDebugLog('error', `Test failed: ${err.message}`);
-        }
-    };
 
     return (
         <div className="modalOverlay" onClick={onClose}>
@@ -1660,45 +1110,24 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
                     </div>
 
-                    {/* OCR Engine Selection */}
                     <div className="ocr-engine-toggle">
-                        <button 
-                            className={`engine-btn vision ${ocrEngine === 'vision' ? 'active' : ''}`}
-                            onClick={() => setOcrEngine('vision')}
-                        >
-                            🌐 Google Vision
-                        </button>
-                        <button 
-                            className={`engine-btn hybrid ${ocrEngine === 'hybrid' ? 'active' : ''}`}
-                            onClick={() => setOcrEngine('hybrid')}
-                        >
-                            ⚡ Hybrid (Best)
-                        </button>
-                        <button 
-                            className={`engine-btn tesseract ${ocrEngine === 'tesseract' ? 'active' : ''}`}
-                            onClick={() => setOcrEngine('tesseract')}
-                        >
-                            📱 Tesseract (Offline)
-                        </button>
+                        <button className={`engine-btn vision ${ocrEngine === 'vision' ? 'active' : ''}`} onClick={() => setOcrEngine('vision')}>🌐 Vision</button>
+                        <button className={`engine-btn hybrid ${ocrEngine === 'hybrid' ? 'active' : ''}`} onClick={() => setOcrEngine('hybrid')}>⚡ Hybrid</button>
+                        <button className={`engine-btn tesseract ${ocrEngine === 'tesseract' ? 'active' : ''}`} onClick={() => setOcrEngine('tesseract')}>📱 Tesseract</button>
                     </div>
 
                     {tab === "Debug" && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-                                <button className="btn btn-blue" onClick={testVisionAPI}>🔗 Test Vision API</button>
-                                <button className="btn btn-white" onClick={() => setDebugLogs([])}>🗑 Clear Logs</button>
+                            <div style={{ fontSize: 12, color: '#64748b' }}>
+                                Neural v3: <strong style={{ color: window.LabOCR?.isReady ? '#22c55e' : '#ef4444' }}>{window.LabOCR?.isReady ? 'ONLINE' : 'OFFLINE'}</strong>
                             </div>
-                            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
-                                Proxy URL: <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{VISION_API_PROXY_URL}</code>
-                            </div>
+                            <button className="btn btn-white" onClick={() => setDebugLogs([])}>🗑 Clear Logs</button>
                             <div className="debug-panel" style={{ minHeight: 200, maxHeight: 400, overflow: 'auto' }}>
                                 {debugLogs.length === 0 ? (
-                                    <pre style={{ color: '#64748b' }}>No logs yet. Try uploading an image or testing the API.</pre>
+                                    <pre style={{ color: '#64748b' }}>No logs yet.</pre>
                                 ) : (
                                     debugLogs.map((log, i) => (
-                                        <pre key={i} className={log.type}>
-                                            [{log.time}] [{log.type.toUpperCase()}] {log.msg}
-                                        </pre>
+                                        <pre key={i} className={log.type}>[{log.time}] [{log.type.toUpperCase()}] {log.msg}</pre>
                                     ))
                                 )}
                             </div>
@@ -1708,7 +1137,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     {tab !== "Debug" && (
                         <>
                             <div className="ocr-settings-panel">
-                                <div className="ocr-settings-title">⚙ OCR Settings</div>
+                                <div className="ocr-settings-title">⚙ Settings</div>
                                 <div className="ocr-settings-grid">
                                     <div className="ocr-setting">
                                         <div className="ocr-setting-label">Lab Type</div>
@@ -1716,55 +1145,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                             {Object.entries(OCR_MODES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
                                         </select>
                                     </div>
-                                    <div className="ocr-setting">
-                                        <div className="ocr-setting-label">Smart Crop</div>
-                                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
-                                            <input type="checkbox" checked={defaultSmartCrop} onChange={e => setDefaultSmartCrop(e.target.checked)} />
-                                            Auto-trim
-                                        </label>
-                                    </div>
-                                    <div className="ocr-setting">
-                                        <div className="ocr-setting-label">Deskew</div>
-                                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
-                                            <input type="checkbox" checked={defaultDeskew} onChange={e => setDefaultDeskew(e.target.checked)} />
-                                            Auto-rotate
-                                        </label>
-                                    </div>
-                                    {ocrEngine !== 'vision' && (
-                                        <div className="ocr-setting">
-                                            <div className="ocr-setting-label">PSM (Tesseract)</div>
-                                            <select className="inp" value={defaultPSM} onChange={(e) => setDefaultPSM(e.target.value)} style={{ background: "white" }}>
-                                                <option value="6">6 — Table / Block</option>
-                                                <option value="7">7 — Single Line (ROI)</option>
-                                            </select>
-                                        </div>
-                                    )}
                                 </div>
                             </div>
 
-                            <div
-                                className={`add-lab-area ${dragging ? 'dragging' : ''}`}
-                                onClick={() => fileRef.current?.click()}
-                                onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                                onDragLeave={() => setDragging(false)}
-                                onDrop={handleDrop}
-                            >
-                                {uploading ? (
-                                    <>
-                                        <div className="add-lab-icon">⏳</div>
-                                        <div className="add-lab-text">Processing...</div>
-                                    </>
-                                ) : (
-                                    <>
-                                        <div className="add-lab-icon">📷</div>
-                                        <div className="add-lab-text">Add Lab Image</div>
-                                        <div className="add-lab-hint">
-                                            {ocrEngine === 'vision' ? '🌐 Using Google Vision (cloud)' : 
-                                             ocrEngine === 'hybrid' ? '⚡ Using Hybrid (Vision → Tesseract fallback)' :
-                                             '📱 Using Tesseract (offline)'}
-                                        </div>
-                                    </>
-                                )}
+                            <div className={`add-lab-area ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
+                                {uploading ? (<><div className="add-lab-icon">⏳</div><div className="add-lab-text">Processing...</div></>) : (<><div className="add-lab-icon">📷</div><div className="add-lab-text">Add Lab Image</div><div className="add-lab-hint">{ocrEngine === 'vision' ? '🌐 Google Vision' : ocrEngine === 'hybrid' ? '⚡ Hybrid' : '📱 Tesseract'}</div></>)}
                             </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                                 <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
@@ -1773,32 +1158,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
                             <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
                             <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
 
-                            {ocrError && (
-                                <div className="ocr-error">
-                                    ⚠ {ocrError}
-                                    <button onClick={() => setOcrError(null)} style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
-                                </div>
-                            )}
-
+                            {ocrError && <div className="ocr-error">⚠ {ocrError}</div>}
                             {ocrBusyId && (
                                 <div className={`ocr-progress ${ocrEngine === 'vision' ? 'vision' : ''}`}>
-                                    <div className="ocr-progress-bar">
-                                        <div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }}></div>
-                                    </div>
-                                    <div className="ocr-progress-text">
-                                        <span>🔎 {ocrStage}</span>
-                                        <span>{ocrProgress}%</span>
-                                    </div>
+                                    <div className="ocr-progress-bar"><div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }}></div></div>
+                                    <div className="ocr-progress-text"><span>🔎 {ocrStage}</span><span>{ocrProgress}%</span></div>
                                 </div>
                             )}
                         </>
                     )}
 
                     {tab === "Values" && (valuesFeed.length === 0 ? (
-                        <div className="empty-labs">
-                            <div className="empty-labs-icon">🔬</div>
-                            <div style={{ fontSize: 14 }}>No labs yet. Add a photo.</div>
-                        </div>
+                        <div className="empty-labs"><div className="empty-labs-icon">🔬</div><div>No labs yet. Add a photo.</div></div>
                     ) : (
                         <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
                             {valuesFeed.map(item => {
@@ -1811,75 +1182,41 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                         <div className={`lab-values-head ${isVision ? 'vision' : ''}`}>
                                             <div>
                                                 <div className="lab-values-title">{date} • {time}</div>
-                                                <div className="lab-values-sub">
-                                                    {item.note ? item.note + " • " : ""}
-                                                    {OCR_MODES[item.ocrMode]?.name || item.ocrMode}
-                                                    {typeof item.skewAngle === "number" && item.source === 'tesseract' ? ` • skew: ${item.skewAngle.toFixed(1)}°` : ""}
-                                                    {item.threshold !== null && item.source === 'tesseract' ? ` • th: ${item.threshold}` : ""}
-                                                </div>
+                                                <div className="lab-values-sub">{OCR_MODES[item.ocrMode]?.name || item.ocrMode}</div>
                                             </div>
                                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                                <span className={`pill ${isVision ? 'vision' : 'tesseract'}`}>
-                                                    {isVision ? '🌐 Vision' : '📱 Tesseract'}
-                                                </span>
+                                                <span className={`pill ${isVision ? 'vision' : 'tesseract'}`}>{isVision ? '🌐 Vision' : '📱 Tesseract'}</span>
                                                 <span className={`pill ${confClass}-conf`}>{Math.round(item.avgValueConfidence || item.confidence)}%</span>
                                                 <span className="pill">{hasVals ? `${item.values.length} values` : "—"}</span>
-                                                <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>
-                                                    {showRawText === item.id ? '🔼' : '🔽'} Raw
-                                                </button>
-                                                <button className="lab-image-btn" onClick={() => {
-                                                    const img = labImages.find(x => x.id === item.id);
-                                                    if (img) runOcrOnImage(img);
-                                                }}>🔁</button>
+                                                <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>{showRawText === item.id ? '🔼' : '🔽'} Raw</button>
+                                                <button className="lab-image-btn" onClick={() => { const img = labImages.find(x => x.id === item.id); if (img) runOcrOnImage(img); }}>🔁</button>
                                             </div>
                                         </div>
-                                        {showRawText === item.id && (
-                                            <div className="raw-text-panel">
-                                                <pre>{item.rawText || "(empty)"}</pre>
-                                            </div>
-                                        )}
+                                        {showRawText === item.id && <div className="raw-text-panel"><pre>{item.rawText || "(empty)"}</pre></div>}
                                         <div className="lab-values-body">
-                                            {!hasVals ? (
-                                                <div style={{ color: "#94a3b8", fontWeight: 600 }}>
-                                                    No values detected. Try different Lab Type, Manual Crop, or re-scan.
-                                                </div>
-                                            ) : (
+                                            {!hasVals ? <div style={{ color: "#94a3b8", fontWeight: 600 }}>No values detected.</div> : (
                                                 <div className="kv-grid">
-                                                    {item.values.map(v => {
-                                                        const valClass = v.validation?.status === 'invalid' ? 'invalid' : '';
-                                                        return (
-                                                            <div key={v.test} className={`kv ${valClass}`}>
-                                                                <div className="k">
-                                                                    {v.test}
-                                                                    <span className={`confidence-dot ${getConfidenceClass(v.confidence)}`} title={`${Math.round(v.confidence)}%`}></span>
-                                                                    {v.lowConfidence && (
-                                                                        <span style={{ color: "#b45309", fontWeight: 900, fontSize: 11 }}>
-                                                                            ⚠ Low conf
-                                                                        </span>
-                                                                    )}
-                                                                    {v.validation?.status === 'invalid' && <span style={{ color: '#ef4444', fontWeight: 800 }}>⚠</span>}
-                                                                </div>
-                                                                <div className="v">
-                                                                    <input
-                                                                        value={v.value || ""}
-                                                                        onChange={e => updateOcrValue(item.id, v.test, 'value', e.target.value)}
-                                                                    />
-                                                                    <span className="u">{v.unit || ""}</span>
-                                                                    <span className={`flag ${v.flag || "N"}`}>{v.flag || "N"}</span>
-                                                                </div>
-                                                                {(v.refLow || v.refHigh) && (
-                                                                    <div style={{ marginTop: 6, fontSize: 11, color: "#64748b", fontWeight: 600 }}>
-                                                                        Ref: {v.refLow} – {v.refHigh}
-                                                                    </div>
-                                                                )}
+                                                    {item.values.map(v => (
+                                                        <div key={v.test} className={`kv ${v.validation?.status === 'invalid' ? 'invalid' : ''}`}>
+                                                            <div className="k">
+                                                                {v.test}
+                                                                <span className={`confidence-dot ${getConfidenceClass(v.confidence)}`} title={`${Math.round(v.confidence)}%`}></span>
+                                                                {v.corrected && <span style={{ color: "#f59e0b", fontWeight: 900, fontSize: 10 }}>FIXED</span>}
+                                                                {v.lowConfidence && <span style={{ color: "#b45309", fontWeight: 900, fontSize: 11 }}>⚠</span>}
                                                             </div>
-                                                        );
-                                                    })}
+                                                            <div className="v">
+                                                                <input value={v.value || ""} onChange={e => updateOcrValue(item.id, v.test, 'value', e.target.value)} />
+                                                                <span className="u">{v.unit || ""}</span>
+                                                                <span className={`flag ${v.flag || "N"}`}>{v.flag || "N"}</span>
+                                                            </div>
+                                                            {(v.refLow || v.refHigh) && <div style={{ marginTop: 6, fontSize: 11, color: "#64748b", fontWeight: 600 }}>Ref: {v.refLow} – {v.refHigh}</div>}
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             )}
                                         </div>
                                         <div className="ocr-stats">
-                                            <div className="ocr-stat">Source: <span className={isVision ? 'vision' : ''}>{item.source || item.pass || "—"}</span></div>
+                                            <div className="ocr-stat">Source: <span className={isVision ? 'vision' : ''}>{item.source || "—"}</span></div>
                                             <div className="ocr-stat">Confidence: <span>{Math.round(item.confidence)}%</span></div>
                                         </div>
                                     </div>
@@ -1889,10 +1226,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     ))}
 
                     {tab === "Images" && (labImages.length === 0 ? (
-                        <div className="empty-labs">
-                            <div className="empty-labs-icon">🔬</div>
-                            <div style={{ fontSize: 14 }}>No lab images yet.</div>
-                        </div>
+                        <div className="empty-labs"><div className="empty-labs-icon">🔬</div><div>No lab images yet.</div></div>
                     ) : (
                         <div className="lab-images-grid">
                             {labImages.map((lab, idx) => {
@@ -1902,39 +1236,14 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                 return (
                                     <div key={lab.id} className="lab-image-card">
                                         <div className="lab-image-header" style={isVision ? { background: 'linear-gradient(135deg, #4285f4 0%, #34a853 100%)' } : {}}>
-                                            <div>
-                                                <div className="lab-image-date">{date}</div>
-                                                <div className="lab-image-time">{time} {count ? `• ${count} values` : ""}</div>
-                                            </div>
+                                            <div><div className="lab-image-date">{date}</div><div className="lab-image-time">{time} {count ? `• ${count} values` : ""}</div></div>
                                             <div className="lab-image-actions">
-                                                <span className={`source-badge ${isVision ? 'vision' : 'tesseract'}`}>
-                                                    {isVision ? '🌐' : '📱'} {lab.ocr?.source || 'pending'}
-                                                </span>
-                                                <select
-                                                    className="inp"
-                                                    style={{ width: 110, padding: "4px 8px", fontSize: 11, background: "white" }}
-                                                    value={lab.ocrMode || "CBC"}
-                                                    onChange={(e) => setLabImages(prev => prev.map(x => x.id === lab.id ? ({ ...x, ocrMode: e.target.value }) : x))}
-                                                >
-                                                    {Object.keys(OCR_MODES).map(k => <option key={k} value={k}>{k}</option>)}
-                                                </select>
-                                                <button className="lab-image-btn" onClick={() => setCropModal({ imgId: lab.id })}>✂</button>
                                                 <button className="lab-image-btn" onClick={() => runOcrOnImage(lab)}>🔎</button>
                                                 <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)}>🗑</button>
                                             </div>
                                         </div>
-                                        <div className="lab-image-container" onClick={() => setViewerIndex(idx)}>
-                                            <img src={lab.image} alt="Lab" />
-                                        </div>
-                                        <div className="lab-image-note">
-                                            <input
-                                                type="text"
-                                                placeholder="Add note..."
-                                                value={lab.note || ""}
-                                                onChange={e => updateNote(lab.id, e.target.value)}
-                                                onClick={e => e.stopPropagation()}
-                                            />
-                                        </div>
+                                        <div className="lab-image-container" onClick={() => setViewerIndex(idx)}><img src={lab.image} alt="Lab" /></div>
+                                        <div className="lab-image-note"><input type="text" placeholder="Add note..." value={lab.note || ""} onChange={e => updateNote(lab.id, e.target.value)} /></div>
                                     </div>
                                 );
                             })}
@@ -1943,28 +1252,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 </div>
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
-                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
-                        Save ({labImages.length})
-                    </button>
+                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>Save ({labImages.length})</button>
                 </div>
             </div>
             {viewerIndex !== null && <ImageViewer images={labImages} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
-            {cropModal && (() => {
-                const img = labImages.find(x => x.id === cropModal.imgId);
-                if (!img) return null;
-                const modeConfig = OCR_MODES[img.ocrMode || "CBC"] || OCR_MODES.CBC;
-                return (
-                    <CropModal
-                        image={img.image}
-                        initialCrop={img.manualCrop || modeConfig.crop}
-                        onClose={() => setCropModal(null)}
-                        onApply={(crop) => {
-                            setLabImages(prev => prev.map(x => x.id === img.id ? ({ ...x, manualCrop: crop }) : x));
-                            setCropModal(null);
-                        }}
-                    />
-                );
-            })()}
         </div>
     );
 };
@@ -1974,37 +1265,16 @@ const NoticeBanner = ({ notice, onSave }) => {
     const [collapsed, setCollapsed] = useState(false);
     const [text, setText] = useState(notice?.text || "");
     useEffect(() => setText(notice?.text || ""), [notice?.text]);
-    if (collapsed) return (
-        <div className="notice-banner notice-collapsed" onClick={() => setCollapsed(false)}>
-            <div className="notice-header">
-                <span className="notice-title">📢 Notice</span>
-                <span style={{ fontSize: '11px', color: '#a16207' }}>▼</span>
-            </div>
-        </div>
-    );
+    if (collapsed) return (<div className="notice-banner notice-collapsed" onClick={() => setCollapsed(false)}><div className="notice-header"><span className="notice-title">📢 Notice</span><span style={{ fontSize: '11px', color: '#a16207' }}>▼</span></div></div>);
     return (
         <div className="notice-banner">
             <div className="notice-header">
                 <span className="notice-title">📢 Notice</span>
                 <div className="notice-actions">
-                    {editing ? (
-                        <>
-                            <button className="notice-btn" onClick={() => { setText(notice?.text || ""); setEditing(false); }}>Cancel</button>
-                            <button className="notice-btn save" onClick={() => { onSave(text); setEditing(false); }}>Save</button>
-                        </>
-                    ) : (
-                        <>
-                            <button className="notice-btn" onClick={() => setCollapsed(true)}>▲</button>
-                            <button className="notice-btn" onClick={() => setEditing(true)}>Edit</button>
-                        </>
-                    )}
+                    {editing ? (<><button className="notice-btn" onClick={() => { setText(notice?.text || ""); setEditing(false); }}>Cancel</button><button className="notice-btn save" onClick={() => { onSave(text); setEditing(false); }}>Save</button></>) : (<><button className="notice-btn" onClick={() => setCollapsed(true)}>▲</button><button className="notice-btn" onClick={() => setEditing(true)}>Edit</button></>)}
                 </div>
             </div>
-            {editing ? (
-                <textarea className="notice-textarea" value={text} onChange={e => setText(e.target.value)} autoFocus />
-            ) : (
-                <div className={`notice-content ${!notice?.text ? 'empty' : ''}`}>{notice?.text || "No notices"}</div>
-            )}
+            {editing ? <textarea className="notice-textarea" value={text} onChange={e => setText(e.target.value)} autoFocus /> : <div className={`notice-content ${!notice?.text ? 'empty' : ''}`}>{notice?.text || "No notices"}</div>}
         </div>
     );
 };
@@ -2023,133 +1293,50 @@ const App = () => {
     const syncTimer = useRef(null);
 
     const showToast = (msg) => { setToast(msg); setTimeout(() => setToast(null), 3000); };
-
-    const scheduleSync = useCallback(() => {
-        setSyncing(true);
-        if (syncTimer.current) clearTimeout(syncTimer.current);
-        syncTimer.current = setTimeout(() => {
-            pingSheets();
-            setTimeout(() => setSyncing(false), 1000);
-        }, 500);
-    }, []);
+    const scheduleSync = useCallback(() => { setSyncing(true); if (syncTimer.current) clearTimeout(syncTimer.current); syncTimer.current = setTimeout(() => { pingSheets(); setTimeout(() => setSyncing(false), 1000); }, 500); }, []);
 
     useEffect(() => {
         db.ref('notice').on('value', snap => setNotice(snap.val() || { text: "" }));
-        db.ref('patients').on('value', snap => {
-            const val = snap.val();
-            setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []);
-        });
+        db.ref('patients').on('value', snap => { const val = snap.val(); setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []); });
         return () => { db.ref('notice').off(); db.ref('patients').off(); };
     }, []);
 
     const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved"));
     const saveLabImages = (patientId, labImages) => db.ref(`patients/${patientId}/labImages`).set(labImages).then(() => { showToast("✓ Labs saved"); scheduleSync(); });
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
-
-    const update = useCallback((id, field, value) => {
-        const p = patients.find(x => x.id === id);
-        if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; }
-        if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; }
-        db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync);
-    }, [patients, scheduleSync]);
-
+    const update = useCallback((id, field, value) => { const p = patients.find(x => x.id === id); if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; } if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; } db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync); }, [patients, scheduleSync]);
     const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
-
-    const saveNew = () => {
-        const c = {
-            ward: newP.ward || "Unassigned",
-            bed: cleanBed(newP.bed),
-            name: newP.name.trim(),
-            diagnosis: newP.diagnosis,
-            doctor: newP.doctor,
-            status: newP.status || "New",
-            plan: newP.plan,
-            mrn: newP.mrn,
-            timestamp: Date.now(),
-            labImages: []
-        };
-        if (!c.name) { alert("Enter name"); return; }
-        if (isDup(c.ward, c.name)) { alert("Duplicate"); return; }
-        db.ref("patients").push(c).then(() => {
-            setAddModal(false);
-            setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
-            showToast("✓ Added");
-            pingSheets();
-        });
-    };
-
-    const groups = useMemo(() => {
-        const g = {};
-        (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter))
-            .filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase()))
-            .forEach(p => { const w = p.ward || "Unassigned"; (g[w] = g[w] || []).push(p); });
-        return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) };
-    }, [patients, search, viewFilter]);
-
+    const saveNew = () => { const c = { ward: newP.ward || "Unassigned", bed: cleanBed(newP.bed), name: newP.name.trim(), diagnosis: newP.diagnosis, doctor: newP.doctor, status: newP.status || "New", plan: newP.plan, mrn: newP.mrn, timestamp: Date.now(), labImages: [] }; if (!c.name) { alert("Enter name"); return; } if (isDup(c.ward, c.name)) { alert("Duplicate"); return; } db.ref("patients").push(c).then(() => { setAddModal(false); setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); showToast("✓ Added"); pingSheets(); }); };
+    const groups = useMemo(() => { const g = {}; (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter)).filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase())).forEach(p => { const w = p.ward || "Unassigned"; (g[w] = g[w] || []).push(p); }); return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) }; }, [patients, search, viewFilter]);
     const getLabCount = (p) => (p.labImages || []).length;
 
     return (
         <div className="wrap">
             <div className="topbar">
-                <div className="title">
-                    <div className="title-row">
-                        <h1>Unit E</h1>
-                        <span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>{syncing ? '⏳' : '✓'} {patients.length}</span>
-                    </div>
-                </div>
+                <div className="title"><div className="title-row"><h1>Unit E</h1><span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>{syncing ? '⏳' : '✓'} {patients.length}</span></div></div>
                 <div className="actions">
                     <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
                     <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
                     <button className="btn btn-blue" onClick={() => { setSyncing(true); pingSheets(); showToast("🔄 Syncing..."); setTimeout(() => setSyncing(false), 2000); }}>🔄</button>
                 </div>
             </div>
-
             <NoticeBanner notice={notice} onSave={saveNotice} />
-
             <div className="controls-container">
-                <div className="filter-row">
-                    {['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (
-                        <button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>
-                    ))}
-                </div>
+                <div className="filter-row">{['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (<button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>))}</div>
                 <input className="search-bar" placeholder="Search patients..." value={search} onChange={e => setSearch(e.target.value)} />
             </div>
-
             {groups.keys.map(ward => (
                 <div key={ward} className="ward-section">
-                    <div className="ward-header" onClick={() => setCollapsedWards(p => ({ ...p, [ward]: !p[ward] }))}>
-                        <div><span className={`arrow ${collapsedWards[ward] ? 'collapsed' : ''}`}>▼</span> {ward}</div>
-                        <span className="ward-count">{groups.g[ward].length}</span>
-                    </div>
+                    <div className="ward-header" onClick={() => setCollapsedWards(p => ({ ...p, [ward]: !p[ward] }))}><div><span className={`arrow ${collapsedWards[ward] ? 'collapsed' : ''}`}>▼</span> {ward}</div><span className="ward-count">{groups.g[ward].length}</span></div>
                     <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
                         {groups.g[ward].map(p => (
                             <div className="p-card" key={p.id}>
-                                <div className="mobile-row col-1">
-                                    <input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} />
-                                    <input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} />
-                                </div>
-                                <div className="col-2">
-                                    <div style={{ display: 'flex', gap: 8 }}>
-                                        <input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} />
-                                        <input className="inp" style={{ width: '90px' }} value={p.mrn || ''} placeholder="MRN" onChange={e => update(p.id, 'mrn', e.target.value)} />
-                                    </div>
-                                    <input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} />
-                                </div>
-                                <div className="col-3">
-                                    <textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} />
-                                </div>
+                                <div className="mobile-row col-1"><input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} /><input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} /></div>
+                                <div className="col-2"><div style={{ display: 'flex', gap: 8 }}><input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} /><input className="inp" style={{ width: '90px' }} value={p.mrn || ''} placeholder="MRN" onChange={e => update(p.id, 'mrn', e.target.value)} /></div><input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} /></div>
+                                <div className="col-3"><textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} /></div>
                                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
-                                    <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>
-                                        🧪 Labs {getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}
-                                    </button>
-                                    <select
-                                        className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`}
-                                        value={p.status || ""}
-                                        onChange={e => update(p.id, 'status', e.target.value)}
-                                    >
-                                        <option value="">-</option>
-                                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
+                                    <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>🧪 Labs {getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}</button>
+                                    <select className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e => update(p.id, 'status', e.target.value)}><option value="">-</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select>
                                     <button className="btn-del" onClick={() => del(p.id)}>×</button>
                                 </div>
                             </div>
@@ -2157,61 +1344,22 @@ const App = () => {
                     </div>
                 </div>
             ))}
-
             {addModal && (
                 <div className="modalOverlay">
                     <div className="modal" style={{ maxWidth: '450px' }}>
                         <div className="modal-head" style={{ background: 'var(--green)' }}>Add Patient</div>
                         <div className="modal-body">
-                            <div>
-                                <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Ward</label>
-                                <select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>
-                                    {WARD_ORDER.map(w => <option key={w}>{w}</option>)}
-                                </select>
-                            </div>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Bed</label>
-                                    <input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Doctor</label>
-                                    <input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} />
-                                </div>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Name</label>
-                                <input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} />
-                            </div>
-                            <div style={{ display: 'flex', gap: 10 }}>
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>MRN</label>
-                                    <input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} />
-                                </div>
-                                <div style={{ flex: 1 }}>
-                                    <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Status</label>
-                                    <select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>
-                                        {STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}
-                                    </select>
-                                </div>
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Diagnosis</label>
-                                <input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} />
-                            </div>
-                            <div>
-                                <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Plan</label>
-                                <textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} />
-                            </div>
+                            <div><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Ward</label><select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
+                            <div style={{ display: 'flex', gap: 10 }}><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Bed</label><input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Doctor</label><input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} /></div></div>
+                            <div><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Name</label><input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} /></div>
+                            <div style={{ display: 'flex', gap: 10 }}><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>MRN</label><input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Status</label><select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>
+                            <div><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Diagnosis</label><input className="inp" value={newP.diagnosis} onChange={e => setNewP({ ...newP, diagnosis: e.target.value })} /></div>
+                            <div><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Plan</label><textarea className="inp inp-area" value={newP.plan} onChange={e => setNewP({ ...newP, plan: e.target.value })} /></div>
                         </div>
-                        <div className="modal-foot">
-                            <button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button>
-                            <button className="btn btn-blue" onClick={saveNew}>Save</button>
-                        </div>
+                        <div className="modal-foot"><button className="btn btn-white" onClick={() => setAddModal(false)}>Cancel</button><button className="btn btn-blue" onClick={saveNew}>Save</button></div>
                     </div>
                 </div>
             )}
-
             {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabImages} />}
             {toast && <div className="toast">{toast}</div>}
         </div>
