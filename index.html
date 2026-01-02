@@ -785,83 +785,85 @@ const getOcrWorker = async (loggerFn) => {
 };
 
 // ============ GOOGLE VISION API ============
-const callVisionAPI = async (base64Image, setProgress, setStage, debugLog) => {
+const callVisionAPI = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
     debugLog && debugLog('info', 'Starting Vision API call...');
+    setStage && setStage("Preprocessing for Vision...");
+    setProgress && setProgress(5);
+
+    // ✅ Preprocess specifically for Vision (NO binarize)
+    const pre = await preprocessForOCR(dataUrl, {
+        mode: options.mode || "CBC",
+        smartCrop: options.smartCrop !== false,
+        manualCrop: options.manualCrop || null,
+        deskew: options.deskew !== false,
+        binarize: false,          // ✅ key change
+        contrastBoost: 1.2
+    });
+
     setStage && setStage("Connecting to Google Vision API...");
-    setProgress && setProgress(10);
-    
-    // Strip the data URL prefix if present
-    let imageData = base64Image;
-    if (base64Image.includes(',')) {
-        imageData = base64Image.split(',')[1];
-        debugLog && debugLog('info', 'Stripped data URL prefix');
-    }
-    
-    debugLog && debugLog('info', `Image data length: ${imageData.length} chars`);
+    setProgress && setProgress(15);
+
+    let imageData = pre.processed;
+    if (imageData.includes(',')) imageData = imageData.split(',')[1];
+
+    debugLog && debugLog('info', `Processed image length: ${imageData.length} chars`);
     debugLog && debugLog('info', `Proxy URL: ${VISION_API_PROXY_URL}`);
-    
+
     try {
         const requestBody = {
             action: 'ocr',
             image: imageData,
-            mode: 'DOCUMENT_TEXT_DETECTION'
+            mode: 'DOCUMENT_TEXT_DETECTION',      // ✅ correct feature
+            // Extra hints (safe even if proxy ignores them)
+            languageHints: ['en'],                // add 'ar' if needed: ['en','ar']
+            clientMeta: {
+                ocrMode: options.mode || "CBC",
+                skewAngle: pre.skewAngle,
+                usedCrop: pre.cropUsed
+            }
         };
-        
+
         debugLog && debugLog('info', `Request payload size: ${JSON.stringify(requestBody).length} bytes`);
-        
-        // Google Apps Script requires redirect: 'follow' and specific handling
+
         const response = await fetch(VISION_API_PROXY_URL, {
             method: 'POST',
-            headers: { 
-                'Content-Type': 'text/plain;charset=utf-8'
-            },
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify(requestBody),
             redirect: 'follow'
         });
-        
+
         debugLog && debugLog('info', `Response status: ${response.status} ${response.statusText}`);
-        debugLog && debugLog('info', `Response URL: ${response.url}`);
-        setProgress && setProgress(60);
+        setProgress && setProgress(70);
         setStage && setStage("Processing Vision API response...");
-        
+
         const responseText = await response.text();
-        debugLog && debugLog('info', `Response body (first 500 chars): ${responseText.substring(0, 500)}`);
-        
-        if (!response.ok) {
-            debugLog && debugLog('error', `HTTP error: ${response.status}`);
-            throw new Error(`Vision API error: ${response.status} - ${responseText}`);
-        }
-        
+        debugLog && debugLog('info', `Response body (first 500): ${responseText.substring(0, 500)}`);
+
+        if (!response.ok) throw new Error(`Vision API HTTP ${response.status} - ${responseText}`);
+
         let result;
-        try {
-            result = JSON.parse(responseText);
-        } catch (parseErr) {
-            debugLog && debugLog('error', `JSON parse error: ${parseErr.message}`);
-            throw new Error(`Failed to parse response: ${responseText.substring(0, 200)}`);
-        }
-        
-        if (result.error) {
-            debugLog && debugLog('error', `API returned error: ${result.error}`);
-            throw new Error(result.error);
-        }
-        
-        debugLog && debugLog('success', `OCR successful! Text length: ${(result.text || '').length}`);
-        setProgress && setProgress(90);
-        
+        try { result = JSON.parse(responseText); }
+        catch { throw new Error(`Failed to parse response: ${responseText.substring(0, 200)}`); }
+
+        if (result.error) throw new Error(result.error);
+
+        setProgress && setProgress(95);
+
         return {
             text: result.text || "",
             confidence: result.confidence || 85,
             lines: result.lines || [],
             source: 'google_vision',
-            wordCount: result.wordCount || 0
+            wordCount: result.wordCount || 0,
+            cropUsed: pre.cropUsed,
+            skewAngle: pre.skewAngle,
+            threshold: pre.threshold
         };
     } catch (err) {
         debugLog && debugLog('error', `Vision API call failed: ${err.message}`);
-        console.error("Vision API call failed:", err);
         throw err;
     }
 };
-
 // ============ IMAGE PREPROCESSING ============
 const clamp01 = (x) => Math.max(0, Math.min(1, x));
 
@@ -1064,7 +1066,7 @@ const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEng
     
     if (ocrEngine === 'vision') {
         try {
-            return await callVisionAPI(dataUrl, setProgress, setStage, debugLog);
+            return await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
         } catch (err) {
             throw new Error(`Vision API failed: ${err.message}`);
         }
@@ -1200,8 +1202,17 @@ const parseLabsFromText = (text, mode = "CBC", meta = {}) => {
         : String(text || "").split(/\r?\n/).map(l => ({ line: l.trim(), conf: null }));
     const values = [];
     const seen = new Set();
-    const UNIT_ANCHORS = ["mmol/L", "μmol/L", "mg/L", "g/L", "U/L", "ng/L", "pg/mL", "sec", "%", "fL", "pg", "mmHg", "L/L", "10^9/L", "10^12/L"];
-    const unitRe = new RegExp(`\\b(${UNIT_ANCHORS.map(u => u.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join("|")})\\b`, "i");
+    const UNIT_ANCHORS = [
+  "mmol/L", "mmol\\/L",
+  "μmol/L", "µmol/L", "umol/L", "u?mol/L",
+  "mg/L", "g/L", "U/L", "ng/L", "pg/mL",
+  "sec", "%", "fL", "pg", "mmHg", "L/L",
+  "10^9/L", "10^12/L",
+  "10*9/L", "10*12/L",
+  "10x9/L", "10x12/L",
+  "10 9/L", "10 12/L"
+];
+    const unitRe = new RegExp(`\\b(${UNIT_ANCHORS.join("|").replace(/\//g, "\\/")})\\b`, "i");
     const valueRe = /[<>-]?\d{1,4}(?:\.\d{1,3})?/;
     
     for (const obj of lines) {
