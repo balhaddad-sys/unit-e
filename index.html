@@ -1407,38 +1407,95 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log(`[DEBUG ${type}]`, msg);
     };
 
-    const runOcrOnImage = async (imgObj) => // REPLACE the existing try { ... } block in runOcrOnImage with this:
+            const runOcrOnImage = async (imgObj) => {
+        setOcrBusyId(imgObj.id);
+        setOcrProgress(0);
+        setOcrStage("Starting...");
+        setOcrError(null);
+        addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
+        
+        try {
+            // 1. Get Raw Text from Vision/Tesseract
+            const result = await runHybridOCR(
+                imgObj.image,
+                {
+                    mode: imgObj.ocrMode || defaultOcrMode,
+                    smartCrop: imgObj.smartCrop !== false,
+                    manualCrop: imgObj.manualCrop || null,
+                    deskew: imgObj.deskew !== false,
+                    psm: imgObj.psm || defaultPSM
+                },
+                setOcrProgress,
+                setOcrStage,
+                ocrEngine,
+                addDebugLog
+            );
 
-try {
-    // 1. Get Raw Text from Vision/Tesseract
-    const result = await runHybridOCR(
-        imgObj.image,
-        {
-            mode: imgObj.ocrMode || defaultOcrMode,
-            smartCrop: imgObj.smartCrop !== false,
-            manualCrop: imgObj.manualCrop || null,
-            deskew: imgObj.deskew !== false,
-            psm: imgObj.psm || defaultPSM
-        },
-        setOcrProgress,
-        setOcrStage,
-        ocrEngine,
-        addDebugLog
-    );
+            // 2. NEURAL BRIDGE: Send raw text to the Brain
+            let processedValues = [];
+            
+            // Check if the neural script is loaded
+            if (window.LabOCR && window.LabOCR.isReady) {
+                addDebugLog('info', 'Sending data to Neural Brain v3.0...');
+                
+                // A. Convert text to "Brain Format"
+                const rawNeuralInput = parseVisionToNeuralInput(result.text);
+                
+                // B. Let the Brain fix errors
+                const neuralResults = window.LabOCR.processVisionResults(rawNeuralInput, imgObj.ocrMode || "CBC");
+                
+                // C. Convert back for the UI
+                processedValues = neuralResults.map(item => ({
+                    test: item.test,
+                    value: item.value,
+                    unit: item.unit,
+                    flag: item.flag,
+                    confidence: item.confidence,
+                    validation: { status: item.status === 'VALID' || item.status === 'AUTO_CORRECTED' ? 'normal' : 'invalid' },
+                    raw: item.rawOcr,
+                    lowConfidence: item.confidence < 60
+                }));
+                
+                addDebugLog('success', `Neural Brain processed ${processedValues.length} values`);
+            } else {
+                // Fallback (Old way)
+                console.warn("Neural Brain not ready. Using standard parser.");
+                addDebugLog('warn', 'Neural Brain offline. Using standard parser.');
+                processedValues = parseLabsFromText(result.text, imgObj.ocrMode || defaultOcrMode, { lines: result.lines });
+            }
 
-    // 2. NEURAL BRIDGE: Send raw text to the Brain
-    let processedValues = [];
-    
-    // Check if the neural script is loaded
-    if (window.LabOCR && window.LabOCR.isReady) {
-        addDebugLog('info', 'Sending data to Neural Brain v3.0...');
-        
-        // A. Convert text to "Brain Format"
-        const rawNeuralInput = parseVisionToNeuralInput(result.text);
-        
-        // B. Let the Brain fix errors
-        const neuralResults = window.LabOCR.processVisionResults(rawNeuralInput, imgObj.ocrMode || "CBC");
-        
+            // 3. Save Results
+            const avgConfidence = processedValues.length > 0
+                ? processedValues.reduce((sum, v) => sum + (v.confidence || 0), 0) / processedValues.length
+                : result.confidence;
+
+            setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
+                ...x,
+                ocr: {
+                    text: redactPHI(result.text),
+                    values: processedValues,
+                    confidence: result.confidence,
+                    avgValueConfidence: avgConfidence,
+                    pass: result.pass || result.source,
+                    cropUsed: result.cropUsed || null,
+                    updatedAt: Date.now(),
+                    skewAngle: result.skewAngle,
+                    threshold: result.threshold,
+                    source: result.source || 'unknown'
+                }
+            } : x));
+
+        } catch (e) {
+            console.error("OCR ERROR:", e);
+            addDebugLog('error', `OCR failed: ${e.message}`);
+            setOcrError(e?.message || "OCR failed");
+        }
+        setOcrBusyId(null);
+        setOcrProgress(0);
+        setOcrStage("");
+    };
+
+
         // C. Convert back for the UI
         processedValues = neuralResults.map(item => ({
             test: item.test,
@@ -1486,6 +1543,15 @@ try {
     // ...
 }
 ;
+    } catch (e) {
+        console.error("OCR ERROR:", e);
+        addDebugLog('error', `OCR failed: ${e.message}`);
+        setOcrError(e?.message || "OCR failed");
+    }
+    setOcrBusyId(null);
+    setOcrProgress(0);
+    setOcrStage("");
+}; // <--- Added closing bracket here
 
     const handleFile = async (file) => {
         if (!file || !file.type.startsWith('image/')) return;
