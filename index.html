@@ -287,6 +287,8 @@
             border-radius: 8px;
             font-size: 14px;
             z-index: 200;
+            max-width: 90%;
+            text-align: center;
         }
         .tabs { display: flex; gap: 8px; margin-bottom: 4px; }
         .tab {
@@ -608,6 +610,23 @@
         }
         .source-badge.vision { background: #dbeafe; color: #1e40af; }
         .source-badge.tesseract { background: #f3e8ff; color: #6b21a8; }
+        .debug-panel {
+            background: #1e293b;
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+        }
+        .debug-panel pre {
+            margin: 0;
+            font-size: 11px;
+            color: #94a3b8;
+            white-space: pre-wrap;
+            word-break: break-all;
+            font-family: monospace;
+        }
+        .debug-panel .success { color: #4ade80; }
+        .debug-panel .error { color: #f87171; }
+        .debug-panel .info { color: #60a5fa; }
         @media (min-width: 768px) {
             .p-card { flex-direction: row; align-items: flex-start; gap: 14px; }
             .col-1 { width: 130px; display: flex; flex-direction: column; gap: 6px; }
@@ -641,12 +660,12 @@ if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseCon
 const db = firebase.database();
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbxQGB79HuDQkUzTmPEUSEpRibxctSsUppJDClj4cZ3HK1HIYM3N-ObzJbzkU-3hQC6X/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbwHpPSol9vKZLIdUjWx4fQmREpTL_S8vEltXKcfxGJ-qSONGytfi4p2_LBga9uv5_bC/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
 const pingSheets = () => {
-    const url = `${SHEETS_SYNC_URL}?t=${Date.now()}`;
+    const url = `${VISION_API_PROXY_URL}?t=${Date.now()}`;
     if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
     else fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {});
 };
@@ -724,6 +743,20 @@ const TEST_DEFINITIONS = {
     ESR: { unit: "mm/hr", refLow: 0, refHigh: 20, critLow: 0, critHigh: 120, aliases: ["SED RATE"] }
 };
 
+// ============ DEBUG LOGGER ============
+const createDebugLogger = () => {
+    const logs = [];
+    return {
+        log: (type, msg) => {
+            const entry = { type, msg, time: new Date().toISOString() };
+            logs.push(entry);
+            console.log(`[${type}]`, msg);
+        },
+        getLogs: () => [...logs],
+        clear: () => logs.length = 0
+    };
+};
+
 // ============ TESSERACT OCR (FALLBACK) ============
 let _ocrWorker = null;
 let _ocrWorkerReady = false;
@@ -752,45 +785,75 @@ const getOcrWorker = async (loggerFn) => {
 };
 
 // ============ GOOGLE VISION API ============
-const callVisionAPI = async (base64Image, setProgress, setStage) => {
+const callVisionAPI = async (base64Image, setProgress, setStage, debugLog) => {
+    debugLog && debugLog('info', 'Starting Vision API call...');
     setStage && setStage("Connecting to Google Vision API...");
     setProgress && setProgress(10);
     
+    // Strip the data URL prefix if present
+    let imageData = base64Image;
+    if (base64Image.includes(',')) {
+        imageData = base64Image.split(',')[1];
+        debugLog && debugLog('info', 'Stripped data URL prefix');
+    }
+    
+    debugLog && debugLog('info', `Image data length: ${imageData.length} chars`);
+    debugLog && debugLog('info', `Proxy URL: ${VISION_API_PROXY_URL}`);
+    
     try {
+        const requestBody = {
+            action: 'ocr',
+            image: imageData,
+            mode: 'DOCUMENT_TEXT_DETECTION'
+        };
+        
+        debugLog && debugLog('info', `Request payload size: ${JSON.stringify(requestBody).length} bytes`);
+        
         const response = await fetch(VISION_API_PROXY_URL, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-                action: 'ocr',
-                image: base64Image,
-                mode: 'DOCUMENT_TEXT_DETECTION'
-            })
+            headers: { 
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
         });
         
+        debugLog && debugLog('info', `Response status: ${response.status} ${response.statusText}`);
         setProgress && setProgress(60);
         setStage && setStage("Processing Vision API response...");
         
+        const responseText = await response.text();
+        debugLog && debugLog('info', `Response body (first 500 chars): ${responseText.substring(0, 500)}`);
+        
         if (!response.ok) {
-            const errorText = await response.text();
-            throw new Error(`Vision API error: ${response.status} - ${errorText}`);
+            debugLog && debugLog('error', `HTTP error: ${response.status}`);
+            throw new Error(`Vision API error: ${response.status} - ${responseText}`);
         }
         
-        const result = await response.json();
+        let result;
+        try {
+            result = JSON.parse(responseText);
+        } catch (parseErr) {
+            debugLog && debugLog('error', `JSON parse error: ${parseErr.message}`);
+            throw new Error(`Failed to parse response: ${responseText.substring(0, 200)}`);
+        }
         
         if (result.error) {
+            debugLog && debugLog('error', `API returned error: ${result.error}`);
             throw new Error(result.error);
         }
         
+        debugLog && debugLog('success', `OCR successful! Text length: ${(result.text || '').length}`);
         setProgress && setProgress(90);
         
         return {
             text: result.text || "",
-            confidence: result.confidence || 0,
+            confidence: result.confidence || 85, // Vision API typically has high confidence
             lines: result.lines || [],
             source: 'google_vision',
             wordCount: result.wordCount || 0
         };
     } catch (err) {
+        debugLog && debugLog('error', `Vision API call failed: ${err.message}`);
         console.error("Vision API call failed:", err);
         throw err;
     }
@@ -949,8 +1012,9 @@ const preprocessForOCR = async (dataUrl, options = {}) => {
 };
 
 // ============ TESSERACT OCR (with preprocessing) ============
-const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage) => {
+const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
     const { mode = "CBC", smartCrop = true, manualCrop = null, deskew = true, psm = "6" } = options;
+    debugLog && debugLog('info', 'Starting Tesseract OCR...');
     try {
         setStage && setStage("Preprocessing (Otsu + deskew)...");
         setProgress && setProgress(5);
@@ -978,22 +1042,26 @@ const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage) => 
             ? result.data.lines.map(l => ({ text: String(l.text || "").trim(), confidence: Number(l.confidence || 0) })).filter(l => l.text)
             : [];
         setProgress && setProgress(100);
+        debugLog && debugLog('success', `Tesseract completed. Text length: ${text.length}, Confidence: ${confidence}`);
         return { text, confidence, pass: `PSM ${psm}`, cropUsed: pre.cropUsed, skewAngle: pre.skewAngle, threshold: pre.threshold, lines, source: 'tesseract' };
     } catch (err) {
+        debugLog && debugLog('error', `Tesseract error: ${err.message}`);
         console.error("Tesseract OCR Error:", err);
         throw err;
     }
 };
 
 // ============ HYBRID OCR ENGINE ============
-const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEngine = 'hybrid') => {
+const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEngine = 'hybrid', debugLog) => {
+    debugLog && debugLog('info', `OCR Engine: ${ocrEngine}`);
+    
     if (ocrEngine === 'tesseract') {
-        return await runTesseractOCR(dataUrl, options, setProgress, setStage);
+        return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
     }
     
     if (ocrEngine === 'vision') {
         try {
-            return await callVisionAPI(dataUrl, setProgress, setStage);
+            return await callVisionAPI(dataUrl, setProgress, setStage, debugLog);
         } catch (err) {
             throw new Error(`Vision API failed: ${err.message}`);
         }
@@ -1001,28 +1069,34 @@ const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEng
     
     // Hybrid mode: Try Vision first, fallback to Tesseract
     try {
+        debugLog && debugLog('info', 'Hybrid mode: Trying Vision API first...');
         setStage && setStage("Trying Google Vision API (primary)...");
-        const visionResult = await callVisionAPI(dataUrl, setProgress, setStage);
+        const visionResult = await callVisionAPI(dataUrl, setProgress, setStage, debugLog);
         
         // If Vision API returns good results, use them
         if (visionResult.confidence >= 70 || visionResult.text.length > 50) {
+            debugLog && debugLog('success', 'Vision API returned good results');
             return visionResult;
         }
         
         // If Vision results are poor, try Tesseract as backup
+        debugLog && debugLog('info', 'Vision results unclear, falling back to Tesseract...');
         setStage && setStage("Vision results unclear, trying Tesseract...");
-        const tesseractResult = await runTesseractOCR(dataUrl, options, setProgress, setStage);
+        const tesseractResult = await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
         
         // Return whichever has better confidence
         if (tesseractResult.confidence > visionResult.confidence) {
+            debugLog && debugLog('info', 'Using Tesseract results (higher confidence)');
             return tesseractResult;
         }
+        debugLog && debugLog('info', 'Using Vision results');
         return visionResult;
         
     } catch (visionErr) {
+        debugLog && debugLog('error', `Vision API failed: ${visionErr.message}`);
         console.warn("Vision API failed, falling back to Tesseract:", visionErr);
         setStage && setStage("Vision API unavailable, using Tesseract...");
-        return await runTesseractOCR(dataUrl, options, setProgress, setStage);
+        return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
     }
 };
 
@@ -1271,16 +1345,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [defaultSmartCrop, setDefaultSmartCrop] = useState(true);
     const [defaultDeskew, setDefaultDeskew] = useState(true);
     const [defaultPSM, setDefaultPSM] = useState("6");
-    const [ocrEngine, setOcrEngine] = useState("hybrid"); // 'vision', 'tesseract', or 'hybrid'
+    const [ocrEngine, setOcrEngine] = useState("hybrid");
     const [cropModal, setCropModal] = useState(null);
+    const [showDebug, setShowDebug] = useState(false);
+    const [debugLogs, setDebugLogs] = useState([]);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
+    
+    const addDebugLog = (type, msg) => {
+        setDebugLogs(prev => [...prev.slice(-50), { type, msg, time: new Date().toLocaleTimeString() }]);
+        console.log(`[DEBUG ${type}]`, msg);
+    };
 
     const runOcrOnImage = async (imgObj) => {
         setOcrBusyId(imgObj.id);
         setOcrProgress(0);
         setOcrStage("Starting...");
         setOcrError(null);
+        addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
+        
         try {
             const result = await runHybridOCR(
                 imgObj.image,
@@ -1293,12 +1376,14 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 },
                 setOcrProgress,
                 setOcrStage,
-                ocrEngine
+                ocrEngine,
+                addDebugLog
             );
             const values = parseLabsFromText(result.text, imgObj.ocrMode || defaultOcrMode, { lines: result.lines });
             const avgConfidence = values.length > 0
                 ? values.reduce((sum, v) => sum + (v.confidence || 0), 0) / values.length
                 : result.confidence;
+            addDebugLog('success', `OCR complete: ${values.length} values extracted`);
             setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
                 ...x,
                 ocr: {
@@ -1316,6 +1401,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
             } : x));
         } catch (e) {
             console.error("OCR ERROR:", e);
+            addDebugLog('error', `OCR failed: ${e.message}`);
             setOcrError(e?.message || "OCR failed");
         }
         setOcrBusyId(null);
@@ -1327,8 +1413,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
         if (!file || !file.type.startsWith('image/')) return;
         setUploading(true);
         setOcrError(null);
+        addDebugLog('info', `Processing file: ${file.name} (${(file.size / 1024).toFixed(1)} KB)`);
         try {
             const compressed = await compressImage(file);
+            addDebugLog('info', `Compressed image size: ${(compressed.length / 1024).toFixed(1)} KB`);
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
@@ -1346,6 +1434,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
             setTimeout(() => runOcrOnImage(newImage), 300);
         } catch (err) {
             console.error(err);
+            addDebugLog('error', `File processing failed: ${err.message}`);
             setOcrError("Failed to process image");
             setUploading(false);
         }
@@ -1392,6 +1481,20 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
     const handleSave = () => { onSave(patient.id, labImages); onClose(); };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
+    
+    // Test Vision API connection
+    const testVisionAPI = async () => {
+        addDebugLog('info', 'Testing Vision API connection...');
+        try {
+            const response = await fetch(VISION_API_PROXY_URL + '?action=test', {
+                method: 'GET'
+            });
+            const text = await response.text();
+            addDebugLog('info', `Test response: ${text.substring(0, 200)}`);
+        } catch (err) {
+            addDebugLog('error', `Test failed: ${err.message}`);
+        }
+    };
 
     return (
         <div className="modalOverlay" onClick={onClose}>
@@ -1404,6 +1507,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     <div className="tabs">
                         <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
+                        <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
                     </div>
 
                     {/* OCR Engine Selection */}
@@ -1428,89 +1532,116 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         </button>
                     </div>
 
-                    <div className="ocr-settings-panel">
-                        <div className="ocr-settings-title">⚙ OCR Settings</div>
-                        <div className="ocr-settings-grid">
-                            <div className="ocr-setting">
-                                <div className="ocr-setting-label">Lab Type</div>
-                                <select className="inp" value={defaultOcrMode} onChange={(e) => setDefaultOcrMode(e.target.value)} style={{ background: "white" }}>
-                                    {Object.entries(OCR_MODES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
-                                </select>
+                    {tab === "Debug" && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                                <button className="btn btn-blue" onClick={testVisionAPI}>🔗 Test Vision API</button>
+                                <button className="btn btn-white" onClick={() => setDebugLogs([])}>🗑 Clear Logs</button>
                             </div>
-                            <div className="ocr-setting">
-                                <div className="ocr-setting-label">Smart Crop</div>
-                                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
-                                    <input type="checkbox" checked={defaultSmartCrop} onChange={e => setDefaultSmartCrop(e.target.checked)} />
-                                    Auto-trim
-                                </label>
+                            <div style={{ fontSize: 12, color: '#64748b', fontWeight: 600 }}>
+                                Proxy URL: <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>{VISION_API_PROXY_URL}</code>
                             </div>
-                            <div className="ocr-setting">
-                                <div className="ocr-setting-label">Deskew</div>
-                                <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
-                                    <input type="checkbox" checked={defaultDeskew} onChange={e => setDefaultDeskew(e.target.checked)} />
-                                    Auto-rotate
-                                </label>
+                            <div className="debug-panel" style={{ minHeight: 200, maxHeight: 400, overflow: 'auto' }}>
+                                {debugLogs.length === 0 ? (
+                                    <pre style={{ color: '#64748b' }}>No logs yet. Try uploading an image or testing the API.</pre>
+                                ) : (
+                                    debugLogs.map((log, i) => (
+                                        <pre key={i} className={log.type}>
+                                            [{log.time}] [{log.type.toUpperCase()}] {log.msg}
+                                        </pre>
+                                    ))
+                                )}
                             </div>
-                            {ocrEngine !== 'vision' && (
-                                <div className="ocr-setting">
-                                    <div className="ocr-setting-label">PSM (Tesseract)</div>
-                                    <select className="inp" value={defaultPSM} onChange={(e) => setDefaultPSM(e.target.value)} style={{ background: "white" }}>
-                                        <option value="6">6 — Table / Block</option>
-                                        <option value="7">7 — Single Line (ROI)</option>
-                                    </select>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div
-                        className={`add-lab-area ${dragging ? 'dragging' : ''}`}
-                        onClick={() => fileRef.current?.click()}
-                        onDragOver={e => { e.preventDefault(); setDragging(true); }}
-                        onDragLeave={() => setDragging(false)}
-                        onDrop={handleDrop}
-                    >
-                        {uploading ? (
-                            <>
-                                <div className="add-lab-icon">⏳</div>
-                                <div className="add-lab-text">Processing...</div>
-                            </>
-                        ) : (
-                            <>
-                                <div className="add-lab-icon">📷</div>
-                                <div className="add-lab-text">Add Lab Image</div>
-                                <div className="add-lab-hint">
-                                    {ocrEngine === 'vision' ? '🌐 Using Google Vision (cloud)' : 
-                                     ocrEngine === 'hybrid' ? '⚡ Using Hybrid (Vision → Tesseract fallback)' :
-                                     '📱 Using Tesseract (offline)'}
-                                </div>
-                            </>
-                        )}
-                    </div>
-                    <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                        <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
-                        <button className="btn btn-white" onClick={() => fileRef.current?.click()}>📁 Gallery</button>
-                    </div>
-                    <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
-
-                    {ocrError && (
-                        <div className="ocr-error">
-                            ⚠ {ocrError}
-                            <button onClick={() => setOcrError(null)} style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
                         </div>
                     )}
 
-                    {ocrBusyId && (
-                        <div className={`ocr-progress ${ocrEngine === 'vision' ? 'vision' : ''}`}>
-                            <div className="ocr-progress-bar">
-                                <div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }}></div>
+                    {tab !== "Debug" && (
+                        <>
+                            <div className="ocr-settings-panel">
+                                <div className="ocr-settings-title">⚙ OCR Settings</div>
+                                <div className="ocr-settings-grid">
+                                    <div className="ocr-setting">
+                                        <div className="ocr-setting-label">Lab Type</div>
+                                        <select className="inp" value={defaultOcrMode} onChange={(e) => setDefaultOcrMode(e.target.value)} style={{ background: "white" }}>
+                                            {Object.entries(OCR_MODES).map(([k, v]) => <option key={k} value={k}>{v.name}</option>)}
+                                        </select>
+                                    </div>
+                                    <div className="ocr-setting">
+                                        <div className="ocr-setting-label">Smart Crop</div>
+                                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+                                            <input type="checkbox" checked={defaultSmartCrop} onChange={e => setDefaultSmartCrop(e.target.checked)} />
+                                            Auto-trim
+                                        </label>
+                                    </div>
+                                    <div className="ocr-setting">
+                                        <div className="ocr-setting-label">Deskew</div>
+                                        <label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, fontWeight: 600 }}>
+                                            <input type="checkbox" checked={defaultDeskew} onChange={e => setDefaultDeskew(e.target.checked)} />
+                                            Auto-rotate
+                                        </label>
+                                    </div>
+                                    {ocrEngine !== 'vision' && (
+                                        <div className="ocr-setting">
+                                            <div className="ocr-setting-label">PSM (Tesseract)</div>
+                                            <select className="inp" value={defaultPSM} onChange={(e) => setDefaultPSM(e.target.value)} style={{ background: "white" }}>
+                                                <option value="6">6 — Table / Block</option>
+                                                <option value="7">7 — Single Line (ROI)</option>
+                                            </select>
+                                        </div>
+                                    )}
+                                </div>
                             </div>
-                            <div className="ocr-progress-text">
-                                <span>🔎 {ocrStage}</span>
-                                <span>{ocrProgress}%</span>
+
+                            <div
+                                className={`add-lab-area ${dragging ? 'dragging' : ''}`}
+                                onClick={() => fileRef.current?.click()}
+                                onDragOver={e => { e.preventDefault(); setDragging(true); }}
+                                onDragLeave={() => setDragging(false)}
+                                onDrop={handleDrop}
+                            >
+                                {uploading ? (
+                                    <>
+                                        <div className="add-lab-icon">⏳</div>
+                                        <div className="add-lab-text">Processing...</div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="add-lab-icon">📷</div>
+                                        <div className="add-lab-text">Add Lab Image</div>
+                                        <div className="add-lab-hint">
+                                            {ocrEngine === 'vision' ? '🌐 Using Google Vision (cloud)' : 
+                                             ocrEngine === 'hybrid' ? '⚡ Using Hybrid (Vision → Tesseract fallback)' :
+                                             '📱 Using Tesseract (offline)'}
+                                        </div>
+                                    </>
+                                )}
                             </div>
-                        </div>
+                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
+                                <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
+                                <button className="btn btn-white" onClick={() => fileRef.current?.click()}>📁 Gallery</button>
+                            </div>
+                            <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
+                            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
+
+                            {ocrError && (
+                                <div className="ocr-error">
+                                    ⚠ {ocrError}
+                                    <button onClick={() => setOcrError(null)} style={{ marginLeft: 10, background: 'none', border: 'none', cursor: 'pointer' }}>×</button>
+                                </div>
+                            )}
+
+                            {ocrBusyId && (
+                                <div className={`ocr-progress ${ocrEngine === 'vision' ? 'vision' : ''}`}>
+                                    <div className="ocr-progress-bar">
+                                        <div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }}></div>
+                                    </div>
+                                    <div className="ocr-progress-text">
+                                        <span>🔎 {ocrStage}</span>
+                                        <span>{ocrProgress}%</span>
+                                    </div>
+                                </div>
+                            )}
+                        </>
                     )}
 
                     {tab === "Values" && (valuesFeed.length === 0 ? (
@@ -1941,4 +2072,3 @@ ReactDOM.createRoot(document.getElementById('root')).render(<App />);
 </script>
 </body>
 </html>
-
