@@ -54,4 +54,21 @@ setTimeout(() => {
         alert("🧠 Neural Brain Active! \nTest Result: " + output[0]);
     }
 }, 3000); // Waits 3 seconds to ensure everything loaded
+// Master Shifu's System Status Visualizer
+(function checkSystem() {
+    const statusDiv = document.createElement('div');
+    statusDiv.style = "position:fixed; bottom:10px; right:10px; background:rgba(0,0,0,0.8); color:#0f0; padding:10px; border-radius:5px; font-family:monospace; z-index:9999; border:1px solid #0f0; font-size:12px;";
+    
+    let brainStatus = (typeof brain !== 'undefined') ? "✅ BRAIN ONLINE" : "❌ BRAIN OFFLINE";
+    let ocrStatus = (typeof Tesseract !== 'undefined') ? "✅ OCR ONLINE" : "❌ OCR OFFLINE";
+    
+    statusDiv.innerHTML = `
+        <div style="font-weight:bold; margin-bottom:5px;">SYSTEM STATUS</div>
+        <div>${brainStatus}</div>
+        <div>${ocrStatus}</div>
+        <div style="color:#aaa; margin-top:5px; font-size:10px;">File: ocr-neural.js connected</div>
+    `;
+    
+    document.body.appendChild(statusDiv);
+})();
 
