@@ -1,3 +1,5 @@
+alert("Master Shifu: The Neural System is Online!");
+
 /* * ocr-neural.js
  * Location: Root directory (same as index.html)
  */
