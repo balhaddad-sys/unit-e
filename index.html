@@ -1398,10 +1398,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 ocrEngine,
                 addDebugLog
             );
-            const values = parseLabsFromText(result.text, imgObj.ocrMode || defaultOcrMode, { lines: result.lines });
-            const avgConfidence = values.length > 0
-                ? values.reduce((sum, v) => sum + (v.confidence || 0), 0) / values.length
-                : result.confidence;
+let values = parseLabsFromText(result.text, imgObj.ocrMode || defaultOcrMode, { lines: result.lines });
+
+// 🧠 Neural correction
+if (window.LabOCR && window.LabOCR.processVisionResults) {
+const corrected = window.LabOCR.processVisionResults(values);
+values = corrected.map(c => ({
+...values.find(v => v.test === c.test) || {},
+test: c.test,
+value: c.value,
+flag: c.flag || 'N',
+confidence: c.confidence,
+needsReview: c.needsReview
+}));
+addDebugLog('success', `Neural correction applied to ${values.length} values`);
+}
+
+const avgConfidence = values.length > 0
+? values.reduce((sum, v) => sum + (v.confidence || 0), 0) / values.length
+: result.confidence;;
             addDebugLog('success', `OCR complete: ${values.length} values extracted`);
             setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
                 ...x,
