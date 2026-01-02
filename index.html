@@ -691,18 +691,142 @@ const DEFAULT_CROP = { top: 0.08, bottom: 0.06, left: 0.04, right: 0.04 };
 
 // ============ VISION TO NEURAL ADAPTER ============
 const parseVisionToNeuralInput = (rawText) => {
-    if (!rawText) return [];
-    const cleanLines = rawText.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
-    const potentialItems = [];
-    const lineRegex = /([a-zA-Z%\/\-\(\)\+\s]{2,15})[:\.\s\|]+([<>]?\d{1,4}(?:\.\d{1,3})?)/;
-    cleanLines.forEach(line => {
-        if (/(Name|Date|Sex|Age|Page|Report|Unit|Ref)/i.test(line)) return;
-        const match = line.match(lineRegex);
-        if (match) {
-            potentialItems.push({ test: match[1].trim(), value: match[2].trim() });
+    const items = [];
+    const seen = new Set();
+    const text = String(rawText || "");
+    const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
+    
+    // Metadata/header fields to ALWAYS skip
+    const SKIP_PATTERNS = [
+        /^(age|sex|gender|pid|page|ref|date|time|collected|reported|registered|generated|sample|specimen|patient|name|mrn|id|hospital|lab|report|doctor|dr\.|technician|pathologist|phone|email|address|barcode|qr)/i,
+        /^(primary|type|serum|plasma|whole|blood|urine|stool|csf|fluid)/i,
+        /^\d+[\s\-\.\/]\d+/,  // Date patterns
+        /^[A-Z]{2,4}\s*[\-:]\s*[A-Z]{2,4}$/,  // Code patterns like "ISE"
+        /thanks|reference|end of report|advice|guideline|risk map/i,
+        /copyright|generated on|page \d/i,
+        /drlogy|smart path|pathology/i
+    ];
+    
+    // Known lab test names
+    const KNOWN_TESTS = new Set([
+        'WBC','RBC','HB','HGB','HEMOGLOBIN','HCT','HEMATOCRIT','PCV','MCV','MCH','MCHC','RDW','PLT','PLATELET','PLATELETS','MPV',
+        'NEUTROPHIL','LYMPHOCYTE','MONOCYTE','EOSINOPHIL','BASOPHIL','BAND',
+        'UREA','BUN','CREATININE','CR','CREAT','URIC ACID','URIC','GFR','EGFR',
+        'SODIUM','NA','POTASSIUM','K','CHLORIDE','CL','CO2','TCO2','BICARBONATE','HCO3',
+        'CALCIUM','CA','PHOSPHORUS','PHOSPHATE','PO4','PHOS','MAGNESIUM','MG',
+        'GLUCOSE','GLU','SUGAR','FBS','RBS','BS','HBA1C','A1C',
+        'ALT','SGPT','AST','SGOT','ALP','ALKALINE PHOSPHATASE','GGT','GAMMA GT',
+        'BILIRUBIN','TBIL','DBIL','TOTAL BILIRUBIN','DIRECT BILIRUBIN','INDIRECT BILIRUBIN',
+        'ALBUMIN','ALB','GLOBULIN','TOTAL PROTEIN','TP','PROTEIN',
+        'LDH','CHOLESTEROL','HDL','LDL','VLDL','TRIGLYCERIDE','TG','TRIGLYCERIDES',
+        'TROPONIN','TROP','TNI','TNT','CK','CPK','CKMB','BNP','PROBNP',
+        'PT','INR','PTT','APTT','FIBRINOGEN','FIB','DIMER',
+        'PH','PCO2','PO2','SAO2','SPO2','BE','LACTATE','LAC',
+        'TSH','T3','T4','FT3','FT4','CRP','ESR','PCT','FERRITIN','IRON','TIBC',
+        'AMYLASE','LIPASE','AMMONIA','CORTISOL','VITAMIN D','B12','FOLATE'
+    ]);
+    
+    // Normalize test name for matching
+    const normalizeTest = (name) => {
+        return name.toUpperCase()
+            .replace(/[^A-Z0-9]/g, '')
+            .replace(/TOTAL$/,'')
+            .replace(/^SERUM/,'');
+    };
+    
+    // Check if name looks like a real lab test
+    const isLikelyLabTest = (name) => {
+        const norm = normalizeTest(name);
+        if (norm.length < 2 || norm.length > 25) return false;
+        if (KNOWN_TESTS.has(norm)) return true;
+        // Partial match
+        for (const known of KNOWN_TESTS) {
+            if (norm.includes(known) || known.includes(norm)) return true;
         }
-    });
-    return potentialItems;
+        return false;
+    };
+    
+    // Process each line
+    for (const line of lines) {
+        // Skip metadata lines
+        if (SKIP_PATTERNS.some(p => p.test(line))) continue;
+        
+        // Table format: "Sodium    139    136 - 145    mEq/L"
+        // Look for: TestName (with spaces) followed by multiple spaces, then a number
+        const tableMatch = line.match(/^([A-Za-z][A-Za-z\s\(\)\-,\.]{2,30}?)\s{2,}(\d+\.?\d*)/);
+        if (tableMatch) {
+            const testName = tableMatch[1].trim();
+            const value = tableMatch[2];
+            const normName = normalizeTest(testName);
+            if (isLikelyLabTest(testName) && !seen.has(normName)) {
+                seen.add(normName);
+                items.push({ test: testName, value: value });
+                continue;
+            }
+        }
+        
+        // Colon pattern: "Creatinine: 1.5"
+        const colonMatch = line.match(/^([A-Za-z][A-Za-z\s\(\)\-,\.]{2,25}?)\s*[:\=]\s*(\d+\.?\d*)/);
+        if (colonMatch) {
+            const testName = colonMatch[1].trim();
+            const value = colonMatch[2];
+            const normName = normalizeTest(testName);
+            if (isLikelyLabTest(testName) && !seen.has(normName)) {
+                seen.add(normName);
+                items.push({ test: testName, value: value });
+                continue;
+            }
+        }
+        
+        // Simple: "WBC 8.5"
+        const simpleMatch = line.match(/^([A-Za-z][A-Za-z0-9\-]{1,12})\s+(\d+\.?\d*)\s*$/);
+        if (simpleMatch) {
+            const testName = simpleMatch[1].trim();
+            const value = simpleMatch[2];
+            const normName = normalizeTest(testName);
+            if (isLikelyLabTest(testName) && !seen.has(normName)) {
+                seen.add(normName);
+                items.push({ test: testName, value: value });
+                continue;
+            }
+        }
+        
+        // Tab-separated
+        const tabParts = line.split(/\t+/);
+        if (tabParts.length >= 2) {
+            const testName = tabParts[0].trim();
+            const valueMatch = tabParts[1].trim().match(/^(\d+\.?\d*)/);
+            if (valueMatch && isLikelyLabTest(testName)) {
+                const normName = normalizeTest(testName);
+                if (!seen.has(normName)) {
+                    seen.add(normName);
+                    items.push({ test: testName, value: valueMatch[1] });
+                }
+            }
+        }
+    }
+    
+    // Fallback: scan full text for known tests with values
+    if (items.length < 3) {
+        for (const known of KNOWN_TESTS) {
+            if (seen.has(known)) continue;
+            const patterns = [
+                new RegExp(known + '\\s*[:\\s]+([\\d\\.]+)', 'i'),
+                new RegExp(known + '\\s{2,}([\\d\\.]+)', 'i')
+            ];
+            for (const re of patterns) {
+                const m = text.match(re);
+                if (m) {
+                    seen.add(known);
+                    items.push({ test: known, value: m[1] });
+                    break;
+                }
+            }
+        }
+    }
+    
+    console.log(`[Parser] Found ${items.length} lab values:`, items.map(i => `${i.test}=${i.value}`).join(', '));
+    return items;
 };
 
 // ============ IMAGE PREPROCESSING ============
