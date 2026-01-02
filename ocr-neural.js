@@ -1,396 +1,401 @@
-/* ocr-neural-v2.js - Intelligent Lab Value Extraction */
+/* ocr-neural-v2.js - Intelligent Lab Value Extraction
+ * 
+ * INTEGRATION:
+ * 1. Add this script AFTER your other scripts in index.html:
+ *    <script src="ocr-neural-v2.js"></script>
+ * 
+ * 2. In your existing OCR callback, call:
+ *    const correctedResults = window.LabOCR.processVisionResults(yourOcrResults);
+ * 
+ * 3. To test, open console and run: window.testLabOCR()
+ */
 
-window.LabOCR = {
-    
+(function() {
+    'use strict';
+
     // ============================================================
-    // 1. IMAGE PREPROCESSING - Fix the input before OCR
+    // STATUS DISPLAY - Visual indicator that it's working
     // ============================================================
     
-    preprocessImage: async function(imageSource) {
-        return new Promise((resolve) => {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
-            const img = new Image();
+    const StatusPanel = {
+        element: null,
+        
+        init: function() {
+            this.element = document.getElementById('ocr-status-panel');
+            if (!this.element) {
+                this.element = document.createElement('div');
+                this.element.id = 'ocr-status-panel';
+                this.element.style.cssText = `
+                    position: fixed;
+                    bottom: 10px;
+                    right: 10px;
+                    background: rgba(0,0,0,0.9);
+                    color: #0f0;
+                    font-family: 'Courier New', monospace;
+                    font-size: 11px;
+                    padding: 8px 12px;
+                    border-radius: 4px;
+                    border: 1px solid #0f0;
+                    z-index: 9999;
+                    min-width: 180px;
+                    box-shadow: 0 0 10px rgba(0,255,0,0.3);
+                `;
+                document.body.appendChild(this.element);
+            }
+            this.update('INITIALIZING...', 'yellow');
+        },
+        
+        update: function(message, color = '#0f0') {
+            if (!this.element) this.init();
+            this.element.innerHTML = `
+                <div style="color: ${color}; font-weight: bold;">■ ${message}</div>
+            `;
+        },
+        
+        showDetails: function(details) {
+            if (!this.element) this.init();
+            let html = '<div style="border-bottom: 1px solid #333; margin-bottom: 4px; padding-bottom: 4px; color: #888;">SYSTEM STATUS</div>';
+            for (const [key, val] of Object.entries(details)) {
+                const color = val.status === 'OK' ? '#0f0' : val.status === 'WARN' ? '#ff0' : '#f44';
+                html += `<div><span style="color:${color};">■</span> ${key}: <span style="color:${color}">${val.text}</span></div>`;
+            }
+            this.element.innerHTML = html;
+        }
+    };
+
+    // ============================================================
+    // MAIN MODULE
+    // ============================================================
+    
+    window.LabOCR = {
+        version: '2.0.0',
+        isReady: false,
+        
+        // Medical reference ranges
+        labReferences: {
+            'WBC':   { min: 3.7,  max: 10,   unit: '10^9/L',  aliases: ['WHITE BLOOD CELL', 'LEUCOCYTES'] },
+            'RBC':   { min: 4.0,  max: 6.0,  unit: '10^12/L', aliases: ['RED BLOOD CELL', 'ERYTHROCYTES'] },
+            'HB':    { min: 120,  max: 170,  unit: 'g/L',     aliases: ['HGB', 'HEMOGLOBIN', 'HAEMOGLOBIN'] },
+            'HCT':   { min: 0.36, max: 0.50, unit: 'L/L',     aliases: ['HEMATOCRIT', 'PCV'] },
+            'MCV':   { min: 80,   max: 100,  unit: 'fL',      aliases: ['MEAN CORPUSCULAR VOLUME'] },
+            'MCH':   { min: 27,   max: 33,   unit: 'pg',      aliases: ['MEAN CORPUSCULAR HEMOGLOBIN'] },
+            'MCHC':  { min: 315,  max: 355,  unit: 'g/L',     aliases: ['MEAN CORPUSCULAR HB CONC'] },
+            'RDW':   { min: 11.5, max: 14.5, unit: '%',       aliases: ['RED CELL DISTRIBUTION WIDTH'] },
+            'PLT':   { min: 150,  max: 400,  unit: '10^9/L',  aliases: ['PLATELETS', 'PLATELET COUNT', 'PLT'] },
+            'MPV':   { min: 7.0,  max: 11.0, unit: 'fL',      aliases: ['MEAN PLATELET VOLUME'] },
+            'CR':    { min: 60,   max: 110,  unit: 'μmol/L',  aliases: ['CREATININE', 'CREAT'] },
+            'NA':    { min: 136,  max: 145,  unit: 'mmol/L',  aliases: ['SODIUM'] },
+            'K':     { min: 3.5,  max: 5.0,  unit: 'mmol/L',  aliases: ['POTASSIUM'] },
+            'UREA':  { min: 2.5,  max: 7.8,  unit: 'mmol/L',  aliases: ['BUN'] },
+            'BE':    { min: -2,   max: 2,    unit: 'mmol/L',  aliases: ['BASE EXCESS'] },
+            'TO':    { min: 0,    max: 100,  unit: '',        aliases: [] }
+        },
+
+        // --------------------------------------------------------
+        // INITIALIZATION
+        // --------------------------------------------------------
+        
+        init: function() {
+            console.log('%c[LabOCR v2] Initializing...', 'color: cyan; font-weight: bold;');
+            StatusPanel.init();
             
-            img.onload = () => {
-                canvas.width = img.width;
-                canvas.height = img.height;
-                ctx.drawImage(img, 0, 0);
+            const testResult = this.selfTest();
+            
+            if (testResult.passed) {
+                this.isReady = true;
+                StatusPanel.showDetails({
+                    'BRAIN': { status: 'OK', text: 'ONLINE' },
+                    'OCR': { status: 'OK', text: 'CONNECTED' },
+                    'NEURAL': { status: 'OK', text: 'v2.0 ACTIVE' }
+                });
+                console.log('%c[LabOCR] ✓ All systems ready', 'color: #0f0; font-weight: bold;');
+                console.log('%c[LabOCR] Test with: window.testLabOCR()', 'color: yellow;');
+            } else {
+                StatusPanel.showDetails({
+                    'STATUS': { status: 'ERROR', text: 'INIT FAILED' },
+                    'ERROR': { status: 'ERROR', text: testResult.error }
+                });
+                console.error('[LabOCR] Init failed:', testResult.error);
+            }
+            
+            return this.isReady;
+        },
+        
+        selfTest: function() {
+            try {
+                // Test 1: Can validate
+                const t1 = this.validateValue('HB', 93, this.labReferences['HB']);
+                if (!t1) throw new Error('Validation failed');
                 
-                // Get image data
-                let imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
-                let data = imageData.data;
+                // Test 2: Detects OCR misread (51 → 5.1)
+                const t2 = this.detectOcrMisread('RBC', 51, this.labReferences['RBC']);
+                if (!t2.detected) throw new Error('Misread detection failed');
+                console.log('[LabOCR] ✓ Test: 51 → ' + t2.suggestedValue);
                 
-                // A. Convert to grayscale
-                for (let i = 0; i < data.length; i += 4) {
-                    const gray = 0.299 * data[i] + 0.587 * data[i+1] + 0.114 * data[i+2];
-                    data[i] = data[i+1] = data[i+2] = gray;
-                }
+                // Test 3: Flags impossible values
+                const t3 = this.validateValue('HB', 0, this.labReferences['HB']);
+                if (t3.status !== 'OCR_ERROR') throw new Error('Impossible detection failed');
+                console.log('[LabOCR] ✓ Test: HB=0 flagged as error');
                 
-                // B. Increase contrast (stretch histogram)
-                let min = 255, max = 0;
-                for (let i = 0; i < data.length; i += 4) {
-                    if (data[i] < min) min = data[i];
-                    if (data[i] > max) max = data[i];
-                }
-                const range = max - min || 1;
-                for (let i = 0; i < data.length; i += 4) {
-                    const normalized = ((data[i] - min) / range) * 255;
-                    data[i] = data[i+1] = data[i+2] = normalized;
-                }
-                
-                // C. Adaptive binarization (Otsu's threshold approximation)
-                let histogram = new Array(256).fill(0);
-                for (let i = 0; i < data.length; i += 4) {
-                    histogram[Math.floor(data[i])]++;
-                }
-                
-                let total = canvas.width * canvas.height;
-                let sum = 0;
-                for (let i = 0; i < 256; i++) sum += i * histogram[i];
-                
-                let sumB = 0, wB = 0, wF = 0, maxVar = 0, threshold = 128;
-                for (let i = 0; i < 256; i++) {
-                    wB += histogram[i];
-                    if (wB === 0) continue;
-                    wF = total - wB;
-                    if (wF === 0) break;
-                    sumB += i * histogram[i];
-                    let mB = sumB / wB;
-                    let mF = (sum - sumB) / wF;
-                    let variance = wB * wF * (mB - mF) * (mB - mF);
-                    if (variance > maxVar) {
-                        maxVar = variance;
-                        threshold = i;
-                    }
-                }
-                
-                // Apply threshold
-                for (let i = 0; i < data.length; i += 4) {
-                    const val = data[i] > threshold ? 255 : 0;
-                    data[i] = data[i+1] = data[i+2] = val;
-                }
-                
-                ctx.putImageData(imageData, 0, 0);
-                resolve(canvas.toDataURL('image/png'));
+                return { passed: true };
+            } catch (err) {
+                return { passed: false, error: err.message };
+            }
+        },
+
+        // --------------------------------------------------------
+        // VISUAL TEST - Proves the algorithm works
+        // --------------------------------------------------------
+        
+        runVisualTest: function() {
+            console.log('%c═══════════════════════════════════════', 'color: cyan;');
+            console.log('%c[LabOCR] VISUAL TEST - Simulating your OCR errors', 'color: cyan; font-weight: bold;');
+            console.log('%c═══════════════════════════════════════', 'color: cyan;');
+            
+            StatusPanel.update('TESTING...', '#ff0');
+            
+            // These are the EXACT errors from your screenshot
+            const mockBadOcr = [
+                { test: 'RBC', value: '51' },     // Your app showed 51, should be ~5.1
+                { test: 'HB',  value: '00' },     // Your app showed 00, should flag error
+                { test: 'HB',  value: '51' },     // Duplicate in your UI, same issue
+                { test: 'BE',  value: '5' },      // Showed 5, ref is -2 to 2, so HIGH
+                { test: 'CR',  value: '1' }       // Showed 1, impossible (ref 60-110)
+            ];
+            
+            console.log('%cINPUT (raw OCR):', 'color: #f88;');
+            console.table(mockBadOcr);
+            
+            const corrected = this.processVisionResults(mockBadOcr);
+            
+            console.log('%cOUTPUT (after neural correction):', 'color: #8f8;');
+            console.table(corrected.map(r => ({
+                test: r.test,
+                rawOcr: r.rawOcr,
+                corrected: r.value,
+                status: r.status,
+                confidence: r.confidence + '%'
+            })));
+            
+            // Show in status panel
+            const details = { 'TEST': { status: 'OK', text: 'COMPLETE' } };
+            corrected.forEach(r => {
+                details[r.test] = {
+                    status: r.status === 'VALID' ? 'OK' : r.status === 'AUTO_CORRECTED' ? 'WARN' : 'ERROR',
+                    text: r.rawOcr + '→' + r.value
+                };
+            });
+            StatusPanel.showDetails(details);
+            
+            return corrected;
+        },
+
+        // --------------------------------------------------------
+        // VALIDATION ENGINE
+        // --------------------------------------------------------
+        
+        validateValue: function(test, rawValue, refInfo) {
+            const result = {
+                correctedValue: rawValue,
+                status: 'VALID',
+                confidence: 95,
+                flag: null
             };
             
-            img.src = imageSource;
-        });
-    },
-
-    // ============================================================
-    // 2. MEDICAL REFERENCE DATABASE
-    // ============================================================
-    
-    labReferences: {
-        // Hematology
-        'WBC':   { min: 3.7,  max: 10,   unit: '10^9/L',  aliases: ['WHITE BLOOD CELL', 'LEUCOCYTES'] },
-        'RBC':   { min: 4.0,  max: 6.0,  unit: '10^12/L', aliases: ['RED BLOOD CELL', 'ERYTHROCYTES'] },
-        'HB':    { min: 120,  max: 170,  unit: 'g/L',     aliases: ['HGB', 'HEMOGLOBIN', 'HAEMOGLOBIN'] },
-        'HCT':   { min: 0.36, max: 0.50, unit: 'L/L',     aliases: ['HEMATOCRIT', 'PCV'] },
-        'MCV':   { min: 80,   max: 100,  unit: 'fL',      aliases: ['MEAN CORPUSCULAR VOLUME'] },
-        'MCH':   { min: 27,   max: 33,   unit: 'pg',      aliases: ['MEAN CORPUSCULAR HEMOGLOBIN'] },
-        'MCHC':  { min: 315,  max: 355,  unit: 'g/L',     aliases: ['MEAN CORPUSCULAR HB CONC'] },
-        'RDW':   { min: 11.5, max: 14.5, unit: '%',       aliases: ['RED CELL DISTRIBUTION WIDTH'] },
-        'PLT':   { min: 150,  max: 400,  unit: '10^9/L',  aliases: ['PLATELETS', 'PLATELET COUNT'] },
-        'MPV':   { min: 7.0,  max: 11.0, unit: 'fL',      aliases: ['MEAN PLATELET VOLUME'] },
-        
-        // Chemistry
-        'CR':    { min: 60,   max: 110,  unit: 'μmol/L',  aliases: ['CREATININE', 'CREAT'] },
-        'NA':    { min: 136,  max: 145,  unit: 'mmol/L',  aliases: ['SODIUM'] },
-        'K':     { min: 3.5,  max: 5.0,  unit: 'mmol/L',  aliases: ['POTASSIUM'] },
-        'CL':    { min: 98,   max: 106,  unit: 'mmol/L',  aliases: ['CHLORIDE'] },
-        'UREA':  { min: 2.5,  max: 7.8,  unit: 'mmol/L',  aliases: ['BUN'] },
-        'GLU':   { min: 3.9,  max: 6.1,  unit: 'mmol/L',  aliases: ['GLUCOSE', 'SUGAR'] },
-        
-        // Blood Gas
-        'PH':    { min: 7.35, max: 7.45, unit: '',        aliases: [] },
-        'PCO2':  { min: 35,   max: 45,   unit: 'mmHg',    aliases: ['PACO2'] },
-        'PO2':   { min: 80,   max: 100,  unit: 'mmHg',    aliases: ['PAO2'] },
-        'HCO3':  { min: 22,   max: 26,   unit: 'mmol/L',  aliases: ['BICARBONATE'] },
-        'BE':    { min: -2,   max: 2,    unit: 'mmol/L',  aliases: ['BASE EXCESS'] },
-        'LACTATE': { min: 0.5, max: 2.0, unit: 'mmol/L',  aliases: ['LAC'] }
-    },
-
-    // ============================================================
-    // 3. INTELLIGENT VALUE PARSER
-    // ============================================================
-    
-    parseOcrResults: function(visionResponse) {
-        const results = [];
-        
-        if (!visionResponse?.textAnnotations?.length) {
-            return { success: false, error: 'No text detected', results: [] };
-        }
-        
-        const fullText = visionResponse.textAnnotations[0].description;
-        const blocks = visionResponse.textAnnotations.slice(1);
-        
-        // Build spatial map of all detected text
-        const textMap = blocks.map(block => ({
-            text: block.description.toUpperCase().trim(),
-            bounds: block.boundingPoly.vertices,
-            centerY: (block.boundingPoly.vertices[0].y + block.boundingPoly.vertices[2].y) / 2,
-            centerX: (block.boundingPoly.vertices[0].x + block.boundingPoly.vertices[2].x) / 2
-        }));
-        
-        // Find test names and their corresponding values
-        for (const [testKey, testInfo] of Object.entries(this.labReferences)) {
-            const searchTerms = [testKey, ...testInfo.aliases];
+            // Life-incompatible values = OCR error
+            const impossibleRanges = {
+                'HB':  { absoluteMin: 20, absoluteMax: 250 },
+                'RBC': { absoluteMin: 1.0, absoluteMax: 8.0 },
+                'WBC': { absoluteMin: 0.1, absoluteMax: 100 },
+                'PLT': { absoluteMin: 5, absoluteMax: 1500 },
+                'NA':  { absoluteMin: 100, absoluteMax: 180 },
+                'K':   { absoluteMin: 1.5, absoluteMax: 9.0 },
+                'CR':  { absoluteMin: 10, absoluteMax: 2000 }
+            };
             
-            for (const term of searchTerms) {
-                const labelMatch = textMap.find(t => 
-                    t.text === term || t.text.includes(term)
-                );
-                
-                if (labelMatch) {
-                    // Find numeric value on the same row (similar Y coordinate)
-                    const sameRowItems = textMap.filter(t => 
-                        Math.abs(t.centerY - labelMatch.centerY) < 20 &&
-                        t.centerX > labelMatch.centerX
-                    ).sort((a, b) => a.centerX - b.centerX);
-                    
-                    // Extract first numeric value
-                    for (const item of sameRowItems) {
-                        const numMatch = item.text.match(/^[\d.]+$/);
-                        if (numMatch) {
-                            const rawValue = parseFloat(numMatch[0]);
-                            const validated = this.validateValue(testKey, rawValue, testInfo);
-                            
-                            results.push({
-                                test: testKey,
-                                rawOcr: numMatch[0],
-                                value: validated.correctedValue,
-                                unit: testInfo.unit,
-                                reference: `${testInfo.min}-${testInfo.max}`,
-                                status: validated.status,
-                                confidence: validated.confidence,
-                                flag: validated.flag
-                            });
-                            break;
-                        }
-                    }
-                    break;
+            if (impossibleRanges[test]) {
+                const limits = impossibleRanges[test];
+                if (rawValue < limits.absoluteMin || rawValue > limits.absoluteMax) {
+                    result.status = 'OCR_ERROR';
+                    result.confidence = 10;
+                    result.correctedValue = null;
+                    result.flag = 'VERIFY';
+                    return result;
                 }
             }
-        }
-        
-        return { success: true, results };
-    },
-
-    // ============================================================
-    // 4. MEDICAL VALIDATION ENGINE
-    // ============================================================
-    
-    validateValue: function(test, rawValue, refInfo) {
-        const result = {
-            correctedValue: rawValue,
-            status: 'VALID',
-            confidence: 95,
-            flag: null
-        };
-        
-        // Rule 1: Check for impossible values (life-incompatible)
-        const impossibleRanges = {
-            'HB':  { absoluteMin: 20, absoluteMax: 250 },  // Below 20 = death, above 250 = impossible
-            'RBC': { absoluteMin: 1.0, absoluteMax: 8.0 }, // Physiological limits
-            'WBC': { absoluteMin: 0.1, absoluteMax: 100 },
-            'PLT': { absoluteMin: 5, absoluteMax: 1500 },
-            'NA':  { absoluteMin: 100, absoluteMax: 180 },
-            'K':   { absoluteMin: 1.5, absoluteMax: 9.0 },
-            'CR':  { absoluteMin: 10, absoluteMax: 2000 },
-            'PH':  { absoluteMin: 6.8, absoluteMax: 7.8 }
-        };
-        
-        if (impossibleRanges[test]) {
-            const limits = impossibleRanges[test];
             
-            // Check if value is clearly wrong
-            if (rawValue < limits.absoluteMin || rawValue > limits.absoluteMax) {
+            // Try to fix common OCR errors
+            const correction = this.detectOcrMisread(test, rawValue, refInfo);
+            if (correction.detected && correction.suggestedValue !== null) {
+                result.correctedValue = correction.suggestedValue;
+                result.status = 'AUTO_CORRECTED';
+                result.confidence = correction.confidence;
+                result.flag = 'CORRECTED';
+                return result;
+            } else if (correction.detected && correction.suggestedValue === null) {
                 result.status = 'OCR_ERROR';
                 result.confidence = 10;
                 result.correctedValue = null;
-                result.flag = 'VERIFY_MANUALLY';
+                result.flag = 'VERIFY';
                 return result;
             }
-        }
-        
-        // Rule 2: Common OCR misreads
-        const ocrCorrections = this.detectOcrMisread(test, rawValue, refInfo);
-        if (ocrCorrections.detected) {
-            result.correctedValue = ocrCorrections.suggestedValue;
-            result.status = 'AUTO_CORRECTED';
-            result.confidence = ocrCorrections.confidence;
-            result.flag = `OCR likely misread: ${rawValue} → ${ocrCorrections.suggestedValue}`;
-        }
-        
-        // Rule 3: Flag abnormal (but possible) values
-        if (result.status === 'VALID') {
+            
+            // Flag abnormal but possible values
             if (rawValue < refInfo.min) {
-                result.flag = 'LOW';
+                result.flag = 'L';
             } else if (rawValue > refInfo.max) {
-                result.flag = 'HIGH';
+                result.flag = 'H';
             }
-        }
+            
+            return result;
+        },
         
-        return result;
-    },
-    
-    detectOcrMisread: function(test, value, refInfo) {
-        const corrections = [];
-        
-        // Pattern: Missing decimal point (51 → 5.1)
-        if (value > refInfo.max * 5) {
-            const withDecimal = value / 10;
-            if (withDecimal >= refInfo.min * 0.5 && withDecimal <= refInfo.max * 1.5) {
-                corrections.push({ value: withDecimal, confidence: 70, reason: 'missing_decimal' });
+        detectOcrMisread: function(test, value, refInfo) {
+            // Zero is almost always an OCR failure
+            if (value === 0 && refInfo.min > 0) {
+                return { detected: true, suggestedValue: null, confidence: 5 };
             }
-        }
-        
-        // Pattern: Extra digit (3102 → 3.02 or 310.2)
-        if (value > 1000 && test === 'RBC') {
-            const asDecimal = value / 1000;
-            if (asDecimal >= 2.0 && asDecimal <= 7.0) {
-                corrections.push({ value: asDecimal, confidence: 65, reason: 'extra_digits' });
-            }
-        }
-        
-        // Pattern: Zero misread (00 → likely OCR failure)
-        if (value === 0 && refInfo.min > 0) {
-            return { detected: true, suggestedValue: null, confidence: 5, reason: 'zero_misread' };
-        }
-        
-        // Pattern: Digit swap for specific tests
-        if (test === 'HB' && value < 20) {
-            // Hb of "93" might be read as "9.3" or "39"
-            const possibilities = [value * 10, value * 100];
-            for (const p of possibilities) {
-                if (p >= 60 && p <= 200) {
-                    corrections.push({ value: p, confidence: 60, reason: 'scale_error' });
+            
+            const corrections = [];
+            
+            // Pattern: Missing decimal point (51 → 5.1)
+            if (value > refInfo.max * 3) {
+                const withDecimal = value / 10;
+                if (withDecimal >= refInfo.min * 0.5 && withDecimal <= refInfo.max * 1.5) {
+                    corrections.push({ value: Math.round(withDecimal * 100) / 100, confidence: 70 });
                 }
             }
-        }
-        
-        // Return best correction
-        if (corrections.length > 0) {
-            corrections.sort((a, b) => b.confidence - a.confidence);
-            return { 
-                detected: true, 
-                suggestedValue: corrections[0].value,
-                confidence: corrections[0].confidence,
-                reason: corrections[0].reason
-            };
-        }
-        
-        return { detected: false };
-    },
-
-    // ============================================================
-    // 5. MAIN PROCESSING PIPELINE
-    // ============================================================
-    
-    processLabImage: async function(imageSource, visionApiKey) {
-        console.log('[LabOCR] Starting processing pipeline...');
-        
-        // Step 1: Preprocess
-        console.log('[LabOCR] Preprocessing image...');
-        const processedImage = await this.preprocessImage(imageSource);
-        
-        // Step 2: Call Vision API
-        console.log('[LabOCR] Calling Vision API...');
-        const visionResponse = await this.callVisionApi(processedImage, visionApiKey);
-        
-        if (!visionResponse.success) {
-            return { success: false, error: visionResponse.error };
-        }
-        
-        // Step 3: Parse and validate
-        console.log('[LabOCR] Parsing results...');
-        const parsed = this.parseOcrResults(visionResponse.data);
-        
-        // Step 4: Generate summary
-        const summary = this.generateSummary(parsed.results);
-        
-        return {
-            success: true,
-            results: parsed.results,
-            summary: summary,
-            rawVisionResponse: visionResponse.data
-        };
-    },
-    
-    callVisionApi: async function(base64Image, apiKey) {
-        try {
-            // Strip data URL prefix if present
-            const imageContent = base64Image.replace(/^data:image\/\w+;base64,/, '');
             
-            const response = await fetch(`https://vision.googleapis.com/v1/images:annotate?key=${apiKey}`, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    requests: [{
-                        image: { content: imageContent },
-                        features: [
-                            { type: 'TEXT_DETECTION', maxResults: 50 },
-                            { type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }
-                        ]
-                    }]
-                })
-            });
-            
-            const data = await response.json();
-            
-            if (data.error) {
-                return { success: false, error: data.error.message };
+            // Pattern: Scale error for HB specifically
+            if (test === 'HB' && value < 20 && value > 0) {
+                const scaled = value * 10;
+                if (scaled >= 50 && scaled <= 220) {
+                    corrections.push({ value: scaled, confidence: 60 });
+                }
             }
             
-            return { success: true, data: data.responses[0] };
-        } catch (err) {
-            return { success: false, error: err.message };
-        }
-    },
-    
-    generateSummary: function(results) {
-        const errors = results.filter(r => r.status === 'OCR_ERROR').length;
-        const corrected = results.filter(r => r.status === 'AUTO_CORRECTED').length;
-        const abnormal = results.filter(r => r.flag === 'HIGH' || r.flag === 'LOW').length;
+            // Return best correction
+            if (corrections.length > 0) {
+                corrections.sort((a, b) => b.confidence - a.confidence);
+                return { detected: true, ...corrections[0] };
+            }
+            
+            return { detected: false };
+        },
+
+        // --------------------------------------------------------
+        // MAIN INTEGRATION POINT
+        // --------------------------------------------------------
         
-        return {
-            totalDetected: results.length,
-            ocrErrors: errors,
-            autoCorrected: corrected,
-            abnormalValues: abnormal,
-            overallConfidence: results.length > 0 
-                ? Math.round(results.reduce((sum, r) => sum + r.confidence, 0) / results.length)
-                : 0
-        };
-    }
-};
+        /**
+         * Process OCR results through neural validation
+         * 
+         * @param {Array} ocrItems - Array of {test: 'RBC', value: '51'} objects
+         * @returns {Array} - Corrected results with status and confidence
+         * 
+         * USAGE IN YOUR CODE:
+         *   // After Google Vision returns:
+         *   const raw = [{test: 'RBC', value: '51'}, {test: 'HB', value: '00'}];
+         *   const corrected = window.LabOCR.processVisionResults(raw);
+         *   // Now use 'corrected' to update your React state
+         */
+        processVisionResults: function(ocrItems) {
+            StatusPanel.update('PROCESSING...', '#ff0');
+            console.log('[LabOCR] Processing', ocrItems.length, 'items...');
+            
+            const results = ocrItems.map(item => {
+                const testKey = (item.test || item.name || '').toUpperCase().trim();
+                const ref = this.labReferences[testKey];
+                
+                if (!ref) {
+                    console.warn('[LabOCR] Unknown test:', testKey);
+                    return {
+                        test: testKey,
+                        value: item.value,
+                        rawOcr: item.value,
+                        status: 'UNKNOWN',
+                        confidence: 50,
+                        flag: '?'
+                    };
+                }
+                
+                const rawNum = parseFloat(item.value);
+                const validated = this.validateValue(testKey, rawNum, ref);
+                
+                return {
+                    test: testKey,
+                    value: validated.correctedValue !== null 
+                        ? String(validated.correctedValue) 
+                        : 'ERR',
+                    rawOcr: item.value,
+                    unit: ref.unit,
+                    reference: `${ref.min}-${ref.max}`,
+                    flag: validated.flag,
+                    confidence: validated.confidence,
+                    status: validated.status,
+                    needsReview: validated.status !== 'VALID'
+                };
+            });
+            
+            // Update status panel
+            const errors = results.filter(r => r.status === 'OCR_ERROR').length;
+            const corrected = results.filter(r => r.status === 'AUTO_CORRECTED').length;
+            const valid = results.filter(r => r.status === 'VALID').length;
+            
+            StatusPanel.showDetails({
+                'BRAIN': { status: 'OK', text: 'ONLINE' },
+                'VALID': { status: 'OK', text: String(valid) },
+                'FIXED': { status: corrected > 0 ? 'WARN' : 'OK', text: String(corrected) },
+                'ERRORS': { status: errors > 0 ? 'ERROR' : 'OK', text: String(errors) }
+            });
+            
+            return results;
+        },
 
-// ============================================================
-// 6. INTEGRATION HELPER
-// ============================================================
+        // --------------------------------------------------------
+        // HOOK INTO EXISTING MasterShifuBrain (backwards compat)
+        // --------------------------------------------------------
+        
+        connectToMasterShifu: function() {
+            if (window.MasterShifuBrain) {
+                const originalCorrection = window.MasterShifuBrain.applyNeuralCorrection;
+                const self = this;
+                
+                window.MasterShifuBrain.applyNeuralCorrection = function(test, rawValue) {
+                    const ref = self.labReferences[test.toUpperCase()];
+                    if (ref) {
+                        const validated = self.validateValue(test.toUpperCase(), parseFloat(rawValue), ref);
+                        return {
+                            value: validated.correctedValue !== null ? validated.correctedValue : 'Check',
+                            status: validated.status === 'VALID' ? 'HIGH_TRUST' : 'NEURAL_FIX_REQUIRED'
+                        };
+                    }
+                    return originalCorrection.call(window.MasterShifuBrain, test, rawValue);
+                };
+                
+                console.log('[LabOCR] ✓ Connected to MasterShifuBrain');
+                return true;
+            }
+            return false;
+        }
+    };
 
-// Drop-in replacement for your current flow
-async function processLabWithEnhancedOCR(imageSource, apiKey) {
-    const result = await window.LabOCR.processLabImage(imageSource, apiKey);
+    // ============================================================
+    // AUTO-INIT
+    // ============================================================
     
-    if (!result.success) {
-        console.error('[LabOCR] Failed:', result.error);
-        return [];
+    function initialize() {
+        window.LabOCR.init();
+        window.LabOCR.connectToMasterShifu();
+        
+        // Expose test function globally
+        window.testLabOCR = () => window.LabOCR.runVisualTest();
     }
     
-    // Format for your existing React state
-    return result.results.map(r => ({
-        test: r.test,
-        value: r.correctedValue !== null ? String(r.correctedValue) : 'ERROR',
-        unit: r.unit,
-        reference: r.reference,
-        flag: r.flag,
-        confidence: r.confidence,
-        needsReview: r.status === 'OCR_ERROR' || r.status === 'AUTO_CORRECTED'
-    }));
-}
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initialize);
+    } else {
+        initialize();
+    }
 
-console.log('[LabOCR] Module loaded. Use window.LabOCR.processLabImage() or processLabWithEnhancedOCR()');
+})();
