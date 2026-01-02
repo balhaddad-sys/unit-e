@@ -43,3 +43,15 @@ function askBrain(input) {
 
 // Example: Auto-train on load (Optional - remove if not needed yet)
 // trainBrain([{input: [0, 0], output: [0]}, {input: [1, 1], output: [1]}]);
+// --- TEST THE BRAIN ---
+setTimeout(() => {
+    if (typeof brain === 'undefined') {
+        alert("⚠️ Error: Neural Brain Library is MISSING!");
+    } else {
+        const net = new brain.NeuralNetwork();
+        net.train([{input: [0, 0], output: [0]}, {input: [1, 1], output: [1]}]);
+        const output = net.run([1, 1]);
+        alert("🧠 Neural Brain Active! \nTest Result: " + output[0]);
+    }
+}, 3000); // Waits 3 seconds to ensure everything loaded
+
