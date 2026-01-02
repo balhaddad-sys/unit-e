@@ -1,14 +1,115 @@
 /* ═══════════════════════════════════════════════════════════════
-   NEURAL OCR v5.0 - Auto-Detect Lab Type
-   No manual selection - figures out what it's looking at
+   NEURAL OCR v6.0 - Interpretation Engine
+   Includes: Auto-Detect + Clinical Pattern Recognition
    ═══════════════════════════════════════════════════════════════ */
 
 (function() {
     'use strict';
 
-    const STORAGE_KEY = 'labocr_v5';
+    const STORAGE_KEY = 'labocr_v6';
+
+    // === 1. CLINICAL RULE DEFINITIONS (Logic Engine) ===
+    const PATTERNS = [
+        // --- HEMATOLOGY ---
+        {
+            id: 'anemia_micro',
+            cat: 'CBC',
+            text: 'Microcytic Anemia (Consider Iron Deficiency / Thalassemia)',
+            check: (v) => v.HB?.val < 120 && v.MCV?.val < 80
+        },
+        {
+            id: 'anemia_macro',
+            cat: 'CBC',
+            text: 'Macrocytic Anemia (Consider B12/Folate Def / Liver)',
+            check: (v) => v.HB?.val < 120 && v.MCV?.val > 100
+        },
+        {
+            id: 'anemia_normo',
+            cat: 'CBC',
+            text: 'Normocytic Anemia (Consider Chronic Disease / Acute Blood Loss)',
+            check: (v) => v.HB?.val < 120 && v.MCV?.val >= 80 && v.MCV?.val <= 100
+        },
+        {
+            id: 'inf_bacterial',
+            cat: 'CBC',
+            text: 'Leukocytosis w/ Neutrophilia (Possible Bacterial Infection)',
+            check: (v) => v.WBC?.val > 11 && (v.NEUTROPHIL?.val > 70 || v.NEUTROPHIL?.val > 7.5)
+        },
+        {
+            id: 'thrombocytopenia',
+            cat: 'CBC',
+            text: 'Thrombocytopenia (Bleeding Risk)',
+            check: (v) => v.PLT?.val < 150
+        },
+        {
+            id: 'pancytopenia',
+            cat: 'CBC',
+            text: '⚠ Pancytopenia (Bone Marrow Suppression?)',
+            check: (v) => v.WBC?.val < 4 && v.HB?.val < 100 && v.PLT?.val < 150
+        },
+
+        // --- RENAL ---
+        {
+            id: 'aki_azotemia',
+            cat: 'CHEM',
+            text: 'Azotemia / Renal Impairment',
+            check: (v) => v.CR?.val > 1.3 && v.UREA?.val > 45
+        },
+        {
+            id: 'hyperkalemia',
+            cat: 'CHEM',
+            text: '⚠ HYPERKALEMIA (Cardiac Arrythmia Risk)',
+            check: (v) => v.K?.val > 5.5
+        },
+        {
+            id: 'hypokalemia',
+            cat: 'CHEM',
+            text: 'Hypokalemia',
+            check: (v) => v.K?.val < 3.5
+        },
+        {
+            id: 'hyponatremia',
+            cat: 'CHEM',
+            text: 'Hyponatremia',
+            check: (v) => v.NA?.val < 135
+        },
+
+        // --- LIVER ---
+        {
+            id: 'hepatocellular',
+            cat: 'LFT',
+            text: 'Hepatocellular Pattern (Liver Injury)',
+            check: (v) => (v.ALT?.val > 60 || v.AST?.val > 60) && v.ALP?.val < 150
+        },
+        {
+            id: 'cholestatic',
+            cat: 'LFT',
+            text: 'Cholestatic Pattern (Biliary Obstruction?)',
+            check: (v) => v.ALP?.val > 130 && (v.GGT?.val > 60 || v.TBIL?.val > 1.5)
+        },
+        {
+            id: 'liver_failure',
+            cat: 'LFT',
+            text: '⚠ Synthetic Dysfunction (Possible Liver Failure)',
+            check: (v) => v.ALB?.val < 3.0 && v.INR?.val > 1.3
+        },
+
+        // --- ACID BASE ---
+        {
+            id: 'met_acidosis',
+            cat: 'ABG',
+            text: 'Metabolic Acidosis',
+            check: (v) => v.PH?.val < 7.35 && v.HCO3?.val < 22
+        },
+        {
+            id: 'resp_acidosis',
+            cat: 'ABG',
+            text: 'Respiratory Acidosis (CO2 Retention)',
+            check: (v) => v.PH?.val < 7.35 && v.PCO2?.val > 45
+        }
+    ];
     
-    // Complete test database with flexible ranges
+    // === 2. TEST DATABASE ===
     const TESTS = {
         // Hematology
         WBC:  { cat: 'CBC', min: 4, max: 11, unit: '10^9/L', dec: 1, range: [0.5, 50], names: ['WBC','WHITE','LEUKOCYTE','WCC','LEUCOCYTE','W.B.C','WHITE BLOOD'] },
@@ -21,6 +122,7 @@
         RDW:  { cat: 'CBC', min: 11.5, max: 14.5, unit: '%', dec: 1, range: [8, 25], names: ['RDW','RDW-CV','RED DIST'] },
         PLT:  { cat: 'CBC', min: 150, max: 400, unit: '10^9/L', dec: 0, range: [20, 1200], names: ['PLT','PLATELET','PLATELETS','THROMBOCYTE'] },
         MPV:  { cat: 'CBC', min: 7, max: 11, unit: 'fL', dec: 1, range: [4, 15], names: ['MPV','MEAN PLATELET'] },
+        NEUTROPHIL: { cat: 'CBC', min: 40, max: 75, unit: '%', dec: 1, range: [1, 95], names: ['NEUTROPHIL','NEUT','NEUT%','GRANULOCYTE'] },
         
         // Chemistry / Renal (KFT)
         NA:   { cat: 'CHEM', min: 136, max: 145, unit: 'mmol/L', dec: 0, range: [110, 170], names: ['NA','SODIUM','NA+','NATRIUM'] },
@@ -96,6 +198,8 @@
             localStorage.setItem(STORAGE_KEY, JSON.stringify(learned));
         } catch(e) {}
     }
+
+    // === 3. CORE LOGIC ===
 
     // Smart test name recognition
     function identifyTest(raw) {
@@ -333,15 +437,50 @@
         return result;
     }
 
-    // Main API
+    // === 4. INTERPRETATION GENERATOR ===
+    function generateInterpretation(processedResults) {
+        const valueMap = {};
+        // Map results for easy lookup: valueMap.HB = { val: 110, flag: 'L' }
+        processedResults.forEach(r => {
+            if (r.value !== null) {
+                const fVal = parseFloat(r.value);
+                if (!isNaN(fVal)) {
+                    valueMap[r.test] = { val: fVal, flag: r.flag };
+                }
+            }
+        });
+
+        const impressions = [];
+        const criticals = [];
+
+        PATTERNS.forEach(pat => {
+            try {
+                if (pat.check(valueMap)) {
+                    const item = { text: pat.text, category: pat.cat, type: 'warning' };
+                    if (pat.text.includes('⚠')) {
+                        item.type = 'critical';
+                        criticals.push(item);
+                    } else {
+                        impressions.push(item);
+                    }
+                }
+            } catch (e) {
+                // Silently skip if pattern check fails (e.g. missing values)
+            }
+        });
+
+        return [...criticals, ...impressions];
+    }
+
+    // === 5. MAIN API EXPORT ===
     window.LabOCR = {
-        version: '5.0',
+        version: '6.0',
         isReady: false,
         
         init() {
             load();
             this.isReady = true;
-            console.log(`%c[LabOCR v5] Auto-Detect Ready • ${Object.keys(learned).length} learned`, 'color:#0f0;font-weight:bold');
+            console.log(`%c[LabOCR v6] Interpretation Engine Ready`, 'color:#d946ef;font-weight:bold');
             return true;
         },
         
@@ -401,13 +540,11 @@
             // Determine detected lab type
             const labType = Object.entries(detected).sort((a, b) => b[1] - a[1])[0]?.[0] || 'MIXED';
             
-            console.log(`[LabOCR] Detected: ${labType} panel, ${results.length} values`);
-            return { results, labType, stats: detected };
-        },
-        
-        // Alias for compatibility
-        processVisionResults(items, _ignored) {
-            return this.process(items).results;
+            // Generate Clinical Interpretation
+            const interpretation = generateInterpretation(results);
+            
+            console.log(`[LabOCR] Detected: ${labType}, Interpretation:`, interpretation);
+            return { results, labType, interpretation, stats: detected };
         },
         
         // Learn from correction
@@ -427,7 +564,8 @@
             return { 
                 patterns: Object.keys(learned).length, 
                 version: this.version,
-                tests: Object.keys(TESTS).length
+                tests: Object.keys(TESTS).length,
+                clinicalRules: PATTERNS.length
             };
         },
         
@@ -460,45 +598,24 @@
     // Test function
     window.testOCR = function() {
         const samples = [
-            // KFT Panel (from image)
-            { test: 'Urea', value: '15' },
-            { test: 'Creatinine', value: '1.5' },
-            { test: 'Uric Acid', value: '5.5' },
-            { test: 'Calcium, Total', value: '10.2' },
-            { test: 'Phosphorus', value: '1.4' },
-            { test: 'Alkaline Phosphatase (ALP)', value: '80' },
-            { test: 'Total Protein', value: '5.9' },
-            { test: 'Albumin', value: '4.1' },
-            { test: 'Sodium', value: '139' },
-            { test: 'Potassium', value: '3.9' },
-            { test: 'Chloride', value: '100' },
-            // CBC
-            { test: 'WBC', value: '8.5' },
-            { test: 'HGB', value: '125' },
-            // ABG
-            { test: 'PH', value: '735' },        // → 7.35
-            { test: 'BE', value: '-3' }
+            // Case 1: Anemia
+            { test: 'HB', value: '95' },
+            { test: 'MCV', value: '72' }, // Microcytic
+            // Case 2: Kidney
+            { test: 'Creatinine', value: '1.8' },
+            { test: 'Urea', value: '55' },
+            { test: 'Potassium', value: '5.8' } // Hyperkalemia
         ];
         
         console.log('%c[TEST INPUT]', 'color: yellow; font-weight: bold');
         console.table(samples);
         
-        const { results, labType, stats } = window.LabOCR.process(samples);
+        const { results, interpretation } = window.LabOCR.process(samples);
         
-        console.log('%c[DETECTED]', 'color: cyan; font-weight: bold', labType, stats);
-        console.log('%c[RESULTS]', 'color: #0f0; font-weight: bold');
-        console.table(results.map(r => ({
-            test: r.test,
-            original: r.originalTest,
-            raw: r.rawOcr,
-            value: r.value,
-            flag: r.flag,
-            status: r.status,
-            conf: r.confidence + '%',
-            cat: r.category
-        })));
+        console.log('%c[INTERPRETATION]', 'color: #d946ef; font-weight: bold');
+        console.table(interpretation);
         
-        return results;
+        return interpretation;
     };
 
 })();
