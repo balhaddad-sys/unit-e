@@ -174,57 +174,74 @@
             position: relative;
             transition: all 0.3s ease;
         }
-        /* New Admission Styling */
+        /* New Admission Styling - STRIKING amber/orange theme */
         .p-card.new-admission {
-            background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 50%, #fef3c7 100%);
-            border-left: 4px solid #f59e0b;
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 50%, #fcd34d 100%);
+            border: 3px solid #f59e0b;
+            border-radius: 12px;
+            margin: 8px 4px;
             animation: newAdmissionPulse 2s ease-in-out infinite;
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+            padding-top: 20px;
         }
         .p-card.new-admission::before {
-            content: '🆕 NEW';
+            content: '⭐ NEW ADMISSION ⭐';
             position: absolute;
-            top: 8px;
-            right: 8px;
-            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: linear-gradient(135deg, #f59e0b 0%, #ea580c 100%);
             color: white;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 4px 10px;
-            border-radius: 12px;
-            letter-spacing: 0.5px;
-            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
-            animation: badgePop 0.5s ease-out;
+            font-size: 12px;
+            font-weight: 900;
+            padding: 6px 20px;
+            border-radius: 20px;
+            letter-spacing: 1px;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5);
+            animation: badgePulse 1.5s ease-in-out infinite;
+            text-transform: uppercase;
+            white-space: nowrap;
+            z-index: 10;
         }
         @keyframes newAdmissionPulse {
             0%, 100% { 
-                background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 50%, #fef3c7 100%);
-                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+                box-shadow: 0 6px 20px rgba(245, 158, 11, 0.35);
+                transform: scale(1);
             }
             50% { 
-                background: linear-gradient(135deg, #fde68a 0%, #fef3c7 50%, #fde68a 100%);
-                box-shadow: 0 0 12px 2px rgba(245, 158, 11, 0.15);
+                box-shadow: 0 8px 30px rgba(245, 158, 11, 0.5), 0 0 40px rgba(245, 158, 11, 0.2);
+                transform: scale(1.01);
             }
         }
-        @keyframes badgePop {
-            0% { transform: scale(0); opacity: 0; }
-            50% { transform: scale(1.2); }
-            100% { transform: scale(1); opacity: 1; }
+        @keyframes badgePulse {
+            0%, 100% { 
+                box-shadow: 0 4px 15px rgba(245, 158, 11, 0.5);
+                transform: translateX(-50%) scale(1);
+            }
+            50% { 
+                box-shadow: 0 6px 25px rgba(245, 158, 11, 0.7), 0 0 35px rgba(245, 158, 11, 0.4);
+                transform: translateX(-50%) scale(1.05);
+            }
         }
-        /* Dismiss new button */
+        /* Acknowledge button - Green for action */
         .new-dismiss-btn {
-            background: transparent;
-            border: 1px solid #d97706;
-            color: #d97706;
-            font-size: 10px;
-            font-weight: 700;
-            padding: 3px 8px;
-            border-radius: 4px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            color: white;
+            font-size: 11px;
+            font-weight: 800;
+            padding: 6px 14px;
+            border-radius: 6px;
             cursor: pointer;
             transition: all 0.2s;
+            box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
         }
         .new-dismiss-btn:hover {
-            background: #d97706;
-            color: white;
+            transform: scale(1.05);
+            box-shadow: 0 4px 12px rgba(34, 197, 94, 0.5);
+        }
+        .new-dismiss-btn:active {
+            transform: scale(0.98);
         }
         .inp {
             width: 100%;
@@ -743,11 +760,15 @@ const formatDateTime = (ts) => {
     };
 };
 
-// Check if patient is a new admission (added within last 24 hours and not dismissed)
+// Check if patient is a new admission (added within last 24 hours, status is "New", and not dismissed)
 const NEW_ADMISSION_HOURS = 24;
 const isNewAdmission = (patient) => {
+    // Must have "New" status
+    if (patient.status !== 'New') return false;
+    // Must not be dismissed
+    if (patient.newDismissed) return false;
+    // Must be added within last 24 hours
     if (!patient.timestamp) return false;
-    if (patient.newDismissed) return false; // User dismissed the new badge
     const hoursSinceAdmission = (Date.now() - patient.timestamp) / (1000 * 60 * 60);
     return hoursSinceAdmission <= NEW_ADMISSION_HOURS;
 };
@@ -1490,6 +1511,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                 <span className="pill">{hasVals ? `${item.values.length} values` : "—"}</span>
                                                 <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>{showRawText === item.id ? '🔼' : '🔽'} Raw</button>
                                                 <button className="lab-image-btn" onClick={() => { const img = labImages.find(x => x.id === item.id); if (img) runOcrOnImage(img); }}>🔁</button>
+                                                <button className="lab-image-btn delete" onClick={() => deleteImage(item.id)}>🗑</button>
                                             </div>
                                         </div>
                                         {showRawText === item.id && <div className="raw-text-panel"><pre>{item.rawText || "(empty)"}</pre></div>}
