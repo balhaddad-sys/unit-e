@@ -664,30 +664,7 @@ if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseCon
 const db = firebase.database();
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = `
-https://script.google.com
-/macros/s
-/AKfycby622nMAInUpvCG8EJYgn1yqJJc3CUJR2mYYfKgZvbbArawtX4hLXMue6DGJOxxdTmA/exec
-`.replace(/\s+/g, '');
-
-// Force OCR Engine to use the same Vision proxy URL
-window.__VISION_API_URL__ = VISION_API_PROXY_URL;
-
-function applyVisionUrlToOCREngine() {
-if (window.OCREngine && window.OCREngine.config) {
-window.OCREngine.config.VISION_API_URL = VISION_API_PROXY_URL;
-console.log("[VisionURL] Applied to OCREngine:", VISION_API_PROXY_URL);
-return true;
-}
-return false;
-}
-
-// Apply now (if engine already loaded)
-applyVisionUrlToOCREngine();
-
-// Apply again shortly (if engine loads after this block)
-setTimeout(applyVisionUrlToOCREngine, 300);
-setTimeout(applyVisionUrlToOCREngine, 1000);
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycby622nMAInUpvCG8EJYgn1yqJJc3CUJR2mYYfKgZvbbAraWtX4hLXMue6DGJOxxdTmA/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
