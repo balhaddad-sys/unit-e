@@ -698,136 +698,132 @@ const parseVisionToNeuralInput = (rawText) => {
     const text = String(rawText || "");
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
     
-    // Metadata/header fields to ALWAYS skip
-    const SKIP_PATTERNS = [
-        /^(age|sex|gender|pid|page|ref|date|time|collected|reported|registered|generated|sample|specimen|patient|name|mrn|id|hospital|lab|report|doctor|dr\.|technician|pathologist|phone|email|address|barcode|qr)/i,
-        /^(primary|type|serum|plasma|whole|blood|urine|stool|csf|fluid)/i,
-        /^\d+[\s\-\.\/]\d+/,  // Date patterns
-        /^[A-Z]{2,4}\s*[\-:]\s*[A-Z]{2,4}$/,  // Code patterns like "ISE"
-        /thanks|reference|end of report|advice|guideline|risk map/i,
-        /copyright|generated on|page \d/i,
-        /drlogy|smart path|pathology/i
-    ];
+    console.log('[Parser] Processing', lines.length, 'lines');
     
-    // Known lab test names
-    const KNOWN_TESTS = new Set([
-        'WBC','RBC','HB','HGB','HEMOGLOBIN','HCT','HEMATOCRIT','PCV','MCV','MCH','MCHC','RDW','PLT','PLATELET','PLATELETS','MPV',
-        'NEUTROPHIL','LYMPHOCYTE','MONOCYTE','EOSINOPHIL','BASOPHIL','BAND',
-        'UREA','BUN','CREATININE','CR','CREAT','URIC ACID','URIC','GFR','EGFR',
-        'SODIUM','NA','POTASSIUM','K','CHLORIDE','CL','CO2','TCO2','BICARBONATE','HCO3',
-        'CALCIUM','CA','PHOSPHORUS','PHOSPHATE','PO4','PHOS','MAGNESIUM','MG',
-        'GLUCOSE','GLU','SUGAR','FBS','RBS','BS','HBA1C','A1C',
-        'ALT','SGPT','AST','SGOT','ALP','ALKALINE PHOSPHATASE','GGT','GAMMA GT',
-        'BILIRUBIN','TBIL','DBIL','TOTAL BILIRUBIN','DIRECT BILIRUBIN','INDIRECT BILIRUBIN',
-        'ALBUMIN','ALB','GLOBULIN','TOTAL PROTEIN','TP','PROTEIN',
-        'LDH','CHOLESTEROL','HDL','LDL','VLDL','TRIGLYCERIDE','TG','TRIGLYCERIDES',
-        'TROPONIN','TROP','TNI','TNT','CK','CPK','CKMB','BNP','PROBNP',
-        'PT','INR','PTT','APTT','FIBRINOGEN','FIB','DIMER',
-        'PH','PCO2','PO2','SAO2','SPO2','BE','LACTATE','LAC',
-        'TSH','T3','T4','FT3','FT4','CRP','ESR','PCT','FERRITIN','IRON','TIBC',
-        'AMYLASE','LIPASE','AMMONIA','CORTISOL','VITAMIN D','B12','FOLATE'
-    ]);
+    // Words that indicate metadata - skip lines containing these
+    const SKIP_WORDS = ['age','sex','gender','pid','page','date','time','collected','reported',
+        'registered','sample','specimen','patient','name','mrn','hospital','lab','report',
+        'doctor','technician','pathologist','phone','email','address','investigation','result',
+        'reference value','unit','thanks','end of report','advice','guideline','copyright',
+        'drlogy','pathology','modified','jaffe','kinetic','urease','uricase','arsenazo',
+        'molybdate','biuret','bcg','indirect ise','ifcc','primary sample','serum'];
     
-    // Normalize test name for matching
-    const normalizeTest = (name) => {
-        return name.toUpperCase()
-            .replace(/[^A-Z0-9]/g, '')
-            .replace(/TOTAL$/,'')
-            .replace(/^SERUM/,'');
+    // Map of test name patterns to standard keys
+    const TEST_MAP = {
+        'urea': 'UREA', 'blood urea': 'UREA', 'bun': 'UREA',
+        'creatinine': 'CR', 'creat': 'CR', 'serum creatinine': 'CR',
+        'uric acid': 'URIC', 'uric': 'URIC',
+        'sodium': 'NA', 'na+': 'NA', 'na': 'NA',
+        'potassium': 'K', 'k+': 'K',
+        'chloride': 'CL', 'cl': 'CL',
+        'calcium': 'CA', 'calcium total': 'CA', 'total calcium': 'CA', 'ca': 'CA',
+        'phosphorus': 'PHOS', 'phosphate': 'PHOS', 'phos': 'PHOS', 'po4': 'PHOS',
+        'magnesium': 'MG', 'mg': 'MG',
+        'albumin': 'ALB', 'alb': 'ALB',
+        'total protein': 'TP', 'protein': 'TP', 'tp': 'TP',
+        'alkaline phosphatase': 'ALP', 'alp': 'ALP', 'alk phos': 'ALP',
+        'alt': 'ALT', 'sgpt': 'ALT',
+        'ast': 'AST', 'sgot': 'AST',
+        'bilirubin': 'TBIL', 'total bilirubin': 'TBIL', 'tbil': 'TBIL',
+        'ggt': 'GGT', 'gamma gt': 'GGT',
+        'wbc': 'WBC', 'white blood': 'WBC', 'leukocyte': 'WBC',
+        'rbc': 'RBC', 'red blood': 'RBC', 'erythrocyte': 'RBC',
+        'hemoglobin': 'HB', 'hb': 'HB', 'hgb': 'HB', 'haemoglobin': 'HB',
+        'hematocrit': 'HCT', 'hct': 'HCT', 'pcv': 'HCT',
+        'platelet': 'PLT', 'plt': 'PLT', 'platelets': 'PLT',
+        'mcv': 'MCV', 'mch': 'MCH', 'mchc': 'MCHC', 'rdw': 'RDW', 'mpv': 'MPV',
+        'glucose': 'GLUCOSE', 'glu': 'GLUCOSE', 'sugar': 'GLUCOSE', 'fbs': 'GLUCOSE', 'rbs': 'GLUCOSE', 'blood sugar': 'GLUCOSE',
+        'troponin': 'TROP', 'trop': 'TROP', 'tni': 'TROP',
+        'pt': 'PT', 'prothrombin': 'PT',
+        'inr': 'INR',
+        'ptt': 'PTT', 'aptt': 'PTT',
+        'ph': 'PH', 'blood ph': 'PH',
+        'pco2': 'PCO2', 'paco2': 'PCO2',
+        'po2': 'PO2', 'pao2': 'PO2',
+        'hco3': 'HCO3', 'bicarbonate': 'HCO3',
+        'lactate': 'LAC', 'lactic': 'LAC',
+        'tsh': 'TSH', 't3': 'T3', 't4': 'T4', 'ft3': 'T3', 'ft4': 'T4',
+        'crp': 'CRP', 'c reactive': 'CRP',
+        'esr': 'ESR', 'sed rate': 'ESR'
     };
     
-    // Check if name looks like a real lab test
-    const isLikelyLabTest = (name) => {
-        const norm = normalizeTest(name);
-        if (norm.length < 2 || norm.length > 25) return false;
-        if (KNOWN_TESTS.has(norm)) return true;
+    const shouldSkip = (line) => {
+        const lower = line.toLowerCase();
+        return SKIP_WORDS.some(w => lower.includes(w));
+    };
+    
+    const findTest = (name) => {
+        const lower = name.toLowerCase().trim();
+        // Direct match
+        if (TEST_MAP[lower]) return TEST_MAP[lower];
+        // Remove parentheses content and try again
+        const noParens = lower.replace(/\s*\([^)]*\)/g, '').trim();
+        if (TEST_MAP[noParens]) return TEST_MAP[noParens];
+        // Try first word
+        const firstWord = lower.split(/[\s,]+/)[0];
+        if (TEST_MAP[firstWord]) return TEST_MAP[firstWord];
         // Partial match
-        for (const known of KNOWN_TESTS) {
-            if (norm.includes(known) || known.includes(norm)) return true;
+        for (const [pattern, mapped] of Object.entries(TEST_MAP)) {
+            if (lower.includes(pattern) || pattern.includes(lower)) {
+                return mapped;
+            }
         }
-        return false;
+        return null;
     };
     
-    // Process each line
     for (const line of lines) {
-        // Skip metadata lines
-        if (SKIP_PATTERNS.some(p => p.test(line))) continue;
+        if (shouldSkip(line)) continue;
+        if (/^\d{1,2}[:\-\/]\d{1,2}/.test(line)) continue;
         
-        // Table format: "Sodium    139    136 - 145    mEq/L"
-        // Look for: TestName (with spaces) followed by multiple spaces, then a number
-        const tableMatch = line.match(/^([A-Za-z][A-Za-z\s\(\)\-,\.]{2,30}?)\s{2,}(\d+\.?\d*)/);
-        if (tableMatch) {
-            const testName = tableMatch[1].trim();
-            const value = tableMatch[2];
-            const normName = normalizeTest(testName);
-            if (isLikelyLabTest(testName) && !seen.has(normName)) {
-                seen.add(normName);
-                items.push({ test: testName, value: value });
-                continue;
-            }
-        }
+        // Try multiple patterns
+        const patterns = [
+            // Table: "Sodium    139"
+            /^([A-Za-z][A-Za-z\s\(\),\-\.]{1,35}?)\s{2,}(\d+\.?\d*)/,
+            // Colon: "Sodium: 139"
+            /^([A-Za-z][A-Za-z\s\(\),\-\.]{1,30}?)\s*[:\=]\s*(\d+\.?\d*)/,
+            // Simple: "Na 139"
+            /^([A-Za-z][A-Za-z0-9\+\-]{1,12})\s+(\d+\.?\d*)$/,
+            // With flag: "Sodium  139  High"
+            /^([A-Za-z][A-Za-z\s\(\),\-\.]{1,30}?)\s+(\d+\.?\d*)\s+(High|Low|Normal|H|L|N)?/i
+        ];
         
-        // Colon pattern: "Creatinine: 1.5"
-        const colonMatch = line.match(/^([A-Za-z][A-Za-z\s\(\)\-,\.]{2,25}?)\s*[:\=]\s*(\d+\.?\d*)/);
-        if (colonMatch) {
-            const testName = colonMatch[1].trim();
-            const value = colonMatch[2];
-            const normName = normalizeTest(testName);
-            if (isLikelyLabTest(testName) && !seen.has(normName)) {
-                seen.add(normName);
-                items.push({ test: testName, value: value });
-                continue;
-            }
-        }
-        
-        // Simple: "WBC 8.5"
-        const simpleMatch = line.match(/^([A-Za-z][A-Za-z0-9\-]{1,12})\s+(\d+\.?\d*)\s*$/);
-        if (simpleMatch) {
-            const testName = simpleMatch[1].trim();
-            const value = simpleMatch[2];
-            const normName = normalizeTest(testName);
-            if (isLikelyLabTest(testName) && !seen.has(normName)) {
-                seen.add(normName);
-                items.push({ test: testName, value: value });
-                continue;
-            }
-        }
-        
-        // Tab-separated
-        const tabParts = line.split(/\t+/);
-        if (tabParts.length >= 2) {
-            const testName = tabParts[0].trim();
-            const valueMatch = tabParts[1].trim().match(/^(\d+\.?\d*)/);
-            if (valueMatch && isLikelyLabTest(testName)) {
-                const normName = normalizeTest(testName);
-                if (!seen.has(normName)) {
-                    seen.add(normName);
-                    items.push({ test: testName, value: valueMatch[1] });
-                }
-            }
-        }
-    }
-    
-    // Fallback: scan full text for known tests with values
-    if (items.length < 3) {
-        for (const known of KNOWN_TESTS) {
-            if (seen.has(known)) continue;
-            const patterns = [
-                new RegExp(known + '\\s*[:\\s]+([\\d\\.]+)', 'i'),
-                new RegExp(known + '\\s{2,}([\\d\\.]+)', 'i')
-            ];
-            for (const re of patterns) {
-                const m = text.match(re);
-                if (m) {
-                    seen.add(known);
-                    items.push({ test: known, value: m[1] });
+        for (const re of patterns) {
+            const match = line.match(re);
+            if (match) {
+                const testName = match[1].trim();
+                const value = match[2];
+                const mapped = findTest(testName);
+                
+                if (mapped && !seen.has(mapped)) {
+                    seen.add(mapped);
+                    items.push({ test: mapped, value: value, originalName: testName });
+                    console.log(`[Parser] ✓ ${testName} → ${mapped} = ${value}`);
                     break;
                 }
             }
         }
     }
     
-    console.log(`[Parser] Found ${items.length} lab values:`, items.map(i => `${i.test}=${i.value}`).join(', '));
+    // Aggressive fallback: scan entire text for known patterns
+    if (items.length < 3) {
+        console.log('[Parser] Fallback: scanning full text...');
+        for (const [pattern, mapped] of Object.entries(TEST_MAP)) {
+            if (seen.has(mapped)) continue;
+            // Look for pattern followed by number
+            const re = new RegExp(pattern.replace(/[+]/g, '\\+') + '[\\s:=]+([\\d.]+)', 'gi');
+            const m = text.match(re);
+            if (m) {
+                const numMatch = m[0].match(/[\d.]+$/);
+                if (numMatch) {
+                    seen.add(mapped);
+                    items.push({ test: mapped, value: numMatch[0] });
+                    console.log(`[Parser] ✓ Fallback: ${pattern} → ${mapped} = ${numMatch[0]}`);
+                }
+            }
+        }
+    }
+    
+    console.log(`[Parser] Total: ${items.length} values extracted`);
     return items;
 };
 
@@ -1050,8 +1046,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [ocrEngine, setOcrEngine] = useState("vision");
     const [detectedLabType, setDetectedLabType] = useState(null);
     const [debugLogs, setDebugLogs] = useState([]);
-    const [clinicalReport, setClinicalReport] = useState(null);
-    const [showClinicalReport, setShowClinicalReport] = useState(false);
+    const [showInterpretation, setShowInterpretation] = useState({});  // {labId: reportData}
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
     
@@ -1061,51 +1056,43 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // CLINICAL DECISION SUPPORT SYSTEM - Report Generation
+    // CLINICAL DECISION SUPPORT - Generate interpretation for a single lab
     // ═══════════════════════════════════════════════════════════════════════
-    const generateClinicalReport = () => {
+    const interpretLab = (labId, values) => {
         if (!window.CDSS) {
             alert('Clinical Decision Support System not loaded');
             return;
         }
 
-        // Collect all lab values from all images
-        const allLabValues = [];
-        for (const img of labImages) {
-            if (img.ocr?.values) {
-                for (const v of img.ocr.values) {
-                    if (v.value && v.test) {
-                        allLabValues.push({
-                            test: v.test,
-                            value: v.value,
-                            unit: v.unit || '',
-                            refLow: v.refLow,
-                            refHigh: v.refHigh
-                        });
-                    }
-                }
-            }
-        }
-
-        if (allLabValues.length === 0) {
-            alert('No lab values available. Please scan lab images first.');
+        if (!values || values.length === 0) {
+            alert('No lab values to interpret');
             return;
         }
 
-        addDebugLog('info', `Generating clinical report for ${allLabValues.length} values`);
+        // Convert to CDSS input format
+        const labInput = values.map(v => ({
+            test: v.test,
+            value: v.value,
+            unit: v.unit || '',
+            refLow: v.refLow,
+            refHigh: v.refHigh
+        }));
 
         try {
-            const result = window.CDSS.generateReport(allLabValues, {
+            const result = window.CDSS.generateReport(labInput, {
                 name: patient.name || 'Unknown',
                 mrn: patient.mrn || ''
             });
 
-            setClinicalReport(result);
-            setShowClinicalReport(true);
-            addDebugLog('success', `Clinical report generated: ${result.summary.critical} critical, ${result.summary.abnormal} abnormal`);
+            setShowInterpretation(prev => ({
+                ...prev,
+                [labId]: prev[labId] ? null : result  // Toggle
+            }));
+            
+            addDebugLog('success', `Interpretation generated: ${result.summary.critical} critical, ${result.summary.abnormal} abnormal`);
         } catch (e) {
             addDebugLog('error', `CDSS Error: ${e.message}`);
-            alert('Failed to generate clinical report: ' + e.message);
+            alert('Failed to generate interpretation: ' + e.message);
         }
     };
 
@@ -1250,7 +1237,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
         }));
     }, [labImages]);
 
-    const handleSave = () => { onSave(patient.id, labImages); onClose(); };
+    const handleSave = () => { 
+        console.log('[LabModal] Saving labs for patient:', patient.id, patient.name);
+        console.log('[LabModal] Lab images:', labImages.length);
+        onSave(patient.id, labImages); 
+        onClose(); 
+    };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
 
     return (
@@ -1263,7 +1255,6 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="modal-body">
                     <div className="tabs">
                         <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
-                        <button className={`tab ${tab === "Clinical" ? "active" : ""}`} onClick={() => setTab("Clinical")}>🏥 Clinical</button>
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
                     </div>
@@ -1393,124 +1384,105 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                             <div className="ocr-stat">Source: <span className={isVision ? 'vision' : ''}>{item.source || "—"}</span></div>
                                             <div className="ocr-stat">Confidence: <span>{Math.round(item.confidence)}%</span></div>
                                         </div>
+                                        
+                                        {/* Interpret Button */}
+                                        {hasVals && (
+                                            <button 
+                                                onClick={() => interpretLab(item.id, item.values)}
+                                                style={{
+                                                    width: '100%',
+                                                    padding: '10px',
+                                                    marginTop: '8px',
+                                                    background: showInterpretation[item.id] ? '#6366f1' : 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)',
+                                                    color: 'white',
+                                                    border: 'none',
+                                                    borderRadius: '8px',
+                                                    fontWeight: 700,
+                                                    cursor: 'pointer',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    gap: '8px'
+                                                }}
+                                            >
+                                                🏥 {showInterpretation[item.id] ? 'Hide Interpretation' : 'Interpret Results'}
+                                            </button>
+                                        )}
+
+                                        {/* Interpretation Panel */}
+                                        {showInterpretation[item.id] && (
+                                            <div style={{ marginTop: 12, background: '#f0f9ff', border: '2px solid #0ea5e9', borderRadius: 12, overflow: 'hidden' }}>
+                                                {/* Header */}
+                                                <div style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)', padding: 12, color: 'white' }}>
+                                                    <div style={{ fontWeight: 800, fontSize: 14 }}>📋 PRELIMINARY CLINICAL INTERPRETATION</div>
+                                                    <div style={{ fontSize: 10, opacity: 0.9, marginTop: 4 }}>⚠️ Requires clinical correlation by qualified healthcare provider</div>
+                                                </div>
+                                                
+                                                {/* Summary Stats */}
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 6, padding: 10 }}>
+                                                    <div style={{ background: '#fee2e2', padding: 8, borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#dc2626' }}>{showInterpretation[item.id].summary.critical}</div>
+                                                        <div style={{ fontSize: 9, color: '#991b1b', fontWeight: 700 }}>CRITICAL</div>
+                                                    </div>
+                                                    <div style={{ background: '#fef3c7', padding: 8, borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#d97706' }}>{showInterpretation[item.id].summary.abnormal}</div>
+                                                        <div style={{ fontSize: 9, color: '#92400e', fontWeight: 700 }}>ABNORMAL</div>
+                                                    </div>
+                                                    <div style={{ background: '#d1fae5', padding: 8, borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#059669' }}>{showInterpretation[item.id].summary.normal}</div>
+                                                        <div style={{ fontSize: 9, color: '#065f46', fontWeight: 700 }}>NORMAL</div>
+                                                    </div>
+                                                    <div style={{ background: '#e0e7ff', padding: 8, borderRadius: 6, textAlign: 'center' }}>
+                                                        <div style={{ fontSize: 18, fontWeight: 800, color: '#4f46e5' }}>{showInterpretation[item.id].summary.total}</div>
+                                                        <div style={{ fontSize: 9, color: '#3730a3', fontWeight: 700 }}>TOTAL</div>
+                                                    </div>
+                                                </div>
+
+                                                {/* Clinical Patterns */}
+                                                {showInterpretation[item.id].patterns?.length > 0 && (
+                                                    <div style={{ padding: '0 10px 10px' }}>
+                                                        <div style={{ fontWeight: 700, color: '#92400e', fontSize: 11, marginBottom: 6 }}>⚡ CLINICAL PATTERNS</div>
+                                                        {showInterpretation[item.id].patterns.map((p, i) => (
+                                                            <div key={i} style={{ background: p.priority === 'CRITICAL' ? '#fee2e2' : '#fff', padding: 8, borderRadius: 6, marginBottom: 6, border: '1px solid #e2e8f0' }}>
+                                                                <div style={{ fontWeight: 700, fontSize: 12, color: p.priority === 'CRITICAL' ? '#dc2626' : '#1e40af' }}>
+                                                                    {p.priority === 'CRITICAL' ? '🔴 ' : '🔵 '}{p.name}
+                                                                </div>
+                                                                <div style={{ fontSize: 11, color: '#475569', marginTop: 2 }}>{p.interpretation}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Abnormal Values Detail */}
+                                                {Object.values(showInterpretation[item.id].processed).filter(v => v.flag !== 'N' && v.flag !== '?').length > 0 && (
+                                                    <div style={{ padding: '0 10px 10px' }}>
+                                                        <div style={{ fontWeight: 700, color: '#1e40af', fontSize: 11, marginBottom: 6 }}>📊 ABNORMAL VALUES</div>
+                                                        {Object.values(showInterpretation[item.id].processed).filter(v => v.flag !== 'N' && v.flag !== '?').map((v, i) => (
+                                                            <div key={i} style={{ background: v.flag.includes('H') ? '#fef3c7' : '#dbeafe', padding: 8, borderRadius: 6, marginBottom: 6 }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                                                    <span style={{ fontWeight: 700, fontSize: 12 }}>{v.name}</span>
+                                                                    <span style={{ fontWeight: 800, color: v.status.includes('CRITICAL') ? '#dc2626' : v.flag.includes('H') ? '#d97706' : '#2563eb' }}>
+                                                                        {v.value} {v.unit} {v.flag.includes('H') ? '↑' : '↓'}
+                                                                    </span>
+                                                                </div>
+                                                                <div style={{ fontSize: 10, color: '#64748b' }}>Ref: {v.reference} {v.unit}</div>
+                                                                <div style={{ fontSize: 11, color: '#334155', marginTop: 4, fontStyle: 'italic' }}>{v.interpretation}</div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+
+                                                {/* Disclaimer */}
+                                                <div style={{ background: '#fef3c7', padding: 10, fontSize: 10, color: '#92400e', borderTop: '1px solid #f59e0b' }}>
+                                                    <strong>⚕️ DISCLAIMER:</strong> This is a PRELIMINARY interpretation. All findings require clinical correlation. Reference: Harrison's Principles of Internal Medicine, WHO Guidelines.
+                                                </div>
+                                            </div>
+                                        )}
                                     </div>
                                 );
                             })}
                         </div>
                     ))}
-
-                    {tab === "Clinical" && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-                            {/* CDSS Header */}
-                            <div style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)', padding: 16, borderRadius: 12, color: 'white' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
-                                    <span style={{ fontSize: 24 }}>🏥</span>
-                                    <div>
-                                        <div style={{ fontWeight: 800, fontSize: 16 }}>Clinical Decision Support System</div>
-                                        <div style={{ fontSize: 11, opacity: 0.9 }}>PRELIMINARY REPORT GENERATOR</div>
-                                    </div>
-                                </div>
-                                <div style={{ fontSize: 11, background: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 6 }}>
-                                    ⚠️ <strong>Disclaimer:</strong> All interpretations require clinical correlation by a qualified healthcare provider.
-                                </div>
-                            </div>
-
-                            {/* Generate Report Button */}
-                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
-                                <button 
-                                    className="btn" 
-                                    style={{ background: '#0ea5e9', color: 'white', flex: 1 }}
-                                    onClick={generateClinicalReport}
-                                >
-                                    📊 Generate Clinical Report
-                                </button>
-                                {clinicalReport && (
-                                    <button 
-                                        className="btn btn-white" 
-                                        onClick={() => {
-                                            const blob = new Blob([clinicalReport.report], { type: 'text/markdown' });
-                                            const url = URL.createObjectURL(blob);
-                                            const a = document.createElement('a');
-                                            a.href = url;
-                                            a.download = `clinical-report-${patient.name || 'patient'}-${new Date().toISOString().split('T')[0]}.md`;
-                                            a.click();
-                                            URL.revokeObjectURL(url);
-                                        }}
-                                    >
-                                        💾 Export MD
-                                    </button>
-                                )}
-                            </div>
-
-                            {/* Summary Stats */}
-                            {clinicalReport && (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
-                                    <div style={{ background: '#fee2e2', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#dc2626' }}>{clinicalReport.summary.critical}</div>
-                                        <div style={{ fontSize: 10, color: '#991b1b', fontWeight: 700 }}>CRITICAL</div>
-                                    </div>
-                                    <div style={{ background: '#fef3c7', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#d97706' }}>{clinicalReport.summary.abnormal}</div>
-                                        <div style={{ fontSize: 10, color: '#92400e', fontWeight: 700 }}>ABNORMAL</div>
-                                    </div>
-                                    <div style={{ background: '#d1fae5', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#059669' }}>{clinicalReport.summary.normal}</div>
-                                        <div style={{ fontSize: 10, color: '#065f46', fontWeight: 700 }}>NORMAL</div>
-                                    </div>
-                                    <div style={{ background: '#e0e7ff', padding: 12, borderRadius: 8, textAlign: 'center' }}>
-                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#4f46e5' }}>{clinicalReport.summary.total}</div>
-                                        <div style={{ fontSize: 10, color: '#3730a3', fontWeight: 700 }}>TOTAL</div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Clinical Patterns */}
-                            {clinicalReport?.patterns?.length > 0 && (
-                                <div style={{ background: '#fef3c7', border: '2px solid #f59e0b', borderRadius: 12, padding: 12 }}>
-                                    <div style={{ fontWeight: 800, color: '#92400e', marginBottom: 8 }}>⚡ Clinical Patterns Identified</div>
-                                    {clinicalReport.patterns.map((p, i) => (
-                                        <div key={i} style={{ background: 'white', padding: 10, borderRadius: 8, marginBottom: 8 }}>
-                                            <div style={{ fontWeight: 700, color: p.priority === 'CRITICAL' ? '#dc2626' : '#1e40af' }}>
-                                                {p.priority === 'CRITICAL' ? '🔴 ' : '🔵 '}{p.name}
-                                            </div>
-                                            <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{p.interpretation}</div>
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-
-                            {/* Full Report */}
-                            {clinicalReport && (
-                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, maxHeight: '400px', overflow: 'auto' }}>
-                                    <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: 12, fontSize: 14 }}>📄 Full Report (Markdown)</div>
-                                    <pre style={{ 
-                                        whiteSpace: 'pre-wrap', 
-                                        wordBreak: 'break-word', 
-                                        fontSize: 11, 
-                                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
-                                        color: '#334155',
-                                        lineHeight: 1.6
-                                    }}>
-                                        {clinicalReport.report}
-                                    </pre>
-                                </div>
-                            )}
-
-                            {/* No Report Yet */}
-                            {!clinicalReport && (
-                                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
-                                    <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
-                                    <div style={{ fontWeight: 600 }}>No clinical report generated yet</div>
-                                    <div style={{ fontSize: 12, marginTop: 8 }}>Click "Generate Clinical Report" to analyze lab values</div>
-                                </div>
-                            )}
-
-                            {/* Reference Info */}
-                            <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', padding: 8, borderTop: '1px solid #e2e8f0' }}>
-                                References: Harrison's Principles of Internal Medicine • WHO Clinical Guidelines • UpToDate
-                            </div>
-                        </div>
-                    )}
 
                     {tab === "Images" && (labImages.length === 0 ? (
                         <div className="empty-labs"><div className="empty-labs-icon">🔬</div><div>No lab images yet.</div></div>
@@ -1588,8 +1560,37 @@ const App = () => {
         return () => { db.ref('notice').off(); db.ref('patients').off(); };
     }, []);
 
-    const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved"));
-    const saveLabImages = (patientId, labImages) => db.ref(`patients/${patientId}/labImages`).set(labImages).then(() => { showToast("✓ Labs saved"); scheduleSync(); });
+    const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
+    const saveLabImages = (patientId, labImages) => {
+        console.log('[Save] Saving', labImages.length, 'images for patient', patientId);
+        // Clean up labImages before saving (remove functions, circular refs)
+        const cleanImages = labImages.map(img => ({
+            id: img.id,
+            image: img.image,
+            timestamp: img.timestamp,
+            note: img.note || '',
+            labType: img.labType || img.ocr?.labType || 'AUTO',
+            ocr: img.ocr ? {
+                text: img.ocr.text || '',
+                values: (img.ocr.values || []).map(v => ({
+                    test: v.test,
+                    value: v.value,
+                    unit: v.unit || '',
+                    flag: v.flag || 'N',
+                    refLow: v.refLow,
+                    refHigh: v.refHigh,
+                    category: v.category
+                })),
+                confidence: img.ocr.confidence || 0,
+                avgValueConfidence: img.ocr.avgValueConfidence || 0,
+                source: img.ocr.source || '',
+                labType: img.ocr.labType || 'AUTO'
+            } : null
+        }));
+        return db.ref(`patients/${patientId}/labImages`).set(cleanImages)
+            .then(() => { console.log('[Save] Success!'); showToast("✓ Labs saved"); scheduleSync(); })
+            .catch(e => { console.error('[Save] Error:', e); showToast("❌ Save failed: " + e.message); });
+    };
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
     const update = useCallback((id, field, value) => { const p = patients.find(x => x.id === id); if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; } if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; } db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync); }, [patients, scheduleSync]);
     const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
