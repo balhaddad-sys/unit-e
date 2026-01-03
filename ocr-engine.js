@@ -8,7 +8,7 @@
 
     // Configuration
     const CONFIG = {
-        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbwj4ZmMkKQAg3Ti2SNMkRFZBT786O1BrrDgLAJo4M3nf8doIRVbEtFChK2B8i8RHq2-zg/exec',
+        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec',
         MAX_IMAGE_WIDTH: 1600,
         JPEG_QUALITY: 0.92
     };
