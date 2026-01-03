@@ -171,6 +171,60 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
+            position: relative;
+            transition: all 0.3s ease;
+        }
+        /* New Admission Styling */
+        .p-card.new-admission {
+            background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 50%, #fef3c7 100%);
+            border-left: 4px solid #f59e0b;
+            animation: newAdmissionPulse 2s ease-in-out infinite;
+        }
+        .p-card.new-admission::before {
+            content: '🆕 NEW';
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+            color: white;
+            font-size: 10px;
+            font-weight: 800;
+            padding: 4px 10px;
+            border-radius: 12px;
+            letter-spacing: 0.5px;
+            box-shadow: 0 2px 8px rgba(245, 158, 11, 0.4);
+            animation: badgePop 0.5s ease-out;
+        }
+        @keyframes newAdmissionPulse {
+            0%, 100% { 
+                background: linear-gradient(135deg, #fef3c7 0%, #fef9c3 50%, #fef3c7 100%);
+                box-shadow: 0 0 0 0 rgba(245, 158, 11, 0);
+            }
+            50% { 
+                background: linear-gradient(135deg, #fde68a 0%, #fef3c7 50%, #fde68a 100%);
+                box-shadow: 0 0 12px 2px rgba(245, 158, 11, 0.15);
+            }
+        }
+        @keyframes badgePop {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.2); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        /* Dismiss new button */
+        .new-dismiss-btn {
+            background: transparent;
+            border: 1px solid #d97706;
+            color: #d97706;
+            font-size: 10px;
+            font-weight: 700;
+            padding: 3px 8px;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .new-dismiss-btn:hover {
+            background: #d97706;
+            color: white;
         }
         .inp {
             width: 100%;
@@ -687,6 +741,15 @@ const formatDateTime = (ts) => {
         date: d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' }),
         time: d.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
     };
+};
+
+// Check if patient is a new admission (added within last 24 hours and not dismissed)
+const NEW_ADMISSION_HOURS = 24;
+const isNewAdmission = (patient) => {
+    if (!patient.timestamp) return false;
+    if (patient.newDismissed) return false; // User dismissed the new badge
+    const hoursSinceAdmission = (Date.now() - patient.timestamp) / (1000 * 60 * 60);
+    return hoursSinceAdmission <= NEW_ADMISSION_HOURS;
 };
 
 // Generic crop settings for lab images
@@ -1740,13 +1803,14 @@ const App = () => {
                     <div className="ward-header" onClick={() => setCollapsedWards(p => ({ ...p, [ward]: !p[ward] }))}><div><span className={`arrow ${collapsedWards[ward] ? 'collapsed' : ''}`}>▼</span> {ward}</div><span className="ward-count">{groups.g[ward].length}</span></div>
                     <div className={`ward-body ${collapsedWards[ward] ? 'is-hidden' : ''}`}>
                         {groups.g[ward].map(p => (
-                            <div className="p-card" key={p.id}>
+                            <div className={`p-card ${isNewAdmission(p) ? 'new-admission' : ''}`} key={p.id}>
                                 <div className="mobile-row col-1"><input className="inp inp-bed" value={p.bed || ''} placeholder="Bed" onChange={e => update(p.id, 'bed', e.target.value)} /><input className="inp inp-doc" value={p.doctor || ''} placeholder="Dr." onChange={e => update(p.id, 'doctor', e.target.value)} /></div>
                                 <div className="col-2"><div style={{ display: 'flex', gap: 8 }}><input className="inp inp-name" value={p.name || ''} placeholder="Name" onChange={e => update(p.id, 'name', e.target.value)} /><input className="inp" style={{ width: '90px' }} value={p.mrn || ''} placeholder="MRN" onChange={e => update(p.id, 'mrn', e.target.value)} /></div><input className="inp" value={p.diagnosis || ''} placeholder="Diagnosis" onChange={e => update(p.id, 'diagnosis', e.target.value)} /></div>
                                 <div className="col-3"><textarea className="inp inp-area" value={p.plan || ''} placeholder="Plan..." onChange={e => update(p.id, 'plan', e.target.value)} /></div>
                                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                                     <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>🧪 Labs {getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}</button>
                                     <select className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e => update(p.id, 'status', e.target.value)}><option value="">-</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select>
+                                    {isNewAdmission(p) && <button className="new-dismiss-btn" onClick={() => update(p.id, 'newDismissed', true)}>✓ Seen</button>}
                                     <button className="btn-del" onClick={() => del(p.id)}>×</button>
                                 </div>
                             </div>
