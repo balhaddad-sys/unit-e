@@ -1366,7 +1366,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
     const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
     const updateNote = (id, note) => updateLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
-    const deleteImage = (id) => { if (confirm("Delete this lab?")) updateLabImages(prev => prev.filter(img => img.id !== id)); };
+    const deleteImage = async (id) => { 
+        if (!confirm("Delete this lab?")) return;
+        
+        // Remove from local state
+        updateLabImages(prev => prev.filter(img => img.id !== id));
+        
+        // Also trigger a save to update Drive (will be saved when user clicks Save)
+        addDebugLog('info', `Deleted lab ${id} - click Save to update Drive`);
+    };
 
     const updateOcrValue = (imgId, test, field, newVal) => {
         updateLabImages(prev => prev.map(img => {
