@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   OCR ENGINE v3.2 - Connection Optimized
-   Lowers payload size and improves error logging for GAS
+   OCR ENGINE v3.3 - FINAL PRODUCTION
+   URL Updated | CORS Fixed | Payload Optimized
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
@@ -8,10 +8,10 @@
 
     // Configuration
     const CONFIG = {
-        // Double check this URL matches your latest deployment!
-        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbwIMPGxFT1F00rKjOEsMrfxjYn6g5hbIRYGi11QdFxVloAIjjARf0UDc4z1hFgudHYk/exec',
-        MAX_IMAGE_WIDTH: 1024, // Reduced from 1600 to ensure payload fits in GAS limits
-        JPEG_QUALITY: 0.8      // Reduced from 0.92 for smaller base64 string
+        // YOUR NEW DEPLOYMENT URL
+        VISION_API_URL: 'https://script.google.com/macros/s/AKfycby622nMAInUpvCG8EJYgn1yqJJc3CUJR2mYYfKgZvbbAraWtX4hLXMue6DGJOxxdTmA/exec',
+        MAX_IMAGE_WIDTH: 1024, 
+        JPEG_QUALITY: 0.8
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -37,25 +37,24 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Convert to base64
                     const dataUrl = canvas.toDataURL('image/jpeg', CONFIG.JPEG_QUALITY);
                     resolve(dataUrl);
                 };
-                img.onerror = (err) => reject(new Error('Image load failed'));
+                img.onerror = () => reject(new Error('Image load failed'));
                 img.src = e.target.result;
             };
-            reader.onerror = (err) => reject(new Error('File read failed'));
+            reader.onerror = () => reject(new Error('File read failed'));
             reader.readAsDataURL(file);
         });
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // API COMMUNICATION
+    // API COMMUNICATION (CORS FIXED)
     // ═══════════════════════════════════════════════════════════════════════
     const callVisionAPI = async (base64Image, callbacks) => {
         const { onStage, onLog } = callbacks;
         
-        // Remove header prefix for the API payload
+        // Strip header for API
         const cleanBase64 = base64Image.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
         
         const payload = {
@@ -64,14 +63,11 @@
         };
 
         try {
-            onStage?.('Contacting Cloud...');
-            
-            // Log payload size for debugging
-            console.log(`Payload size: ~${Math.round(JSON.stringify(payload).length / 1024)} KB`);
+            onStage?.('Scanning...');
 
+            // The Secret Technique: content-type text/plain bypasses the CORS preflight
             const response = await fetch(CONFIG.VISION_API_URL, {
                 method: 'POST',
-                // redirect: 'follow' is default, but important for GAS
                 redirect: 'follow', 
                 headers: {
                     'Content-Type': 'text/plain;charset=utf-8', 
@@ -80,71 +76,56 @@
             });
 
             if (!response.ok) {
-                throw new Error(`Server Status: ${response.status} (${response.statusText})`);
+                throw new Error(`Server Error: ${response.status}`);
             }
 
-            // GAS sometimes returns HTML error pages instead of JSON on failure
             const textResponse = await response.text();
             
-            let data;
-            try {
-                data = JSON.parse(textResponse);
-            } catch (e) {
-                console.error("Non-JSON response received:", textResponse);
-                throw new Error("Server returned an HTML error page. Check Script Permissions.");
+            // Handle cases where GAS returns HTML error page instead of JSON
+            if (textResponse.trim().startsWith('<')) {
+                 throw new Error("Script Deployment Error: Ensure 'Who has access' is set to 'Anyone'");
             }
+
+            const data = JSON.parse(textResponse);
             
-            if (data.error) {
-                throw new Error(data.error);
-            }
+            if (data.error) throw new Error(data.error);
 
             return data.text || '';
 
         } catch (err) {
-            onLog?.('error', `Connection Failed: ${err.message}`);
-            console.error(err);
+            onLog?.('error', `OCR Error: ${err.message}`);
             throw err;
         }
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MAIN OCR FUNCTION
+    // MAIN RUNNER
     // ═══════════════════════════════════════════════════════════════════════
     const runOCR = async (imageSource, callbacks = {}) => {
-        const { onProgress, onStage, onLog } = callbacks;
+        const { onProgress, onStage } = callbacks;
         
         try {
             let dataUrl = imageSource;
-            
             if (imageSource instanceof File) {
                 onStage?.('Compressing...');
-                onProgress?.(10);
+                onProgress?.(20);
                 dataUrl = await compressImage(imageSource);
             }
             
             const result = await callVisionAPI(dataUrl, callbacks);
-            
             onProgress?.(100);
-            onStage?.('Complete');
-            
             return result;
-            
         } catch (err) {
-            // Error is already logged in sub-functions
             throw err;
         }
     };
 
-    // ═══════════════════════════════════════════════════════════════════════
-    // EXPOSE GLOBAL API
-    // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '3.2',
+        version: '3.3',
         runOCR,
         compressImage,
-        config: CONFIG,
         isReady: true
     };
 
-    console.log('[OCREngine v3.2] Ready - Optimized Mode');
+    console.log('[OCREngine v3.3] System Online');
 })();
