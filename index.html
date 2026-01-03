@@ -664,7 +664,7 @@ if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseCon
 const db = firebase.database();
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycby622nMAInUpvCG8EJYgn1yqJJc3CUJR2mYYfKgZvbbAraWtX4hLXMue6DGJOxxdTmA/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbyFb3q24LSEHzzN1elM_Bj9ilC4FbpoEEePvVIyBCGIYXSDlB43c_zWUHqPKd1RJLXNBA/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
@@ -1044,36 +1044,8 @@ const ImageViewer = ({ images, currentIndex, onClose }) => {
 };
 
 const LabModal = ({ patient, onClose, onSave }) => {
-    // Load from labData (new format) or labImages (old format) with conversion
-    const initializeLabs = () => {
-        // Try new labData format first
-        if (patient.labData && patient.labData.length > 0) {
-            return patient.labData.map(lab => ({
-                id: lab.id,
-                image: null, // No image stored
-                timestamp: lab.timestamp,
-                note: lab.note || '',
-                labType: lab.labType || 'AUTO',
-                ocr: {
-                    text: '',
-                    values: lab.values || [],
-                    confidence: lab.confidence || 0,
-                    source: lab.source || 'saved',
-                    labType: lab.labType || 'AUTO'
-                }
-            }));
-        }
-        // Fall back to old labImages format
-        if (patient.labImages && patient.labImages.length > 0) {
-            return patient.labImages.map(img => ({
-                ...img,
-                ocr: img.ocr || { text: '', values: [], confidence: 0 }
-            }));
-        }
-        return [];
-    };
-    
-    const [labImages, setLabImages] = useState(initializeLabs);
+    const [labImages, setLabImages] = useState([]);
+    const [loading, setLoading] = useState(true);
     const [dragging, setDragging] = useState(false);
     const [viewerIndex, setViewerIndex] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -1094,6 +1066,70 @@ const LabModal = ({ patient, onClose, onSave }) => {
         setDebugLogs(prev => [...prev.slice(-50), { type, msg, time: new Date().toLocaleTimeString() }]);
         console.log(`[DEBUG ${type}]`, msg);
     };
+    
+    // Load labs from Google Drive on mount
+    useEffect(() => {
+        const loadLabsFromDrive = async () => {
+            setLoading(true);
+            addDebugLog('info', `Loading labs for ${patient.name}...`);
+            
+            try {
+                const response = await fetch(VISION_API_PROXY_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'loadLabs',
+                        patientId: patient.id,
+                        patientName: patient.name
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.error) {
+                    addDebugLog('warn', `Drive load: ${result.error}`);
+                } else if (result.labData && result.labData.length > 0) {
+                    // Convert Drive data to local format
+                    const labs = result.labData.map(lab => ({
+                        id: lab.id,
+                        image: null,
+                        timestamp: lab.timestamp,
+                        note: lab.note || '',
+                        labType: lab.labType || 'AUTO',
+                        ocr: {
+                            text: '',
+                            values: lab.values || [],
+                            confidence: lab.confidence || 0,
+                            source: lab.source || 'drive',
+                            labType: lab.labType || 'AUTO'
+                        }
+                    }));
+                    setLabImages(labs);
+                    addDebugLog('success', `Loaded ${labs.length} labs from Drive`);
+                } else {
+                    addDebugLog('info', 'No labs found in Drive');
+                }
+            } catch (err) {
+                addDebugLog('error', `Failed to load from Drive: ${err.message}`);
+                // Fall back to any local data
+                if (patient.labData && patient.labData.length > 0) {
+                    const labs = patient.labData.map(lab => ({
+                        id: lab.id,
+                        image: null,
+                        timestamp: lab.timestamp,
+                        note: lab.note || '',
+                        labType: lab.labType || 'AUTO',
+                        ocr: { text: '', values: lab.values || [], confidence: lab.confidence || 0, source: 'firebase' }
+                    }));
+                    setLabImages(labs);
+                }
+            }
+            
+            setLoading(false);
+        };
+        
+        loadLabsFromDrive();
+    }, [patient.id]);
     
     // Mark changes when labs are modified
     const updateLabImages = (updater) => {
@@ -1294,6 +1330,13 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
                 </div>
                 <div className="modal-body">
+                    {loading ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: 40, gap: 16 }}>
+                            <div style={{ fontSize: 32 }}>📂</div>
+                            <div style={{ color: '#64748b' }}>Loading labs from Google Drive...</div>
+                        </div>
+                    ) : (
+                    <>
                     <div className="tabs">
                         <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
@@ -1545,9 +1588,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         </div>
                     )}
                 </div>
+                </>
+                )}
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
-                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>Save ({labImages.length})</button>
+                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave} disabled={loading}>Save ({labImages.length})</button>
                 </div>
             </div>
             {viewerIndex !== null && labImages[viewerIndex]?.image && <ImageViewer images={labImages.filter(l => l.image)} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
@@ -1597,62 +1642,83 @@ const App = () => {
     }, []);
 
     const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
-    const saveLabImages = (patientId, labImages) => {
+    const saveLabImages = async (patientId, labImages) => {
         console.log('[Save] ═══════════════════════════════════════');
         console.log('[Save] Patient ID:', patientId);
         console.log('[Save] Total labs:', labImages.length);
         
-        if (!patientId) {
+        const patient = patients.find(p => p.id === patientId);
+        if (!patientId || !patient) {
             console.error('[Save] ERROR: No patient ID!');
             showToast("❌ Save failed: No patient ID");
             return Promise.reject(new Error('No patient ID'));
         }
         
-        // Save ONLY lab values, NOT images (images are too large for Firebase)
-        const labData = labImages.map((img, idx) => {
-            const data = {
-                id: img.id || Date.now().toString() + idx,
-                timestamp: img.timestamp || Date.now(),
-                note: img.note || '',
-                labType: img.labType || img.ocr?.labType || 'AUTO',
-                // Only save OCR results, not the image itself
-                values: (img.ocr?.values || []).slice(0, 50).map(v => ({
-                    test: v.test,
-                    value: v.value,
-                    unit: v.unit || '',
-                    flag: v.flag || 'N',
-                    refLow: v.refLow,
-                    refHigh: v.refHigh
-                })),
-                confidence: img.ocr?.confidence || 0,
-                source: img.ocr?.source || 'vision'
-            };
-            console.log(`[Save] Lab ${idx + 1}: ${data.values.length} values`);
-            return data;
-        });
+        // Format lab data (no images)
+        const labData = labImages.map((img, idx) => ({
+            id: img.id || Date.now().toString() + idx,
+            timestamp: img.timestamp || Date.now(),
+            note: img.note || '',
+            labType: img.labType || img.ocr?.labType || 'AUTO',
+            values: (img.ocr?.values || []).slice(0, 50).map(v => ({
+                test: v.test,
+                value: v.value,
+                unit: v.unit || '',
+                flag: v.flag || 'N',
+                refLow: v.refLow,
+                refHigh: v.refHigh
+            })),
+            confidence: img.ocr?.confidence || 0,
+            source: img.ocr?.source || 'vision'
+        }));
         
-        // Calculate total data size
-        const dataSize = JSON.stringify(labData).length;
-        console.log(`[Save] Data size: ${(dataSize / 1024).toFixed(1)} KB`);
+        console.log(`[Save] Saving ${labData.length} labs to Google Drive...`);
+        showToast("📤 Saving to Drive...");
         
-        return db.ref(`patients/${patientId}/labData`).set(labData)
-            .then(() => { 
-                console.log('[Save] ✓ SUCCESS - Labs saved to Firebase'); 
-                showToast("✓ Labs saved"); 
-                setTimeout(scheduleSync, 1000);
-            })
-            .catch(e => { 
-                console.error('[Save] ✗ FAILED:', e); 
-                showToast("❌ Save failed: " + e.message);
-                throw e;
+        try {
+            // Save to Google Drive
+            const response = await fetch(VISION_API_PROXY_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'saveLabs',
+                    patientId: patientId,
+                    patientName: patient.name,
+                    labData: labData
+                })
             });
+            
+            const result = await response.json();
+            
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            console.log('[Save] ✓ SUCCESS - Labs saved to Google Drive');
+            console.log('[Save] File:', result.filename);
+            
+            // Also save minimal reference to Firebase (just count and timestamp)
+            await db.ref(`patients/${patientId}/labInfo`).set({
+                count: labData.length,
+                lastSaved: Date.now(),
+                driveFolder: result.folderId || null
+            });
+            
+            showToast("✓ Labs saved to Drive");
+            scheduleSync();
+            
+        } catch (error) {
+            console.error('[Save] ✗ FAILED:', error);
+            showToast("❌ Save failed: " + error.message);
+            throw error;
+        }
     };
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
     const update = useCallback((id, field, value) => { const p = patients.find(x => x.id === id); if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; } if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; } db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync); }, [patients, scheduleSync]);
     const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
     const saveNew = () => { const c = { ward: newP.ward || "Unassigned", bed: cleanBed(newP.bed), name: newP.name.trim(), diagnosis: newP.diagnosis, doctor: newP.doctor, status: newP.status || "New", plan: newP.plan, mrn: newP.mrn, timestamp: Date.now(), labData: [] }; if (!c.name) { alert("Enter name"); return; } if (isDup(c.ward, c.name)) { alert("Duplicate"); return; } db.ref("patients").push(c).then(() => { setAddModal(false); setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); showToast("✓ Added"); pingSheets(); }); };
     const groups = useMemo(() => { const g = {}; (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter)).filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase())).forEach(p => { const w = p.ward || "Unassigned"; (g[w] = g[w] || []).push(p); }); return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) }; }, [patients, search, viewFilter]);
-    const getLabCount = (p) => (p.labData || p.labImages || []).length;
+    const getLabCount = (p) => p.labInfo?.count || (p.labData || p.labImages || []).length;
 
     return (
         <div className="wrap">
