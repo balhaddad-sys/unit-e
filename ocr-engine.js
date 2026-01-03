@@ -77,23 +77,29 @@
                     action: 'ocr', 
                     image: imageData, 
                     mode: 'DOCUMENT_TEXT_DETECTION' 
-                }),
-                redirect: 'follow'
+                })
             });
             
             onProgress?.(70);
             onStage?.('Processing response...');
             
             const responseText = await response.text();
+            onLog?.('info', `Response length: ${responseText.length}, starts with: ${responseText.substring(0, 100)}`);
+            
+            // Check if response is HTML (redirect page) instead of JSON
+            if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+                throw new Error('Got HTML instead of JSON - Apps Script may need redeployment');
+            }
             
             if (!response.ok) {
-                throw new Error(`Vision API HTTP ${response.status}`);
+                throw new Error(`Vision API HTTP ${response.status}: ${responseText.substring(0, 200)}`);
             }
             
             let result;
             try { 
                 result = JSON.parse(responseText); 
-            } catch { 
+            } catch (parseErr) { 
+                onLog?.('error', `Parse failed. Raw response: ${responseText.substring(0, 500)}`);
                 throw new Error('Failed to parse Vision API response'); 
             }
             
