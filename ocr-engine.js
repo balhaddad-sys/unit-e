@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   OCR ENGINE v3.3 - FINAL PRODUCTION
-   URL Updated | CORS Fixed | Payload Optimized
+   OCR ENGINE v3.0 - Google Vision API Integration
+   Standalone module for lab image text extraction
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
@@ -8,10 +8,9 @@
 
     // Configuration
     const CONFIG = {
-        // YOUR NEW DEPLOYMENT URL
-        VISION_API_URL: 'https://script.google.com/macros/s/AKfycby622nMAInUpvCG8EJYgn1yqJJc3CUJR2mYYfKgZvbbAraWtX4hLXMue6DGJOxxdTmA/exec',
-        MAX_IMAGE_WIDTH: 1024, 
-        JPEG_QUALITY: 0.8
+        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbwIMPGxFT1F00rKjOEsMrfxjYn6g5hbIRYGi11QdFxVloAIjjARf0UDc4z1hFgudHYk/exec',
+        MAX_IMAGE_WIDTH: 1600,
+        JPEG_QUALITY: 0.92
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -31,101 +30,134 @@
                         width = maxWidth; 
                     }
                     
-                    canvas.width = width;
+                    canvas.width = width; 
                     canvas.height = height;
                     
-                    const ctx = canvas.getContext('2d');
+                    const ctx = canvas.getContext('2d', { alpha: false });
+                    ctx.fillStyle = '#FFFFFF';
+                    ctx.fillRect(0, 0, width, height);
+                    ctx.imageSmoothingEnabled = true;
+                    ctx.imageSmoothingQuality = 'high';
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    const dataUrl = canvas.toDataURL('image/jpeg', CONFIG.JPEG_QUALITY);
-                    resolve(dataUrl);
+                    resolve(canvas.toDataURL('image/jpeg', CONFIG.JPEG_QUALITY));
                 };
-                img.onerror = () => reject(new Error('Image load failed'));
+                img.onerror = () => reject(new Error("Failed to load image"));
                 img.src = e.target.result;
             };
-            reader.onerror = () => reject(new Error('File read failed'));
+            reader.onerror = () => reject(new Error("Failed to read file"));
             reader.readAsDataURL(file);
         });
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // API COMMUNICATION (CORS FIXED)
+    // GOOGLE VISION API CALL
     // ═══════════════════════════════════════════════════════════════════════
-    const callVisionAPI = async (base64Image, callbacks) => {
-        const { onStage, onLog } = callbacks;
+    const callVisionAPI = async (dataUrl, callbacks = {}) => {
+        const { onProgress, onStage, onLog } = callbacks;
         
-        // Strip header for API
-        const cleanBase64 = base64Image.replace(/^data:image\/(png|jpg|jpeg);base64,/, '');
+        onLog?.('info', 'Starting Google Vision OCR...');
+        onStage?.('Preparing image...');
+        onProgress?.(10);
         
-        const payload = {
-            image: cleanBase64,
-            type: 'DOCUMENT_TEXT_DETECTION'
-        };
-
+        // Extract base64
+        let imageData = dataUrl;
+        if (imageData.includes(',')) {
+            imageData = imageData.split(',')[1];
+        }
+        
         try {
-            onStage?.('Scanning...');
-
-            // The Secret Technique: content-type text/plain bypasses the CORS preflight
+            onStage?.('Sending to Google Vision...');
+            onProgress?.(30);
+            
             const response = await fetch(CONFIG.VISION_API_URL, {
                 method: 'POST',
-                redirect: 'follow', 
-                headers: {
-                    'Content-Type': 'text/plain;charset=utf-8', 
-                },
-                body: JSON.stringify(payload)
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ 
+                    action: 'ocr', 
+                    image: imageData, 
+                    mode: 'DOCUMENT_TEXT_DETECTION' 
+                }),
+                redirect: 'follow'
             });
-
+            
+            onProgress?.(70);
+            onStage?.('Processing response...');
+            
+            const responseText = await response.text();
+            
             if (!response.ok) {
-                throw new Error(`Server Error: ${response.status}`);
+                throw new Error(`Vision API HTTP ${response.status}`);
             }
-
-            const textResponse = await response.text();
             
-            // Handle cases where GAS returns HTML error page instead of JSON
-            if (textResponse.trim().startsWith('<')) {
-                 throw new Error("Script Deployment Error: Ensure 'Who has access' is set to 'Anyone'");
+            let result;
+            try { 
+                result = JSON.parse(responseText); 
+            } catch { 
+                throw new Error('Failed to parse Vision API response'); 
             }
-
-            const data = JSON.parse(textResponse);
             
-            if (data.error) throw new Error(data.error);
-
-            return data.text || '';
-
+            if (result.error) {
+                throw new Error(result.error);
+            }
+            
+            onProgress?.(95);
+            onLog?.('success', `Vision API returned ${result.text?.length || 0} characters`);
+            
+            return { 
+                text: result.text || "", 
+                confidence: result.confidence || 85, 
+                lines: result.lines || [], 
+                source: 'google_vision' 
+            };
+            
         } catch (err) {
-            onLog?.('error', `OCR Error: ${err.message}`);
+            onLog?.('error', `Vision API failed: ${err.message}`);
             throw err;
         }
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // MAIN RUNNER
+    // MAIN OCR FUNCTION
     // ═══════════════════════════════════════════════════════════════════════
     const runOCR = async (imageSource, callbacks = {}) => {
-        const { onProgress, onStage } = callbacks;
+        const { onProgress, onStage, onLog } = callbacks;
         
         try {
             let dataUrl = imageSource;
+            
+            // If it's a File object, compress it first
             if (imageSource instanceof File) {
-                onStage?.('Compressing...');
-                onProgress?.(20);
+                onStage?.('Compressing image...');
+                onProgress?.(5);
                 dataUrl = await compressImage(imageSource);
             }
             
+            // Run Vision API
             const result = await callVisionAPI(dataUrl, callbacks);
+            
             onProgress?.(100);
+            onStage?.('Complete');
+            
             return result;
+            
         } catch (err) {
+            onLog?.('error', `OCR failed: ${err.message}`);
             throw err;
         }
     };
 
+    // ═══════════════════════════════════════════════════════════════════════
+    // EXPOSE GLOBAL API
+    // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '3.3',
+        version: '3.0',
         runOCR,
         compressImage,
+        callVisionAPI,
+        config: CONFIG,
         isReady: true
     };
 
-    console.log('[OCREngine v3.3] System Online');
+    console.log('[OCREngine v3.0] Google Vision OCR module loaded');
 })();
