@@ -739,10 +739,24 @@ const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbwj4ZmMkKQ
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
-const pingSheets = () => {
+// Ping sheets AND trigger sheet sync (date update + yellow highlighting)
+const pingSheets = async () => {
     const url = `${VISION_API_PROXY_URL}?t=${Date.now()}`;
+    // Simple ping
     if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
     else fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {});
+    
+    // Also trigger explicit sheet sync
+    try {
+        await fetch(VISION_API_PROXY_URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+            body: JSON.stringify({ action: 'syncSheet' })
+        });
+        console.log('[Sync] Sheet sync triggered');
+    } catch (e) {
+        console.log('[Sync] Sheet sync failed:', e.message);
+    }
 };
 
 const WARD_ORDER = ["Ward 19", "Ward 20", "Ward 21", "Ward 22", "Ward 27", "Ward 5", "Ward 10", "ICU", "ER", "Unassigned"];
@@ -1820,7 +1834,13 @@ const App = () => {
                 <div className="actions">
                     <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
                     <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
-                    <button className="btn btn-blue" onClick={() => { setSyncing(true); pingSheets(); showToast("🔄 Syncing..."); setTimeout(() => setSyncing(false), 2000); }}>🔄</button>
+                    <button className="btn btn-blue" onClick={async () => { 
+                        setSyncing(true); 
+                        showToast("🔄 Syncing sheet..."); 
+                        await pingSheets(); 
+                        showToast("✓ Sheet synced!"); 
+                        setTimeout(() => setSyncing(false), 1000); 
+                    }}>🔄</button>
                 </div>
             </div>
             <NoticeBanner notice={notice} onSave={saveNotice} />
