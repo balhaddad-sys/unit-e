@@ -1044,7 +1044,36 @@ const ImageViewer = ({ images, currentIndex, onClose }) => {
 };
 
 const LabModal = ({ patient, onClose, onSave }) => {
-    const [labImages, setLabImages] = useState(patient.labImages || []);
+    // Load from labData (new format) or labImages (old format) with conversion
+    const initializeLabs = () => {
+        // Try new labData format first
+        if (patient.labData && patient.labData.length > 0) {
+            return patient.labData.map(lab => ({
+                id: lab.id,
+                image: null, // No image stored
+                timestamp: lab.timestamp,
+                note: lab.note || '',
+                labType: lab.labType || 'AUTO',
+                ocr: {
+                    text: '',
+                    values: lab.values || [],
+                    confidence: lab.confidence || 0,
+                    source: lab.source || 'saved',
+                    labType: lab.labType || 'AUTO'
+                }
+            }));
+        }
+        // Fall back to old labImages format
+        if (patient.labImages && patient.labImages.length > 0) {
+            return patient.labImages.map(img => ({
+                ...img,
+                ocr: img.ocr || { text: '', values: [], confidence: 0 }
+            }));
+        }
+        return [];
+    };
+    
+    const [labImages, setLabImages] = useState(initializeLabs);
     const [dragging, setDragging] = useState(false);
     const [viewerIndex, setViewerIndex] = useState(null);
     const [uploading, setUploading] = useState(false);
@@ -1060,13 +1089,6 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
-    
-    // Sync with patient data ONLY on initial load, not during editing
-    useEffect(() => {
-        if (!hasUnsavedChanges && patient.labImages) {
-            setLabImages(patient.labImages);
-        }
-    }, [patient.id]); // Only when patient ID changes, not on every patient update
     
     const addDebugLog = (type, msg) => {
         setDebugLogs(prev => [...prev.slice(-50), { type, msg, time: new Date().toLocaleTimeString() }]);
@@ -1493,37 +1515,42 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         </div>
                     ))}
 
-                    {tab === "Images" && (labImages.length === 0 ? (
-                        <div className="empty-labs"><div className="empty-labs-icon">🔬</div><div>No lab images yet.</div></div>
-                    ) : (
-                        <div className="lab-images-grid">
-                            {labImages.map((lab, idx) => {
-                                const { date, time } = formatDateTime(lab.timestamp);
-                                const count = (lab.ocr?.values || []).length;
-                                const isVision = lab.ocr?.source === 'google_vision';
-                                return (
-                                    <div key={lab.id} className="lab-image-card">
-                                        <div className="lab-image-header" style={isVision ? { background: 'linear-gradient(135deg, #4285f4 0%, #34a853 100%)' } : {}}>
-                                            <div><div className="lab-image-date">{date}</div><div className="lab-image-time">{time} {count ? `• ${count} values` : ""}</div></div>
-                                            <div className="lab-image-actions">
-                                                <button className="lab-image-btn" onClick={() => runOcrOnImage(lab)}>🔎</button>
-                                                <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)}>🗑</button>
+                    {tab === "Images" && (
+                        <div style={{ padding: 16 }}>
+                            <div className="empty-labs">
+                                <div className="empty-labs-icon">📱</div>
+                                <div style={{ marginBottom: 8 }}>Images are processed but not stored</div>
+                                <div style={{ fontSize: 12, color: '#64748b' }}>Only lab values are saved to reduce storage. Upload images anytime to extract values.</div>
+                            </div>
+                            {labImages.filter(l => l.image).length > 0 && (
+                                <div className="lab-images-grid" style={{ marginTop: 16 }}>
+                                    {labImages.filter(l => l.image).map((lab, idx) => {
+                                        const { date, time } = formatDateTime(lab.timestamp);
+                                        const count = (lab.ocr?.values || []).length;
+                                        return (
+                                            <div key={lab.id} className="lab-image-card">
+                                                <div className="lab-image-header" style={{ background: 'linear-gradient(135deg, #4285f4 0%, #34a853 100%)' }}>
+                                                    <div><div className="lab-image-date">{date}</div><div className="lab-image-time">{time} {count ? `• ${count} values` : ""}</div></div>
+                                                    <div className="lab-image-actions">
+                                                        <button className="lab-image-btn" onClick={() => runOcrOnImage(lab)}>🔎</button>
+                                                        <button className="lab-image-btn delete" onClick={() => deleteImage(lab.id)}>🗑</button>
+                                                    </div>
+                                                </div>
+                                                <div className="lab-image-container" onClick={() => setViewerIndex(idx)}><img src={lab.image} alt="Lab" /></div>
                                             </div>
-                                        </div>
-                                        <div className="lab-image-container" onClick={() => setViewerIndex(idx)}><img src={lab.image} alt="Lab" /></div>
-                                        <div className="lab-image-note"><input type="text" placeholder="Add note..." value={lab.note || ""} onChange={e => updateNote(lab.id, e.target.value)} /></div>
-                                    </div>
-                                );
-                            })}
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
-                    ))}
+                    )}
                 </div>
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
                     <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>Save ({labImages.length})</button>
                 </div>
             </div>
-            {viewerIndex !== null && <ImageViewer images={labImages} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
+            {viewerIndex !== null && labImages[viewerIndex]?.image && <ImageViewer images={labImages.filter(l => l.image)} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
         </div>
     );
 };
@@ -1573,7 +1600,7 @@ const App = () => {
     const saveLabImages = (patientId, labImages) => {
         console.log('[Save] ═══════════════════════════════════════');
         console.log('[Save] Patient ID:', patientId);
-        console.log('[Save] Total images:', labImages.length);
+        console.log('[Save] Total labs:', labImages.length);
         
         if (!patientId) {
             console.error('[Save] ERROR: No patient ID!');
@@ -1581,43 +1608,37 @@ const App = () => {
             return Promise.reject(new Error('No patient ID'));
         }
         
-        // Clean up labImages before saving
-        const cleanImages = labImages.map((img, idx) => {
-            const clean = {
+        // Save ONLY lab values, NOT images (images are too large for Firebase)
+        const labData = labImages.map((img, idx) => {
+            const data = {
                 id: img.id || Date.now().toString() + idx,
-                image: img.image,
                 timestamp: img.timestamp || Date.now(),
                 note: img.note || '',
                 labType: img.labType || img.ocr?.labType || 'AUTO',
-                ocr: img.ocr ? {
-                    text: (img.ocr.text || '').substring(0, 5000), // Limit text size
-                    values: (img.ocr.values || []).slice(0, 50).map(v => ({
-                        test: v.test,
-                        value: v.value,
-                        unit: v.unit || '',
-                        flag: v.flag || 'N',
-                        refLow: v.refLow,
-                        refHigh: v.refHigh,
-                        category: v.category,
-                        confidence: v.confidence
-                    })),
-                    confidence: img.ocr.confidence || 0,
-                    avgValueConfidence: img.ocr.avgValueConfidence || 0,
-                    source: img.ocr.source || 'unknown',
-                    labType: img.ocr.labType || 'AUTO'
-                } : null
+                // Only save OCR results, not the image itself
+                values: (img.ocr?.values || []).slice(0, 50).map(v => ({
+                    test: v.test,
+                    value: v.value,
+                    unit: v.unit || '',
+                    flag: v.flag || 'N',
+                    refLow: v.refLow,
+                    refHigh: v.refHigh
+                })),
+                confidence: img.ocr?.confidence || 0,
+                source: img.ocr?.source || 'vision'
             };
-            console.log(`[Save] Image ${idx + 1}: ${clean.ocr?.values?.length || 0} values`);
-            return clean;
+            console.log(`[Save] Lab ${idx + 1}: ${data.values.length} values`);
+            return data;
         });
         
-        console.log('[Save] Cleaned images ready, writing to Firebase...');
+        // Calculate total data size
+        const dataSize = JSON.stringify(labData).length;
+        console.log(`[Save] Data size: ${(dataSize / 1024).toFixed(1)} KB`);
         
-        return db.ref(`patients/${patientId}/labImages`).set(cleanImages)
+        return db.ref(`patients/${patientId}/labData`).set(labData)
             .then(() => { 
                 console.log('[Save] ✓ SUCCESS - Labs saved to Firebase'); 
                 showToast("✓ Labs saved"); 
-                // Don't schedule sync immediately to avoid race conditions
                 setTimeout(scheduleSync, 1000);
             })
             .catch(e => { 
@@ -1629,9 +1650,9 @@ const App = () => {
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
     const update = useCallback((id, field, value) => { const p = patients.find(x => x.id === id); if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; } if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; } db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync); }, [patients, scheduleSync]);
     const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
-    const saveNew = () => { const c = { ward: newP.ward || "Unassigned", bed: cleanBed(newP.bed), name: newP.name.trim(), diagnosis: newP.diagnosis, doctor: newP.doctor, status: newP.status || "New", plan: newP.plan, mrn: newP.mrn, timestamp: Date.now(), labImages: [] }; if (!c.name) { alert("Enter name"); return; } if (isDup(c.ward, c.name)) { alert("Duplicate"); return; } db.ref("patients").push(c).then(() => { setAddModal(false); setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); showToast("✓ Added"); pingSheets(); }); };
+    const saveNew = () => { const c = { ward: newP.ward || "Unassigned", bed: cleanBed(newP.bed), name: newP.name.trim(), diagnosis: newP.diagnosis, doctor: newP.doctor, status: newP.status || "New", plan: newP.plan, mrn: newP.mrn, timestamp: Date.now(), labData: [] }; if (!c.name) { alert("Enter name"); return; } if (isDup(c.ward, c.name)) { alert("Duplicate"); return; } db.ref("patients").push(c).then(() => { setAddModal(false); setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); showToast("✓ Added"); pingSheets(); }); };
     const groups = useMemo(() => { const g = {}; (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter)).filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase())).forEach(p => { const w = p.ward || "Unassigned"; (g[w] = g[w] || []).push(p); }); return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) }; }, [patients, search, viewFilter]);
-    const getLabCount = (p) => (p.labImages || []).length;
+    const getLabCount = (p) => (p.labData || p.labImages || []).length;
 
     return (
         <div className="wrap">
