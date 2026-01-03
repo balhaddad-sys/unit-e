@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   OCR ENGINE v3.0 - Google Vision API Integration
+   OCR ENGINE v3.1 - Google Vision API Integration (FIXED)
    Standalone module for lab image text extraction
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -10,7 +10,8 @@
     const CONFIG = {
         VISION_API_URL: 'https://script.google.com/macros/s/AKfycbwIMPGxFT1F00rKjOEsMrfxjYn6g5hbIRYGi11QdFxVloAIjjARf0UDc4z1hFgudHYk/exec',
         MAX_IMAGE_WIDTH: 1600,
-        JPEG_QUALITY: 0.92
+        // Reduced slightly to 0.80 to prevent payload size issues on mobile networks
+        JPEG_QUALITY: 0.80 
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -70,9 +71,12 @@
             onStage?.('Sending to Google Vision...');
             onProgress?.(30);
             
+            // MASTER SHIFU: The 'headers' object has been removed.
+            // Sending a plain string body defaults to text/plain and treats this
+            // as a "Simple Request", bypassing the CORS Preflight (OPTIONS) check
+            // which Google Apps Script fails to handle.
             const response = await fetch(CONFIG.VISION_API_URL, {
                 method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ 
                     action: 'ocr', 
                     image: imageData, 
@@ -84,16 +88,18 @@
             onProgress?.(70);
             onStage?.('Processing response...');
             
-            const responseText = await response.text();
-            
             if (!response.ok) {
                 throw new Error(`Vision API HTTP ${response.status}`);
             }
+            
+            const responseText = await response.text();
             
             let result;
             try { 
                 result = JSON.parse(responseText); 
             } catch { 
+                // Sometimes GAS returns HTML on error (like 404/500), log the raw text for debug
+                console.error("Raw response:", responseText);
                 throw new Error('Failed to parse Vision API response'); 
             }
             
@@ -151,7 +157,7 @@
     // EXPOSE GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '3.0',
+        version: '3.1',
         runOCR,
         compressImage,
         callVisionAPI,
@@ -159,5 +165,5 @@
         isReady: true
     };
 
-    console.log('[OCREngine v3.0] Google Vision OCR module loaded');
+    console.log('[OCREngine v3.1] Google Vision OCR module loaded');
 })();
