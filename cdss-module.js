@@ -1,957 +1,796 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   CLINICAL DECISION SUPPORT SYSTEM (CDSS) v1.0
-   
-   PURPOSE: Analyze laboratory results and generate preliminary clinical reports
-   
-   ⚠️ SAFETY DISCLAIMER ⚠️
-   This system provides PRELIMINARY interpretations only.
-   All outputs require clinical correlation by a qualified healthcare provider.
-   This is NOT a diagnostic tool and should NOT replace professional medical judgment.
-   
-   References: Harrison's Principles of Internal Medicine, WHO Guidelines,
-               UpToDate Clinical Decision Support
+   CLINICAL DECISION SUPPORT SYSTEM v2.0
+   Enhanced interpretations with differential diagnoses
+   Reference: Harrison's, UpToDate, WHO Guidelines
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
     'use strict';
 
-    // ════════════════════════════════════════════════════════════════════════
-    // CONFIGURATION & REFERENCE DATA
-    // Based on Harrison's Principles of Internal Medicine & WHO Guidelines
-    // ════════════════════════════════════════════════════════════════════════
-    
-    const REFERENCE_DATABASE = {
-        // ─────────────────────────────────────────────────────────────────────
-        // COMPLETE BLOOD COUNT (CBC)
-        // ─────────────────────────────────────────────────────────────────────
+    // ═══════════════════════════════════════════════════════════════════════
+    // COMPREHENSIVE REFERENCE RANGES & INTERPRETATIONS
+    // ═══════════════════════════════════════════════════════════════════════
+    const REFERENCE = {
+        // ══════════════ HEMATOLOGY ══════════════
         WBC: {
-            name: 'White Blood Cell Count',
-            category: 'CBC',
-            unit: '10^9/L',
-            reference: { low: 4.0, high: 11.0 },
+            min: 4.0, max: 11.0, unit: '10^9/L', name: 'White Blood Cell Count',
             critical: { low: 2.0, high: 30.0 },
-            interpretation: {
-                low: 'Leukopenia - consider infection risk, bone marrow suppression, autoimmune conditions',
-                high: 'Leukocytosis - consider infection, inflammation, leukemia, stress response',
-                critical_low: 'SEVERE LEUKOPENIA - High infection risk, consider neutropenic precautions',
-                critical_high: 'MARKED LEUKOCYTOSIS - Rule out leukemia, severe infection'
-            },
-            associations: ['NEUT', 'LYMPH', 'MONO']
+            interpret: {
+                criticalLow: 'SEVERE LEUKOPENIA - High infection risk. Consider neutropenic precautions, blood cultures if febrile. DDx: Bone marrow suppression, chemotherapy, severe sepsis, aplastic anemia.',
+                low: 'Leukopenia - DDx: Viral infection, drug-induced (NSAIDs, antibiotics, antithyroid), autoimmune, hypersplenism, nutritional deficiency (B12, folate). Monitor for infection.',
+                normal: 'Within normal limits',
+                high: 'Leukocytosis - DDx: Bacterial infection, inflammation, stress response, corticosteroids, smoking, CML if persistent. Check differential for shift.',
+                criticalHigh: 'MARKED LEUKOCYTOSIS - Urgent evaluation. DDx: Severe infection/sepsis, leukemia (check smear), leukemoid reaction. Consider hematology consult.'
+            }
         },
         RBC: {
-            name: 'Red Blood Cell Count',
-            category: 'CBC',
-            unit: '10^12/L',
-            reference: { low: 4.0, high: 6.0 },
-            critical: { low: 2.5, high: 8.0 },
-            interpretation: {
-                low: 'Decreased RBC - evaluate for anemia etiology',
-                high: 'Erythrocytosis - consider polycythemia, dehydration, hypoxia',
-                critical_low: 'SEVERE ANEMIA - Consider transfusion',
-                critical_high: 'MARKED ERYTHROCYTOSIS - Thrombosis risk'
-            },
-            associations: ['HB', 'HCT', 'MCV']
+            min: 4.0, max: 6.0, unit: '10^12/L', name: 'Red Blood Cell Count',
+            critical: { low: 2.5, high: 7.0 },
+            interpret: {
+                criticalLow: 'SEVERE ANEMIA - Transfusion likely needed. Assess hemodynamic stability, check reticulocyte count, type & screen.',
+                low: 'Decreased RBC - Correlate with Hb/Hct for anemia classification. Check MCV for morphology, reticulocytes for marrow response.',
+                normal: 'Within normal limits',
+                high: 'Erythrocytosis - DDx: Polycythemia vera (check JAK2), secondary (hypoxia, EPO-secreting tumor, dehydration). Check SpO2, EPO level.',
+                criticalHigh: 'POLYCYTHEMIA - Risk of thrombosis. Consider phlebotomy, hydration, hematology referral.'
+            }
         },
         HB: {
-            name: 'Hemoglobin',
-            category: 'CBC',
-            unit: 'g/dL',
-            reference: { low: 12.0, high: 17.0 },
-            critical: { low: 7.0, high: 20.0 },
-            interpretation: {
-                low: 'Anemia - classify by MCV (microcytic/normocytic/macrocytic)',
-                high: 'Elevated Hb - consider polycythemia vera, secondary causes',
-                critical_low: 'SEVERE ANEMIA - Transfusion threshold, assess hemodynamic stability',
-                critical_high: 'HYPERVISCOSITY RISK - Consider phlebotomy'
-            },
-            associations: ['RBC', 'HCT', 'MCV', 'MCH', 'MCHC']
+            min: 120, max: 170, unit: 'g/L', name: 'Hemoglobin',
+            critical: { low: 70, high: 200 },
+            interpret: {
+                criticalLow: 'SEVERE ANEMIA - Transfusion threshold typically <70 g/L (or <80 if CAD/unstable). Assess symptoms: dyspnea, chest pain, tachycardia.',
+                low: 'Anemia - Classify by MCV: Microcytic (<80): Iron deficiency, thalassemia, chronic disease. Normocytic (80-100): Acute blood loss, CKD, hemolysis. Macrocytic (>100): B12/folate deficiency, MDS, alcohol, hypothyroid.',
+                normal: 'Within normal limits',
+                high: 'Elevated hemoglobin - DDx: Polycythemia vera, secondary polycythemia (COPD, OSA, high altitude), dehydration (check Hct).',
+                criticalHigh: 'HYPERVISCOSITY RISK - Consider phlebotomy if symptomatic (headache, visual changes, thrombosis).'
+            }
         },
         HCT: {
-            name: 'Hematocrit',
-            category: 'CBC',
-            unit: '%',
-            reference: { low: 36, high: 52 },
+            min: 36, max: 52, unit: '%', name: 'Hematocrit',
             critical: { low: 20, high: 60 },
-            interpretation: {
-                low: 'Low hematocrit - correlate with Hb for anemia assessment',
-                high: 'Elevated hematocrit - dehydration vs true erythrocytosis',
-                critical_low: 'CRITICALLY LOW - Assess volume status, transfusion need',
-                critical_high: 'HYPERVISCOSITY - Stroke/thrombosis risk'
-            },
-            associations: ['HB', 'RBC']
+            interpret: {
+                criticalLow: 'CRITICAL ANEMIA - Correlates with severe blood loss or production failure. Urgent transfusion evaluation.',
+                low: 'Low hematocrit - Anemia or hemodilution. Correlate with Hb. If discordant, consider IV fluid effect.',
+                normal: 'Within normal limits',
+                high: 'Elevated hematocrit - Hemoconcentration (dehydration) vs true erythrocytosis. Check volume status, repeat after hydration.',
+                criticalHigh: 'CRITICAL POLYCYTHEMIA - High thrombosis risk. Urgent phlebotomy consideration.'
+            }
         },
         MCV: {
-            name: 'Mean Corpuscular Volume',
-            category: 'CBC',
-            unit: 'fL',
-            reference: { low: 80, high: 100 },
-            critical: { low: 60, high: 120 },
-            interpretation: {
-                low: 'Microcytosis - iron deficiency, thalassemia, chronic disease',
-                high: 'Macrocytosis - B12/folate deficiency, liver disease, hypothyroidism',
-                critical_low: 'Severe microcytosis - evaluate iron studies, Hb electrophoresis',
-                critical_high: 'Marked macrocytosis - rule out megaloblastic anemia'
-            },
-            associations: ['HB', 'MCH', 'RDW']
+            min: 80, max: 100, unit: 'fL', name: 'Mean Corpuscular Volume',
+            interpret: {
+                low: 'MICROCYTIC - DDx: Iron deficiency (#1), thalassemia trait, chronic disease, sideroblastic anemia. Check iron studies, ferritin, consider Hb electrophoresis.',
+                normal: 'Normocytic - If anemic: acute blood loss, early iron deficiency, CKD, hemolysis (check LDH, haptoglobin, retics), bone marrow pathology.',
+                high: 'MACROCYTIC - DDx: B12 deficiency, folate deficiency, alcohol, hypothyroidism, MDS, liver disease, reticulocytosis. Check B12, folate, TSH, retic count.'
+            }
+        },
+        MCH: {
+            min: 27, max: 33, unit: 'pg', name: 'Mean Corpuscular Hemoglobin',
+            interpret: {
+                low: 'Hypochromic - Reduced Hb per cell. Seen in iron deficiency, thalassemia.',
+                normal: 'Within normal limits',
+                high: 'Hyperchromic - Often with macrocytosis. Check B12, folate.'
+            }
+        },
+        MCHC: {
+            min: 32, max: 36, unit: 'g/dL', name: 'Mean Corpuscular Hemoglobin Concentration',
+            interpret: {
+                low: 'Hypochromic cells - Iron deficiency, thalassemia.',
+                normal: 'Within normal limits',
+                high: 'Elevated MCHC - Spherocytosis, severe dehydration, cold agglutinins (artifact).'
+            }
+        },
+        RDW: {
+            min: 11.5, max: 14.5, unit: '%', name: 'Red Cell Distribution Width',
+            interpret: {
+                normal: 'Homogeneous RBC population',
+                high: 'Anisocytosis (variable RBC size) - Suggests mixed pathology, early iron deficiency, post-transfusion, or reticulocytosis. Helps distinguish iron deficiency (high RDW) from thalassemia trait (normal RDW).'
+            }
         },
         PLT: {
-            name: 'Platelet Count',
-            category: 'CBC',
-            unit: '10^9/L',
-            reference: { low: 150, high: 400 },
+            min: 150, max: 400, unit: '10^9/L', name: 'Platelet Count',
             critical: { low: 50, high: 1000 },
-            interpretation: {
-                low: 'Thrombocytopenia - bleeding risk, evaluate cause',
-                high: 'Thrombocytosis - reactive vs clonal, thrombosis risk',
-                critical_low: 'SEVERE THROMBOCYTOPENIA - Spontaneous bleeding risk, consider transfusion',
-                critical_high: 'MARKED THROMBOCYTOSIS - Evaluate for myeloproliferative disorder'
-            },
-            associations: ['MPV']
+            interpret: {
+                criticalLow: 'SEVERE THROMBOCYTOPENIA - Bleeding risk, especially <20. Hold procedures, check for DIC, HIT, TTP, ITP. Consider platelet transfusion if bleeding or <10.',
+                low: 'Thrombocytopenia - DDx: Decreased production (marrow), increased destruction (ITP, TTP, DIC, HIT), sequestration (splenomegaly), dilutional. Check smear for clumps (pseudothrombocytopenia).',
+                normal: 'Within normal limits',
+                high: 'Thrombocytosis - Reactive (infection, inflammation, iron deficiency, post-splenectomy) vs primary (essential thrombocythemia, CML). If persistent, check JAK2, BCR-ABL.',
+                criticalHigh: 'MARKED THROMBOCYTOSIS - Paradoxical bleeding or thrombosis risk. Hematology consult, consider aspirin if reactive.'
+            }
+        },
+        MPV: {
+            min: 7, max: 11, unit: 'fL', name: 'Mean Platelet Volume',
+            interpret: {
+                low: 'Small platelets - May indicate marrow suppression or underproduction.',
+                normal: 'Within normal limits',
+                high: 'Large platelets - Suggests increased platelet turnover/destruction (ITP) or myeloproliferative disorder. Young platelets are larger.'
+            }
         },
 
-        // ─────────────────────────────────────────────────────────────────────
-        // RENAL FUNCTION / KIDNEY PANEL (KFT)
-        // ─────────────────────────────────────────────────────────────────────
-        UREA: {
-            name: 'Blood Urea',
-            category: 'RENAL',
-            unit: 'mg/dL',
-            reference: { low: 13, high: 43 },
-            critical: { low: 5, high: 100 },
-            interpretation: {
-                low: 'Low urea - liver disease, malnutrition, overhydration',
-                high: 'Elevated urea - renal dysfunction, dehydration, GI bleeding, high protein intake',
-                critical_low: 'Very low urea - severe liver impairment',
-                critical_high: 'UREMIA - Evaluate for dialysis indication'
-            },
-            associations: ['CR', 'K', 'NA']
-        },
-        CR: {
-            name: 'Serum Creatinine',
-            category: 'RENAL',
-            unit: 'mg/dL',
-            reference: { low: 0.7, high: 1.3 },
-            critical: { low: 0.3, high: 10.0 },
-            interpretation: {
-                low: 'Low creatinine - reduced muscle mass, malnutrition',
-                high: 'Elevated creatinine - acute or chronic kidney injury, calculate eGFR',
-                critical_low: 'Very low - consider cachexia',
-                critical_high: 'RENAL FAILURE - Urgent nephrology consult, evaluate dialysis'
-            },
-            associations: ['UREA', 'K', 'PHOS']
-        },
+        // ══════════════ CHEMISTRY / RENAL ══════════════
         NA: {
-            name: 'Serum Sodium',
-            category: 'ELECTROLYTES',
-            unit: 'mEq/L',
-            reference: { low: 136, high: 145 },
+            min: 136, max: 145, unit: 'mmol/L', name: 'Sodium',
             critical: { low: 120, high: 160 },
-            interpretation: {
-                low: 'Hyponatremia - assess volume status, SIADH, diuretics',
-                high: 'Hypernatremia - dehydration, diabetes insipidus, sodium excess',
-                critical_low: 'SEVERE HYPONATREMIA - Seizure risk, careful correction required',
-                critical_high: 'SEVERE HYPERNATREMIA - Neurological emergency'
-            },
-            associations: ['K', 'CL', 'GLUCOSE']
+            interpret: {
+                criticalLow: 'SEVERE HYPONATREMIA - Seizure/coma risk. Assess volume status, check serum osmolality. If symptomatic: 3% saline (limit correction <8-10 mEq/24h to prevent ODS).',
+                low: 'Hyponatremia - DDx by volume: Hypovolemic (diuretics, GI loss, adrenal insufficiency), Euvolemic (SIADH, hypothyroid, psychogenic polydipsia), Hypervolemic (CHF, cirrhosis, nephrotic). Check urine Na, osmolality.',
+                normal: 'Within normal limits',
+                high: 'Hypernatremia - Usually free water deficit. DDx: Inadequate intake (elderly, altered mental status), diabetes insipidus (central vs nephrogenic), osmotic diuresis. Calculate free water deficit, replace gradually.',
+                criticalHigh: 'SEVERE HYPERNATREMIA - Neurological emergency. Risk of cerebral hemorrhage if corrected too fast. Target correction <10-12 mEq/24h.'
+            }
         },
         K: {
-            name: 'Serum Potassium',
-            category: 'ELECTROLYTES',
-            unit: 'mEq/L',
-            reference: { low: 3.5, high: 5.0 },
+            min: 3.5, max: 5.0, unit: 'mmol/L', name: 'Potassium',
             critical: { low: 2.5, high: 6.5 },
-            interpretation: {
-                low: 'Hypokalemia - arrhythmia risk, GI losses, diuretics, refeeding',
-                high: 'Hyperkalemia - renal failure, medications, hemolysis (verify sample)',
-                critical_low: 'SEVERE HYPOKALEMIA - Cardiac arrhythmia risk, urgent replacement',
-                critical_high: 'SEVERE HYPERKALEMIA - CARDIAC EMERGENCY, immediate ECG and treatment'
-            },
-            associations: ['NA', 'CR', 'MG']
+            interpret: {
+                criticalLow: 'SEVERE HYPOKALEMIA - Arrhythmia risk (U waves, QT prolongation, Torsades). Urgent IV replacement. Check Mg (often co-depleted). Monitor ECG.',
+                low: 'Hypokalemia - DDx: GI losses (diarrhea, vomiting), renal losses (diuretics, RTA, hyperaldosteronism), transcellular shift (insulin, β-agonists, alkalosis). Replete K and Mg.',
+                normal: 'Within normal limits',
+                high: 'Hyperkalemia - DDx: Decreased excretion (CKD, ACEi/ARB, K-sparing diuretics, hypoaldosteronism), transcellular shift (acidosis, cell lysis, rhabdo), pseudohyperkalemia (hemolysis). Check ECG, repeat if unexpected.',
+                criticalHigh: 'CRITICAL HYPERKALEMIA - Cardiac arrest risk (peaked T, wide QRS, sine wave). Immediate: Calcium gluconate (cardiac protection), insulin/glucose, albuterol, kayexalate/patiromer, consider dialysis.'
+            }
         },
         CL: {
-            name: 'Serum Chloride',
-            category: 'ELECTROLYTES',
-            unit: 'mEq/L',
-            reference: { low: 98, high: 107 },
-            critical: { low: 80, high: 120 },
-            interpretation: {
-                low: 'Hypochloremia - vomiting, metabolic alkalosis, diuretics',
-                high: 'Hyperchloremia - normal anion gap acidosis, dehydration',
-                critical_low: 'Severe hypochloremia - evaluate acid-base status',
-                critical_high: 'Marked hyperchloremia - assess for non-anion gap acidosis'
-            },
-            associations: ['NA', 'CO2']
+            min: 98, max: 107, unit: 'mmol/L', name: 'Chloride',
+            interpret: {
+                low: 'Hypochloremia - Often with metabolic alkalosis (vomiting, NG suction, diuretics). Also seen in SIADH.',
+                normal: 'Within normal limits',
+                high: 'Hyperchloremia - Non-anion gap metabolic acidosis (diarrhea, RTA), excessive saline. Calculate anion gap.'
+            }
+        },
+        CO2: {
+            min: 22, max: 29, unit: 'mmol/L', name: 'Bicarbonate/CO2',
+            critical: { low: 12, high: 40 },
+            interpret: {
+                criticalLow: 'SEVERE ACIDOSIS - Calculate anion gap. High AG: MUDPILES (Methanol, Uremia, DKA, Propylene glycol, INH/Iron, Lactic, Ethylene glycol, Salicylates). Normal AG: Diarrhea, RTA.',
+                low: 'Metabolic acidosis - Check anion gap and delta ratio. Respiratory compensation expected (Winters formula).',
+                normal: 'Within normal limits',
+                high: 'Metabolic alkalosis - DDx: Vomiting, NG suction, diuretics, hyperaldosteronism, contraction alkalosis. Check urine Cl.',
+                criticalHigh: 'SEVERE ALKALOSIS - Risk of arrhythmia, seizure. Often iatrogenic or severe vomiting.'
+            }
+        },
+        UREA: {
+            min: 7, max: 20, unit: 'mg/dL', name: 'Blood Urea Nitrogen',
+            critical: { high: 100 },
+            interpret: {
+                low: 'Low BUN - Malnutrition, liver disease, SIADH, pregnancy.',
+                normal: 'Within normal limits',
+                high: 'Elevated BUN - DDx: Prerenal (dehydration, CHF, bleeding), renal (AKI, CKD), postrenal (obstruction), catabolic state, GI bleed, high protein intake. Check BUN:Cr ratio (>20 suggests prerenal).',
+                criticalHigh: 'UREMIA - Symptoms: encephalopathy, pericarditis, bleeding. Consider dialysis indications (AEIOU).'
+            }
+        },
+        CR: {
+            min: 0.7, max: 1.3, unit: 'mg/dL', name: 'Creatinine',
+            critical: { high: 10 },
+            interpret: {
+                low: 'Low creatinine - Decreased muscle mass, malnutrition.',
+                normal: 'Within normal limits',
+                high: 'Elevated creatinine - Acute vs chronic kidney injury. AKI: prerenal (hypovolemia, cardiorenal), intrinsic (ATN, AIN, glomerulonephritis), postrenal (obstruction). Check baseline, urine studies, renal US.',
+                criticalHigh: 'SEVERE RENAL FAILURE - Evaluate for dialysis: refractory hyperkalemia, acidosis, volume overload, uremic symptoms, toxin removal.'
+            }
+        },
+        URIC: {
+            min: 3.5, max: 7.2, unit: 'mg/dL', name: 'Uric Acid',
+            interpret: {
+                low: 'Low uric acid - SIADH, Fanconi syndrome, xanthine oxidase deficiency.',
+                normal: 'Within normal limits',
+                high: 'Hyperuricemia - Risk of gout, urate nephropathy. DDx: Overproduction (high purine diet, tumor lysis, myeloproliferative), underexcretion (CKD, diuretics, low-dose aspirin). Treat if symptomatic or TLS risk.'
+            }
+        },
+        GLUCOSE: {
+            min: 70, max: 100, unit: 'mg/dL', name: 'Glucose (Fasting)',
+            critical: { low: 50, high: 400 },
+            interpret: {
+                criticalLow: 'HYPOGLYCEMIA - Neuroglycopenic emergency. Immediate glucose (oral if conscious, IV D50 if not). DDx: Insulin excess, sulfonylureas, sepsis, adrenal insufficiency, hepatic failure.',
+                low: 'Low glucose - Rule out true hypoglycemia (Whipple triad). Evaluate for insulinoma if recurrent.',
+                normal: 'Within normal limits (fasting)',
+                high: 'Hyperglycemia - DDx: Diabetes mellitus, stress hyperglycemia, steroids, pancreatitis. If new, check HbA1c. Consider DKA/HHS if significantly elevated.',
+                criticalHigh: 'SEVERE HYPERGLYCEMIA - Evaluate for DKA (ketones, AG acidosis) or HHS (hyperosmolar, minimal ketones). IV fluids, insulin, K monitoring.'
+            }
         },
         CA: {
-            name: 'Serum Calcium',
-            category: 'ELECTROLYTES',
-            unit: 'mg/dL',
-            reference: { low: 8.5, high: 10.5 },
-            critical: { low: 6.5, high: 13.0 },
-            interpretation: {
-                low: 'Hypocalcemia - hypoparathyroidism, vitamin D deficiency, renal failure',
-                high: 'Hypercalcemia - hyperparathyroidism, malignancy, granulomatous disease',
-                critical_low: 'SEVERE HYPOCALCEMIA - Tetany, seizure risk, IV calcium needed',
-                critical_high: 'HYPERCALCEMIC CRISIS - Arrhythmia risk, urgent treatment'
-            },
-            associations: ['PHOS', 'ALB', 'MG']
-        },
-        PHOS: {
-            name: 'Serum Phosphorus',
-            category: 'ELECTROLYTES',
-            unit: 'mg/dL',
-            reference: { low: 2.4, high: 5.1 },
-            critical: { low: 1.0, high: 9.0 },
-            interpretation: {
-                low: 'Hypophosphatemia - refeeding syndrome, alcoholism, DKA treatment',
-                high: 'Hyperphosphatemia - renal failure, tumor lysis, rhabdomyolysis',
-                critical_low: 'SEVERE HYPOPHOSPHATEMIA - Respiratory failure risk, urgent replacement',
-                critical_high: 'Severe hyperphosphatemia - calciphylaxis risk in CKD'
-            },
-            associations: ['CA', 'CR']
+            min: 8.5, max: 10.5, unit: 'mg/dL', name: 'Calcium',
+            critical: { low: 6.5, high: 13 },
+            interpret: {
+                criticalLow: 'SEVERE HYPOCALCEMIA - Tetany, seizure, QT prolongation risk. IV calcium gluconate. Check Mg, PTH, Vitamin D, albumin (correct for hypoalbuminemia).',
+                low: 'Hypocalcemia - DDx: Hypoparathyroidism, vitamin D deficiency, CKD, pancreatitis, hypomagnesemia, tumor lysis. Correct for albumin.',
+                normal: 'Within normal limits',
+                high: 'Hypercalcemia - DDx: 90% due to primary hyperparathyroidism or malignancy. Others: granulomatous disease, thiazides, immobilization, milk-alkali. Check PTH, PTHrP.',
+                criticalHigh: 'HYPERCALCEMIC CRISIS - AMS, cardiac arrhythmia risk. Aggressive IVF (200-300 mL/hr), calcitonin, bisphosphonates, consider dialysis.'
+            }
         },
         MG: {
-            name: 'Serum Magnesium',
-            category: 'ELECTROLYTES',
-            unit: 'mg/dL',
-            reference: { low: 1.7, high: 2.5 },
-            critical: { low: 1.0, high: 4.0 },
-            interpretation: {
-                low: 'Hypomagnesemia - refractory hypokalemia, arrhythmias, alcoholism',
-                high: 'Hypermagnesemia - renal failure, iatrogenic (Mg therapy)',
-                critical_low: 'SEVERE HYPOMAGNESEMIA - Arrhythmia risk, replace before K',
-                critical_high: 'Severe hypermagnesemia - respiratory depression, cardiac arrest risk'
-            },
-            associations: ['K', 'CA']
+            min: 1.7, max: 2.5, unit: 'mg/dL', name: 'Magnesium',
+            critical: { low: 1.0, high: 4.5 },
+            interpret: {
+                criticalLow: 'SEVERE HYPOMAGNESEMIA - Arrhythmia risk, refractory hypokalemia. IV magnesium sulfate. Common in alcoholism, diuretics, GI losses, PPIs.',
+                low: 'Hypomagnesemia - Often causes refractory hypokalemia and hypocalcemia. Must replete Mg to correct K.',
+                normal: 'Within normal limits',
+                high: 'Hypermagnesemia - Usually iatrogenic (IV Mg, renal failure + Mg-containing antacids). Causes weakness, hyporeflexia, cardiac depression.',
+                criticalHigh: 'SEVERE HYPERMAGNESEMIA - Respiratory depression, cardiac arrest risk. IV calcium, supportive care, dialysis if severe.'
+            }
+        },
+        PHOS: {
+            min: 2.4, max: 5.1, unit: 'mg/dL', name: 'Phosphorus',
+            critical: { low: 1.0, high: 8.0 },
+            interpret: {
+                criticalLow: 'SEVERE HYPOPHOSPHATEMIA - Weakness, rhabdomyolysis, respiratory failure, hemolysis. IV phosphate carefully. Seen in refeeding syndrome, DKA treatment.',
+                low: 'Hypophosphatemia - DDx: Refeeding syndrome, DKA recovery, respiratory alkalosis, vitamin D deficiency, hyperparathyroidism.',
+                normal: 'Within normal limits',
+                high: 'Hyperphosphatemia - Usually CKD. Also tumor lysis, rhabdomyolysis, hypoparathyroidism. Can cause metastatic calcification.',
+                criticalHigh: 'SEVERE HYPERPHOSPHATEMIA - Risk of Ca×P precipitation, soft tissue calcification. Phosphate binders, dialysis if severe.'
+            }
         },
 
-        // ─────────────────────────────────────────────────────────────────────
-        // LIVER FUNCTION TESTS (LFT)
-        // ─────────────────────────────────────────────────────────────────────
+        // ══════════════ LIVER FUNCTION ══════════════
         ALT: {
-            name: 'Alanine Aminotransferase',
-            category: 'LIVER',
-            unit: 'U/L',
-            reference: { low: 7, high: 56 },
-            critical: { low: 0, high: 1000 },
-            interpretation: {
-                low: 'Low ALT - generally not clinically significant',
-                high: 'Elevated ALT - hepatocellular injury, more specific for liver than AST',
-                critical_low: 'N/A',
-                critical_high: 'ACUTE HEPATIC INJURY - Rule out drug toxicity, viral hepatitis, ischemia'
-            },
-            associations: ['AST', 'ALP', 'TBIL']
+            min: 7, max: 56, unit: 'U/L', name: 'Alanine Aminotransferase',
+            critical: { high: 1000 },
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated ALT - More liver-specific than AST. Mild (2-5x): NAFLD, hepatitis, drugs. Moderate (5-15x): Acute hepatitis, ischemia. Severe (>15x): Acute viral hepatitis, toxin (acetaminophen), ischemic hepatitis.',
+                criticalHigh: 'SEVERE HEPATOCELLULAR INJURY - >1000 suggests ischemic hepatitis, acute viral hepatitis, or toxin (acetaminophen). Check PT/INR for synthetic function.'
+            }
         },
         AST: {
-            name: 'Aspartate Aminotransferase',
-            category: 'LIVER',
-            unit: 'U/L',
-            reference: { low: 10, high: 40 },
-            critical: { low: 0, high: 1000 },
-            interpretation: {
-                low: 'Low AST - generally not clinically significant',
-                high: 'Elevated AST - liver, cardiac, or muscle injury; AST:ALT ratio informative',
-                critical_low: 'N/A',
-                critical_high: 'MARKED ELEVATION - Acute injury, calculate AST:ALT ratio'
-            },
-            associations: ['ALT', 'ALP', 'CK']
+            min: 10, max: 40, unit: 'U/L', name: 'Aspartate Aminotransferase',
+            critical: { high: 1000 },
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated AST - Less specific (also in muscle, heart, RBC). AST:ALT >2 suggests alcoholic liver disease. Isolated AST elevation: rhabdomyolysis, MI, hemolysis.',
+                criticalHigh: 'SEVERE ELEVATION - Same DDx as ALT. If AST >> ALT with rhabdomyolysis presentation, check CK.'
+            }
         },
         ALP: {
-            name: 'Alkaline Phosphatase',
-            category: 'LIVER',
-            unit: 'U/L',
-            reference: { low: 30, high: 120 },
-            critical: { low: 0, high: 1000 },
-            interpretation: {
-                low: 'Low ALP - zinc deficiency, hypothyroidism, pernicious anemia',
-                high: 'Elevated ALP - cholestasis, bone disease, pregnancy',
-                critical_low: 'Very low - consider nutritional deficiencies',
-                critical_high: 'Marked elevation - biliary obstruction, bone metastases'
-            },
-            associations: ['GGT', 'TBIL']
+            min: 30, max: 120, unit: 'U/L', name: 'Alkaline Phosphatase',
+            interpret: {
+                low: 'Low ALP - Hypothyroidism, anemia, zinc deficiency.',
+                normal: 'Within normal limits',
+                high: 'Elevated ALP - Cholestatic pattern. DDx: Biliary obstruction, PBC, PSC, drug-induced, infiltrative disease, bone disease (fracture, Paget, mets). Check GGT to confirm hepatic origin.'
+            }
         },
-        ALB: {
-            name: 'Serum Albumin',
-            category: 'LIVER',
-            unit: 'g/dL',
-            reference: { low: 3.5, high: 5.0 },
-            critical: { low: 2.0, high: 6.0 },
-            interpretation: {
-                low: 'Hypoalbuminemia - liver disease, nephrotic syndrome, malnutrition, inflammation',
-                high: 'Elevated albumin - dehydration',
-                critical_low: 'SEVERE HYPOALBUMINEMIA - Edema, infection risk, correct Ca interpretation',
-                critical_high: 'Marked elevation - severe dehydration'
-            },
-            associations: ['TP', 'CA']
-        },
-        TP: {
-            name: 'Total Protein',
-            category: 'LIVER',
-            unit: 'g/dL',
-            reference: { low: 5.7, high: 8.2 },
-            critical: { low: 4.0, high: 10.0 },
-            interpretation: {
-                low: 'Hypoproteinemia - malnutrition, liver disease, nephrotic syndrome',
-                high: 'Hyperproteinemia - dehydration, chronic inflammation, myeloma',
-                critical_low: 'Severe hypoproteinemia - evaluate for underlying cause',
-                critical_high: 'Marked elevation - rule out paraproteinemia'
-            },
-            associations: ['ALB']
+        GGT: {
+            min: 9, max: 48, unit: 'U/L', name: 'Gamma-Glutamyl Transferase',
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated GGT - Very sensitive but nonspecific. Induced by alcohol, many drugs. If elevated with ALP, confirms hepatic source of ALP. Isolated GGT elevation often alcohol or enzyme induction.'
+            }
         },
         TBIL: {
-            name: 'Total Bilirubin',
-            category: 'LIVER',
-            unit: 'mg/dL',
-            reference: { low: 0.1, high: 1.2 },
-            critical: { low: 0, high: 15.0 },
-            interpretation: {
-                low: 'Low bilirubin - not clinically significant',
-                high: 'Hyperbilirubinemia - hemolysis, hepatocellular, or cholestatic',
-                critical_low: 'N/A',
-                critical_high: 'SEVERE HYPERBILIRUBINEMIA - Urgent evaluation for obstruction/failure'
-            },
-            associations: ['DBIL', 'ALT', 'ALP']
+            min: 0.1, max: 1.2, unit: 'mg/dL', name: 'Total Bilirubin',
+            critical: { high: 15 },
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Hyperbilirubinemia - Unconjugated (indirect): Hemolysis, Gilbert syndrome, ineffective erythropoiesis. Conjugated (direct): Hepatocellular injury, cholestasis, biliary obstruction. Check direct/indirect split.',
+                criticalHigh: 'SEVERE JAUNDICE - Evaluate for acute liver failure (check INR, encephalopathy), biliary obstruction (US/MRCP), or massive hemolysis.'
+            }
+        },
+        DBIL: {
+            min: 0, max: 0.3, unit: 'mg/dL', name: 'Direct Bilirubin',
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated direct bilirubin - Indicates hepatocellular or cholestatic disease. >50% of total suggests conjugated hyperbilirubinemia: biliary obstruction, hepatitis, drugs.'
+            }
+        },
+        ALB: {
+            min: 3.2, max: 4.8, unit: 'g/dL', name: 'Albumin',
+            critical: { low: 2.0 },
+            interpret: {
+                criticalLow: 'SEVERE HYPOALBUMINEMIA - High infection risk, edema, poor wound healing. DDx: Malnutrition, liver failure, nephrotic syndrome, protein-losing enteropathy, burns.',
+                low: 'Low albumin - Marker of chronic illness, malnutrition, or loss. Correct calcium for albumin level.',
+                normal: 'Within normal limits'
+            }
+        },
+        TP: {
+            min: 5.7, max: 8.2, unit: 'g/dL', name: 'Total Protein',
+            interpret: {
+                low: 'Low total protein - Malnutrition, malabsorption, nephrotic syndrome, liver disease.',
+                normal: 'Within normal limits',
+                high: 'Elevated total protein - DDx: Dehydration, multiple myeloma (check SPEP), chronic infection/inflammation. Calculate globulin gap (TP - albumin).'
+            }
         },
 
-        // ─────────────────────────────────────────────────────────────────────
-        // ARTERIAL BLOOD GAS (ABG)
-        // ─────────────────────────────────────────────────────────────────────
-        PH: {
-            name: 'Blood pH',
-            category: 'ABG',
-            unit: '',
-            reference: { low: 7.35, high: 7.45 },
-            critical: { low: 7.20, high: 7.60 },
-            interpretation: {
-                low: 'Acidemia - metabolic or respiratory acidosis',
-                high: 'Alkalemia - metabolic or respiratory alkalosis',
-                critical_low: 'SEVERE ACIDEMIA - Life-threatening, immediate intervention',
-                critical_high: 'SEVERE ALKALEMIA - Arrhythmia, tetany risk'
-            },
-            associations: ['PCO2', 'HCO3', 'BE']
-        },
-        PCO2: {
-            name: 'Partial Pressure CO2',
-            category: 'ABG',
-            unit: 'mmHg',
-            reference: { low: 35, high: 45 },
-            critical: { low: 20, high: 70 },
-            interpretation: {
-                low: 'Hypocapnia - hyperventilation, respiratory alkalosis',
-                high: 'Hypercapnia - hypoventilation, respiratory acidosis',
-                critical_low: 'Severe hypocapnia - excessive ventilation',
-                critical_high: 'SEVERE HYPERCAPNIA - Respiratory failure, consider ventilation'
-            },
-            associations: ['PH', 'PO2']
-        },
-        PO2: {
-            name: 'Partial Pressure O2',
-            category: 'ABG',
-            unit: 'mmHg',
-            reference: { low: 80, high: 100 },
-            critical: { low: 60, high: 500 },
-            interpretation: {
-                low: 'Hypoxemia - respiratory failure, V/Q mismatch, shunt',
-                high: 'Hyperoxia - supplemental O2 (reduce if not needed)',
-                critical_low: 'SEVERE HYPOXEMIA - Respiratory failure, urgent intervention',
-                critical_high: 'Oxygen toxicity risk if prolonged'
-            },
-            associations: ['SAO2', 'PCO2']
-        },
-        HCO3: {
-            name: 'Bicarbonate',
-            category: 'ABG',
-            unit: 'mEq/L',
-            reference: { low: 22, high: 26 },
-            critical: { low: 10, high: 40 },
-            interpretation: {
-                low: 'Low HCO3 - metabolic acidosis, calculate anion gap',
-                high: 'High HCO3 - metabolic alkalosis or compensation',
-                critical_low: 'SEVERE METABOLIC ACIDOSIS - Calculate AG, lactate',
-                critical_high: 'Severe metabolic alkalosis'
-            },
-            associations: ['PH', 'PCO2', 'BE']
-        },
-        LAC: {
-            name: 'Lactate',
-            category: 'ABG',
-            unit: 'mmol/L',
-            reference: { low: 0.5, high: 2.0 },
-            critical: { low: 0, high: 4.0 },
-            interpretation: {
-                low: 'Normal lactate',
-                high: 'Elevated lactate - tissue hypoperfusion, sepsis, seizures, medications',
-                critical_low: 'N/A',
-                critical_high: 'SEVERE LACTIC ACIDOSIS - Shock, sepsis, ischemia - urgent evaluation'
-            },
-            associations: ['PH', 'HCO3']
-        },
-
-        // ─────────────────────────────────────────────────────────────────────
-        // COAGULATION
-        // ─────────────────────────────────────────────────────────────────────
+        // ══════════════ COAGULATION ══════════════
         PT: {
-            name: 'Prothrombin Time',
-            category: 'COAG',
-            unit: 'sec',
-            reference: { low: 11, high: 13.5 },
-            critical: { low: 8, high: 30 },
-            interpretation: {
-                low: 'Shortened PT - not usually significant',
-                high: 'Prolonged PT - warfarin, liver disease, vitamin K deficiency, DIC',
-                critical_low: 'N/A',
-                critical_high: 'SEVERE COAGULOPATHY - Bleeding risk, consider vitamin K/FFP'
-            },
-            associations: ['INR', 'PTT']
+            min: 11, max: 13.5, unit: 'sec', name: 'Prothrombin Time',
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Prolonged PT - DDx: Warfarin, vitamin K deficiency, liver disease, DIC, factor VII deficiency. PT more sensitive to warfarin and liver disease than PTT.'
+            }
         },
         INR: {
-            name: 'International Normalized Ratio',
-            category: 'COAG',
-            unit: '',
-            reference: { low: 0.9, high: 1.1 },
-            critical: { low: 0.5, high: 5.0 },
-            interpretation: {
-                low: 'Low INR - hypercoagulable (if on warfarin: subtherapeutic)',
-                high: 'Elevated INR - anticoagulation effect, liver disease, DIC',
-                critical_low: 'Subtherapeutic if on warfarin for clot',
-                critical_high: 'SUPRATHERAPEUTIC - High bleeding risk, hold anticoagulation'
-            },
-            associations: ['PT']
+            min: 0.9, max: 1.1, unit: '', name: 'International Normalized Ratio',
+            critical: { high: 5.0 },
+            interpret: {
+                normal: 'Within normal limits (therapeutic 2-3 for most indications)',
+                high: 'Elevated INR - If on warfarin: assess bleeding, hold warfarin, consider vitamin K or FFP if bleeding. If not on anticoagulation: liver disease, vitamin K deficiency, DIC.',
+                criticalHigh: 'CRITICAL INR - High bleeding risk. Vitamin K IV, FFP or PCC if active bleeding or urgent procedure needed.'
+            }
         },
         PTT: {
-            name: 'Partial Thromboplastin Time',
-            category: 'COAG',
-            unit: 'sec',
-            reference: { low: 25, high: 35 },
-            critical: { low: 15, high: 100 },
-            interpretation: {
-                low: 'Shortened PTT - not usually significant, some hypercoagulable states',
-                high: 'Prolonged PTT - heparin, factor deficiency, lupus anticoagulant',
-                critical_low: 'N/A',
-                critical_high: 'SEVERE PROLONGATION - Bleeding risk, check heparin level'
-            },
-            associations: ['PT', 'INR']
+            min: 25, max: 35, unit: 'sec', name: 'Partial Thromboplastin Time',
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Prolonged PTT - DDx: Heparin, factor deficiency (VIII, IX, XI, XII), lupus anticoagulant, DIC, severe liver disease. Do mixing study if unexplained.'
+            }
         },
 
-        // ─────────────────────────────────────────────────────────────────────
-        // CARDIAC MARKERS
-        // ─────────────────────────────────────────────────────────────────────
+        // ══════════════ CARDIAC ══════════════
         TROP: {
-            name: 'Troponin',
-            category: 'CARDIAC',
-            unit: 'ng/mL',
-            reference: { low: 0, high: 0.04 },
-            critical: { low: 0, high: 0.1 },
-            interpretation: {
-                low: 'Normal troponin',
-                high: 'Elevated troponin - myocardial injury (ACS, PE, myocarditis, sepsis)',
-                critical_low: 'N/A',
-                critical_high: 'ACUTE MYOCARDIAL INJURY - Rule out STEMI/NSTEMI, urgent cardiology'
-            },
-            associations: ['CKMB', 'BNP']
+            min: 0, max: 0.04, unit: 'ng/mL', name: 'Troponin',
+            critical: { high: 0.1 },
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated troponin - Type 1 MI (plaque rupture) vs Type 2 MI (supply-demand mismatch: sepsis, PE, tachyarrhythmia, anemia). Also elevated in: myocarditis, PE, CHF, renal failure, takotsubo.',
+                criticalHigh: 'SIGNIFICANTLY ELEVATED - High probability acute coronary syndrome if clinical context supports. Serial measurements, ECG, early cardiology involvement.'
+            }
+        },
+        BNP: {
+            min: 0, max: 100, unit: 'pg/mL', name: 'BNP / NT-proBNP',
+            interpret: {
+                normal: 'Heart failure unlikely if <100 pg/mL (BNP) or <300 pg/mL (NT-proBNP)',
+                high: 'Elevated BNP - Suggests cardiac wall stress. DDx: Heart failure (#1), PE, pulmonary HTN, ACS, renal failure. Higher in elderly, women, AF. Lower in obesity. Use with clinical context.'
+            }
         },
 
-        // ─────────────────────────────────────────────────────────────────────
-        // INFLAMMATORY MARKERS
-        // ─────────────────────────────────────────────────────────────────────
+        // ══════════════ ABG ══════════════
+        PH: {
+            min: 7.35, max: 7.45, unit: '', name: 'Blood pH',
+            critical: { low: 7.20, high: 7.60 },
+            interpret: {
+                criticalLow: 'SEVERE ACIDEMIA - Cardiovascular depression, arrhythmia risk. Identify and treat cause urgently. Check lactate, ketones, toxins.',
+                low: 'Acidemia - Determine if metabolic (low HCO3) or respiratory (high pCO2). Calculate anion gap if metabolic.',
+                normal: 'Within normal limits',
+                high: 'Alkalemia - Determine if metabolic (high HCO3) or respiratory (low pCO2). Assess for appropriate compensation.',
+                criticalHigh: 'SEVERE ALKALEMIA - Arrhythmia, seizure risk. Often iatrogenic or severe vomiting.'
+            }
+        },
+        PCO2: {
+            min: 35, max: 45, unit: 'mmHg', name: 'Partial Pressure CO2',
+            critical: { low: 20, high: 70 },
+            interpret: {
+                criticalLow: 'SEVERE HYPOCAPNIA - Usually compensation for metabolic acidosis or primary respiratory alkalosis (anxiety, PE, CNS). If chronic, check for adaptation.',
+                low: 'Hypocapnia - Hyperventilation. Primary respiratory alkalosis or compensation for metabolic acidosis.',
+                normal: 'Within normal limits',
+                high: 'Hypercapnia - Hypoventilation. DDx: COPD, sedation, neuromuscular disease, obesity hypoventilation. Assess if acute (acidemic) or chronic (compensated).',
+                criticalHigh: 'SEVERE HYPERCAPNIA - Respiratory failure, CO2 narcosis risk. Consider BiPAP or intubation.'
+            }
+        },
+        PO2: {
+            min: 80, max: 100, unit: 'mmHg', name: 'Partial Pressure O2',
+            critical: { low: 60 },
+            interpret: {
+                criticalLow: 'HYPOXEMIA - Respiratory failure. Check A-a gradient to determine cause: Normal A-a: hypoventilation, low FiO2. Elevated A-a: V/Q mismatch, shunt, diffusion defect.',
+                low: 'Mild hypoxemia - Correlate with SpO2 and clinical status. May be normal in COPD.',
+                normal: 'Within normal limits'
+            }
+        },
+        HCO3: {
+            min: 22, max: 26, unit: 'mEq/L', name: 'Bicarbonate',
+            critical: { low: 10, high: 40 },
+            interpret: {
+                criticalLow: 'SEVERE METABOLIC ACIDOSIS - Check anion gap. Consider bicarbonate therapy if pH <7.1 and not DKA.',
+                low: 'Metabolic acidosis - Calculate anion gap. Check for respiratory compensation (expected pCO2 = 1.5×HCO3 + 8).',
+                normal: 'Within normal limits',
+                high: 'Metabolic alkalosis - DDx: Vomiting, diuretics, hyperaldosteronism. Check urine chloride.',
+                criticalHigh: 'SEVERE METABOLIC ALKALOSIS - Paradoxical aciduria may occur.'
+            }
+        },
+        LAC: {
+            min: 0.5, max: 2.0, unit: 'mmol/L', name: 'Lactate',
+            critical: { high: 4.0 },
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated lactate - Type A (tissue hypoxia): shock, sepsis, ischemia. Type B: medications (metformin), liver failure, malignancy, thiamine deficiency. Trend more important than single value.',
+                criticalHigh: 'SEVERE LACTIC ACIDOSIS - High mortality marker. Aggressive resuscitation, identify and treat cause. Consider thiamine in alcoholics.'
+            }
+        },
+
+        // ══════════════ THYROID ══════════════
+        TSH: {
+            min: 0.4, max: 4.0, unit: 'mIU/L', name: 'Thyroid Stimulating Hormone',
+            critical: { low: 0.1, high: 10 },
+            interpret: {
+                criticalLow: 'Very low TSH - Hyperthyroidism or central hypothyroidism. Check free T4, T3. If symptomatic (tachycardia, tremor, weight loss), consider Graves, toxic nodule, thyroiditis.',
+                low: 'Low TSH - Subclinical or overt hyperthyroidism. Confirm with free T4.',
+                normal: 'Within normal limits',
+                high: 'Elevated TSH - Primary hypothyroidism. If T4 normal, subclinical. Symptoms: fatigue, cold intolerance, constipation, weight gain.',
+                criticalHigh: 'Markedly elevated TSH - Overt hypothyroidism. If severe symptoms (hypothermia, AMS), consider myxedema coma.'
+            }
+        },
+
+        // ══════════════ INFLAMMATORY ══════════════
         CRP: {
-            name: 'C-Reactive Protein',
-            category: 'INFLAMMATORY',
-            unit: 'mg/dL',
-            reference: { low: 0, high: 0.5 },
-            critical: { low: 0, high: 20 },
-            interpretation: {
-                low: 'Normal CRP',
-                high: 'Elevated CRP - inflammation, infection, autoimmune, malignancy',
-                critical_low: 'N/A',
-                critical_high: 'MARKEDLY ELEVATED - Severe infection/inflammation'
-            },
-            associations: ['ESR', 'WBC']
+            min: 0, max: 0.5, unit: 'mg/dL', name: 'C-Reactive Protein',
+            interpret: {
+                normal: 'Within normal limits',
+                high: 'Elevated CRP - Nonspecific inflammation marker. Higher levels (>10) suggest bacterial infection. Also elevated in autoimmune disease, malignancy, MI. Trend useful for monitoring.'
+            }
         },
-
-        // ─────────────────────────────────────────────────────────────────────
-        // GLUCOSE / METABOLIC
-        // ─────────────────────────────────────────────────────────────────────
-        GLUCOSE: {
-            name: 'Blood Glucose',
-            category: 'METABOLIC',
-            unit: 'mg/dL',
-            reference: { low: 70, high: 100 },
-            critical: { low: 50, high: 400 },
-            interpretation: {
-                low: 'Hypoglycemia - insulin excess, sepsis, liver failure, adrenal insufficiency',
-                high: 'Hyperglycemia - diabetes, stress, steroids, infection',
-                critical_low: 'SEVERE HYPOGLYCEMIA - Neuroglycopenia, immediate treatment',
-                critical_high: 'SEVERE HYPERGLYCEMIA - DKA/HHS risk, check ketones, treat'
-            },
-            associations: ['NA', 'K']
+        ESR: {
+            min: 0, max: 20, unit: 'mm/hr', name: 'Erythrocyte Sedimentation Rate',
+            interpret: {
+                normal: 'Within normal limits (increases with age)',
+                high: 'Elevated ESR - Nonspecific. DDx: Infection, inflammation, malignancy, autoimmune disease. Very high (>100): temporal arteritis, multiple myeloma, endocarditis, osteomyelitis, TB.'
+            }
+        },
+        PCT: {
+            min: 0, max: 0.1, unit: 'ng/mL', name: 'Procalcitonin',
+            critical: { high: 2.0 },
+            interpret: {
+                normal: 'Low bacterial infection probability',
+                high: 'Elevated procalcitonin - Suggests bacterial infection, especially >0.5. Useful for antibiotic stewardship (safe to stop if trending down). Less reliable in localized infections.',
+                criticalHigh: 'Very high procalcitonin - High probability of severe bacterial infection/sepsis.'
+            }
         }
     };
 
-    // ════════════════════════════════════════════════════════════════════════
-    // CLINICAL PATTERN RECOGNITION
-    // ════════════════════════════════════════════════════════════════════════
-    
-    const CLINICAL_PATTERNS = [
+    // ═══════════════════════════════════════════════════════════════════════
+    // CLINICAL PATTERN DETECTION
+    // ═══════════════════════════════════════════════════════════════════════
+    const PATTERNS = [
         {
-            name: 'Acute Kidney Injury (AKI)',
-            criteria: (labs) => labs.CR?.flag === 'H' || labs.UREA?.flag === 'H',
-            tests: ['CR', 'UREA', 'K', 'PHOS'],
-            interpretation: 'Elevated renal markers suggest acute or chronic kidney injury. Calculate eGFR, assess volume status, review nephrotoxic medications.'
+            id: 'aki',
+            name: 'Acute Kidney Injury',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const cr = labs.CR?.numValue;
+                if (!cr) return false;
+                if (cr >= 3.0) return { match: true, stage: 3, detail: 'Stage 3 AKI (≥3x baseline or Cr ≥4.0)' };
+                if (cr >= 2.0) return { match: true, stage: 2, detail: 'Stage 2 AKI (2-2.9x baseline)' };
+                if (cr >= 1.5) return { match: true, stage: 1, detail: 'Stage 1 AKI (1.5-1.9x baseline or ≥0.3 increase)' };
+                return false;
+            },
+            interpretation: (result) => `${result.detail}. Assess volume status, urine output, medications (stop nephrotoxins: NSAIDs, contrast, aminoglycosides). Consider: prerenal (BUN:Cr >20), intrinsic (ATN, AIN, GN), postrenal (obstruction - get renal US). Check urine sediment, FENa.`
         },
         {
-            name: 'Hyperkalemia with Renal Dysfunction',
-            criteria: (labs) => labs.K?.flag === 'H' && (labs.CR?.flag === 'H' || labs.UREA?.flag === 'H'),
-            tests: ['K', 'CR', 'UREA'],
-            interpretation: 'URGENT: Hyperkalemia in setting of renal dysfunction. Obtain ECG immediately. Consider calcium gluconate, insulin/glucose, and nephrology consult.',
-            priority: 'CRITICAL'
+            id: 'hyperkalemia',
+            name: 'Hyperkalemia',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const k = labs.K?.numValue;
+                if (!k) return false;
+                if (k >= 6.5) return { match: true, severity: 'severe', detail: 'Severe hyperkalemia' };
+                if (k >= 6.0) return { match: true, severity: 'moderate', detail: 'Moderate hyperkalemia' };
+                if (k >= 5.5) return { match: true, severity: 'mild', detail: 'Mild hyperkalemia' };
+                return false;
+            },
+            interpretation: (result) => `${result.detail}. IMMEDIATE: Get ECG (peaked T, wide QRS = emergency). Treatment ladder: 1) Calcium gluconate (cardiac membrane stabilization), 2) Insulin + glucose (shift K intracellularly), 3) Albuterol nebs, 4) Kayexalate/Patiromer/Lokelma (remove K), 5) Dialysis if refractory. Stop K supplements, ACEi/ARB, K-sparing diuretics.`
         },
         {
+            id: 'hyponatremia',
+            name: 'Hyponatremia',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const na = labs.NA?.numValue;
+                if (!na) return false;
+                if (na <= 120) return { match: true, severity: 'severe', detail: 'Severe hyponatremia' };
+                if (na <= 125) return { match: true, severity: 'moderate', detail: 'Moderate hyponatremia' };
+                if (na <= 130) return { match: true, severity: 'mild', detail: 'Mild hyponatremia' };
+                return false;
+            },
+            interpretation: (result) => `${result.detail}. If symptomatic (seizure, AMS): 3% saline 100mL bolus. CRITICAL: Correct slowly (<8-10 mEq/24h) to prevent osmotic demyelination syndrome. Workup: serum osm, urine osm, urine Na. Algorithm: Hypovolemic (diuretics, GI loss) → give NS. Euvolemic (SIADH) → fluid restrict. Hypervolemic (CHF, cirrhosis) → fluid restrict + treat underlying.`
+        },
+        {
+            id: 'anemia',
             name: 'Anemia Pattern',
-            criteria: (labs) => labs.HB?.flag === 'L' || labs.HCT?.flag === 'L',
-            tests: ['HB', 'HCT', 'MCV', 'RBC'],
-            interpretation: 'Anemia detected. Classify by MCV: <80 microcytic (iron deficiency, thalassemia), 80-100 normocytic (chronic disease, hemolysis), >100 macrocytic (B12/folate deficiency).'
+            priority: 'HIGH',
+            test: (labs) => {
+                const hb = labs.HB?.numValue;
+                const mcv = labs.MCV?.numValue;
+                if (!hb || hb >= 120) return false;
+                let type = 'normocytic';
+                if (mcv && mcv < 80) type = 'microcytic';
+                else if (mcv && mcv > 100) type = 'macrocytic';
+                const severity = hb < 70 ? 'severe' : hb < 90 ? 'moderate' : 'mild';
+                return { match: true, type, severity, hb, mcv };
+            },
+            interpretation: (result) => {
+                let base = `${result.severity.charAt(0).toUpperCase() + result.severity.slice(1)} ${result.type} anemia (Hb: ${result.hb} g/L`;
+                if (result.mcv) base += `, MCV: ${result.mcv} fL`;
+                base += '). ';
+                if (result.type === 'microcytic') {
+                    base += 'DDx: Iron deficiency (#1 worldwide - check ferritin, iron, TIBC), thalassemia trait (normal RDW, target cells), chronic disease, sideroblastic. Mentzer index (MCV/RBC): <13 suggests thalassemia, >13 suggests iron deficiency.';
+                } else if (result.type === 'macrocytic') {
+                    base += 'DDx: B12 deficiency (neurologic sx, check methylmalonic acid), folate deficiency, hypothyroidism, liver disease, MDS, reticulocytosis, drugs (methotrexate, AZT).';
+                } else {
+                    base += 'DDx: Acute blood loss, chronic disease (low EPO response), CKD (check EPO level), hemolysis (LDH↑, haptoglobin↓, retics↑), bone marrow pathology.';
+                }
+                if (result.severity === 'severe') base += ' Consider transfusion if symptomatic (chest pain, dyspnea, hemodynamic instability).';
+                return base;
+            }
         },
         {
-            name: 'Hepatocellular Injury Pattern',
-            criteria: (labs) => (labs.ALT?.flag === 'H' && parseFloat(labs.ALT?.value) > 100) || (labs.AST?.flag === 'H' && parseFloat(labs.AST?.value) > 100),
-            tests: ['ALT', 'AST', 'ALP', 'TBIL', 'ALB'],
-            interpretation: 'Hepatocellular injury pattern. Calculate R ratio (ALT/ALP). Consider viral hepatitis panel, drug-induced injury, ischemia.'
+            id: 'dka_hhs',
+            name: 'DKA/HHS Picture',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const glu = labs.GLUCOSE?.numValue;
+                const co2 = labs.CO2?.numValue || labs.HCO3?.numValue;
+                const ph = labs.PH?.numValue;
+                if (!glu || glu < 250) return false;
+                const acidotic = (co2 && co2 < 18) || (ph && ph < 7.3);
+                if (glu >= 600) return { match: true, type: 'HHS', detail: 'Hyperosmolar Hyperglycemic State' };
+                if (glu >= 250 && acidotic) return { match: true, type: 'DKA', detail: 'Diabetic Ketoacidosis pattern' };
+                return false;
+            },
+            interpretation: (result) => result.type === 'DKA' ?
+                'DKA pattern detected. Confirm with ketones (serum β-hydroxybutyrate >3). Management: 1) Aggressive IVF (NS then 0.45% when Na normalizes), 2) Insulin drip 0.1 U/kg/hr (start after K >3.3), 3) K replacement (add 20-40 mEq/L to fluids), 4) Monitor AG closure, 5) Transition to SQ insulin when eating, AG closed, HCO3 >15. Find precipitant: Infection, Infarction, Insulin missed, Intoxication.' :
+                'HHS pattern detected. Characterized by severe hyperglycemia (>600), hyperosmolality (>320), minimal ketosis. Management similar to DKA but: 1) Even more aggressive IVF (often 6-9L deficit), 2) Lower insulin dose (0.05-0.1 U/kg/hr), 3) Correct Na slowly. Higher mortality than DKA.'
         },
         {
-            name: 'Metabolic Acidosis',
-            criteria: (labs) => labs.PH?.flag === 'L' && labs.HCO3?.flag === 'L',
-            tests: ['PH', 'HCO3', 'PCO2', 'LAC'],
-            interpretation: 'Metabolic acidosis. Calculate anion gap. If elevated: MUDPILES (Methanol, Uremia, DKA, Propylene glycol, INH/Iron, Lactic acidosis, Ethylene glycol, Salicylates).'
+            id: 'sepsis',
+            name: 'Sepsis Markers',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const wbc = labs.WBC?.numValue;
+                const lac = labs.LAC?.numValue;
+                const plt = labs.PLT?.numValue;
+                let score = 0;
+                let findings = [];
+                if (wbc && (wbc > 12 || wbc < 4)) { score++; findings.push(wbc > 12 ? 'leukocytosis' : 'leukopenia'); }
+                if (lac && lac > 2) { score++; findings.push('elevated lactate'); }
+                if (plt && plt < 100) { score++; findings.push('thrombocytopenia'); }
+                if (score >= 2) return { match: true, findings, lac };
+                return false;
+            },
+            interpretation: (result) => `Concerning sepsis pattern: ${result.findings.join(', ')}. ${result.lac >= 4 ? 'Lactate ≥4 indicates septic shock.' : ''} Initiate Surviving Sepsis Campaign bundle: 1) Blood cultures before antibiotics, 2) Broad spectrum antibiotics within 1 hour, 3) Crystalloid 30 mL/kg if hypotensive or lactate ≥4, 4) Vasopressors if persistent hypotension, 5) Measure lactate q2-4h. Source control critical.`
         },
         {
+            id: 'dic',
+            name: 'DIC Pattern',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const plt = labs.PLT?.numValue;
+                const inr = labs.INR?.numValue;
+                const fib = labs.FIB?.numValue;
+                const ddimer = labs.DIMER?.numValue;
+                let score = 0;
+                if (plt && plt < 100) score += plt < 50 ? 2 : 1;
+                if (inr && inr > 1.5) score++;
+                if (fib && fib < 100) score++;
+                if (ddimer && ddimer > 2) score++;
+                if (score >= 3) return { match: true, score };
+                return false;
+            },
+            interpretation: (result) => `DIC pattern (ISTH score ≥5 diagnostic). Consumption coagulopathy with simultaneous thrombosis and bleeding. Management: Treat underlying cause (#1 priority), platelet transfusion if <20 or bleeding, FFP/cryoprecipitate for fibrinogen <100, consider heparin only if thrombosis predominant (controversial).`
+        },
+        {
+            id: 'electrolyte_panel',
             name: 'Electrolyte Imbalance Panel',
-            criteria: (labs) => ['NA', 'K', 'CL', 'CA', 'MG', 'PHOS'].some(t => labs[t]?.flag !== 'N'),
-            tests: ['NA', 'K', 'CL', 'CA', 'MG', 'PHOS'],
-            interpretation: 'Electrolyte abnormalities detected. Assess fluid status, medications, and underlying conditions.'
+            priority: 'HIGH',
+            test: (labs) => {
+                const abnormal = [];
+                if (labs.NA?.flag?.includes('L')) abnormal.push('hyponatremia');
+                if (labs.NA?.flag?.includes('H')) abnormal.push('hypernatremia');
+                if (labs.K?.flag?.includes('L')) abnormal.push('hypokalemia');
+                if (labs.K?.flag?.includes('H')) abnormal.push('hyperkalemia');
+                if (labs.CA?.flag?.includes('L')) abnormal.push('hypocalcemia');
+                if (labs.CA?.flag?.includes('H')) abnormal.push('hypercalcemia');
+                if (labs.MG?.flag?.includes('L')) abnormal.push('hypomagnesemia');
+                if (labs.PHOS?.flag?.includes('L')) abnormal.push('hypophosphatemia');
+                if (abnormal.length >= 2) return { match: true, abnormal };
+                return false;
+            },
+            interpretation: (result) => `Multiple electrolyte abnormalities: ${result.abnormal.join(', ')}. Consider common causes affecting multiple electrolytes: GI losses (diarrhea/vomiting), renal losses (diuretics, tubular disorders), refeeding syndrome, alcoholism, malnutrition. Mg and K often co-depleted - must correct Mg to correct refractory hypokalemia.`
+        },
+        {
+            id: 'hepatocellular',
+            name: 'Hepatocellular Injury',
+            priority: 'HIGH',
+            test: (labs) => {
+                const alt = labs.ALT?.numValue;
+                const ast = labs.AST?.numValue;
+                if (!alt && !ast) return false;
+                const max = Math.max(alt || 0, ast || 0);
+                if (max > 1000) return { match: true, severity: 'severe', alt, ast, pattern: 'hepatocellular' };
+                if (max > 300) return { match: true, severity: 'moderate', alt, ast, pattern: 'hepatocellular' };
+                if (max > 100) return { match: true, severity: 'mild', alt, ast, pattern: 'hepatocellular' };
+                return false;
+            },
+            interpretation: (result) => {
+                let base = `${result.severity} hepatocellular injury pattern (ALT: ${result.alt || '?'}, AST: ${result.ast || '?'}). `;
+                if (result.severity === 'severe') {
+                    base += '>1000 suggests: Ischemic hepatitis (shock liver - check cardiac), acute viral hepatitis (check HAV IgM, HBsAg, HCV Ab), toxin (ACETAMINOPHEN LEVEL stat - use Rumack-Matthew nomogram), autoimmune hepatitis flare. Check PT/INR urgently for synthetic function.';
+                } else {
+                    base += 'DDx: Viral hepatitis, drug/toxin (review all medications), NAFLD/NASH, autoimmune, Wilson disease. AST:ALT >2 suggests alcoholic etiology. Obtain hepatitis serologies, consider autoimmune panel.';
+                }
+                return base;
+            }
+        },
+        {
+            id: 'cholestatic',
+            name: 'Cholestatic Pattern',
+            priority: 'HIGH',
+            test: (labs) => {
+                const alp = labs.ALP?.numValue;
+                const ggt = labs.GGT?.numValue;
+                const tbil = labs.TBIL?.numValue;
+                if (!alp || alp < 150) return false;
+                if (ggt && ggt > 100) return { match: true, alp, ggt, tbil };
+                return false;
+            },
+            interpretation: (result) => `Cholestatic pattern (ALP: ${result.alp}, GGT: ${result.ggt}${result.tbil ? ', Bili: ' + result.tbil : ''}). Indicates biliary obstruction or intrahepatic cholestasis. DDx: Biliary obstruction (stone, stricture, mass) - get RUQ US or MRCP. Intrahepatic: PBC (check AMA), PSC (MRCP), drug-induced, infiltrative disease. Isolated ALP elevation: also consider bone source (check GGT to differentiate).`
+        },
+        {
+            id: 'pancytopenia',
+            name: 'Pancytopenia',
+            priority: 'CRITICAL',
+            test: (labs) => {
+                const wbc = labs.WBC?.numValue;
+                const hb = labs.HB?.numValue;
+                const plt = labs.PLT?.numValue;
+                if (!wbc || !hb || !plt) return false;
+                if (wbc < 4 && hb < 100 && plt < 150) return { match: true, wbc, hb, plt };
+                return false;
+            },
+            interpretation: (result) => `Pancytopenia detected (WBC: ${result.wbc}, Hb: ${result.hb}, PLT: ${result.plt}). All three lineages affected suggests bone marrow pathology or peripheral destruction. DDx: Bone marrow failure (aplastic anemia, MDS, leukemia, myelofibrosis, metastatic cancer), B12/folate deficiency, overwhelming infection, hypersplenism, medications, paroxysmal nocturnal hemoglobinuria. Bone marrow biopsy usually indicated.`
         }
     ];
 
-    // ════════════════════════════════════════════════════════════════════════
-    // LLM SYSTEM PROMPT FOR ADVANCED INTERPRETATION
-    // ════════════════════════════════════════════════════════════════════════
-    
-    const CDSS_SYSTEM_PROMPT = `You are a Clinical Decision Support System providing PRELIMINARY laboratory result interpretations.
+    // ═══════════════════════════════════════════════════════════════════════
+    // MAIN PROCESSING FUNCTION
+    // ═══════════════════════════════════════════════════════════════════════
+    function processLabs(labValues, patientInfo = {}) {
+        const processed = {};
+        const summary = { critical: 0, abnormal: 0, normal: 0, total: 0 };
 
-CRITICAL INSTRUCTIONS:
-1. You provide PRELIMINARY interpretations only - ALL findings require clinical correlation by a qualified healthcare provider.
-2. Reference ONLY verified medical sources:
-   - Harrison's Principles of Internal Medicine (21st Edition)
-   - WHO Clinical Guidelines
-   - UpToDate Clinical Decision Support
-   - Current laboratory medicine standards (CLSI, IFCC)
+        // Process each lab value
+        for (const lab of labValues) {
+            const testKey = lab.test?.toUpperCase();
+            const ref = REFERENCE[testKey];
+            if (!ref) continue;
 
-3. Structure your response EXACTLY as follows:
-   
-   ## PRELIMINARY LABORATORY REPORT
-   
-   ### ⚠️ CRITICAL VALUES (if any)
-   [List any critical values requiring immediate attention]
-   
-   ### Summary of Abnormalities
-   [Concise summary of abnormal findings organized by system]
-   
-   ### Detailed Interpretation
-   [System-by-system analysis]
-   
-   ### Suggested Follow-up
-   [Based on findings, what additional tests or clinical actions might be warranted]
-   
-   ### Clinical Patterns Identified
-   [Any recognizable clinical syndromes or patterns]
+            const numValue = parseFloat(lab.value);
+            if (isNaN(numValue)) continue;
 
-4. NEVER provide definitive diagnoses - use language like "consistent with", "suggestive of", "consider"
-5. ALWAYS recommend clinical correlation
-6. Flag any critical values prominently at the top
-7. Consider drug interactions and common artifacts (hemolysis, lipemia)
+            summary.total++;
 
-DISCLAIMER: This is an AI-assisted preliminary interpretation. All findings must be verified and correlated clinically by a licensed healthcare provider. This system does not replace professional medical judgment.`;
+            // Determine flag and status
+            let flag = 'N';
+            let status = 'NORMAL';
+            let interpretation = ref.interpret?.normal || 'Within normal limits';
 
-    // ════════════════════════════════════════════════════════════════════════
-    // CORE CDSS CLASS
-    // ════════════════════════════════════════════════════════════════════════
-    
-    class ClinicalDecisionSupportSystem {
-        constructor(options = {}) {
-            this.referenceDB = REFERENCE_DATABASE;
-            this.patterns = CLINICAL_PATTERNS;
-            this.apiEndpoint = options.apiEndpoint || null;
-            this.apiKey = options.apiKey || null;
-            this.model = options.model || 'claude-sonnet-4-20250514';
-        }
+            const isCriticalLow = ref.critical?.low !== undefined && numValue <= ref.critical.low;
+            const isCriticalHigh = ref.critical?.high !== undefined && numValue >= ref.critical.high;
+            const isLow = numValue < ref.min;
+            const isHigh = numValue > ref.max;
 
-        /**
-         * Process structured lab data input
-         * @param {Array} labData - Array of {test, value, unit, reference?}
-         * @returns {Object} Processed lab results with flags
-         */
-        processInput(labData) {
-            const processed = {};
-            
-            for (const item of labData) {
-                const testKey = this._normalizeTestName(item.test);
-                const refData = this.referenceDB[testKey];
-                
-                if (!refData && !item.refLow && !item.refHigh) {
-                    // Unknown test, include but mark as unvalidated
-                    processed[item.test.toUpperCase()] = {
-                        name: item.test,
-                        value: item.value,
-                        unit: item.unit || '',
-                        flag: '?',
-                        status: 'UNVALIDATED',
-                        interpretation: 'Test not in reference database'
-                    };
-                    continue;
-                }
-
-                const value = parseFloat(item.value);
-                if (isNaN(value)) {
-                    processed[testKey || item.test.toUpperCase()] = {
-                        name: refData?.name || item.test,
-                        value: item.value,
-                        unit: item.unit || refData?.unit || '',
-                        flag: '?',
-                        status: 'INVALID_VALUE',
-                        interpretation: 'Unable to parse numeric value'
-                    };
-                    continue;
-                }
-
-                // Use provided reference range or database
-                const refLow = item.refLow ?? refData?.reference?.low;
-                const refHigh = item.refHigh ?? refData?.reference?.high;
-                const critLow = refData?.critical?.low ?? refLow * 0.5;
-                const critHigh = refData?.critical?.high ?? refHigh * 2;
-
-                // Determine flag and status
-                let flag = 'N';
-                let status = 'NORMAL';
-                let interpretation = '';
-
-                if (value < critLow) {
-                    flag = 'LL';
-                    status = 'CRITICAL_LOW';
-                    interpretation = refData?.interpretation?.critical_low || 'Critically low value - immediate attention required';
-                } else if (value > critHigh) {
-                    flag = 'HH';
-                    status = 'CRITICAL_HIGH';
-                    interpretation = refData?.interpretation?.critical_high || 'Critically high value - immediate attention required';
-                } else if (value < refLow) {
-                    flag = 'L';
-                    status = 'ABNORMAL_LOW';
-                    interpretation = refData?.interpretation?.low || 'Below reference range';
-                } else if (value > refHigh) {
-                    flag = 'H';
-                    status = 'ABNORMAL_HIGH';
-                    interpretation = refData?.interpretation?.high || 'Above reference range';
-                } else {
-                    interpretation = 'Within normal limits';
-                }
-
-                processed[testKey || item.test.toUpperCase()] = {
-                    name: refData?.name || item.test,
-                    value: value,
-                    rawValue: item.value,
-                    unit: item.unit || refData?.unit || '',
-                    flag: flag,
-                    status: status,
-                    reference: `${refLow} - ${refHigh}`,
-                    refLow: refLow,
-                    refHigh: refHigh,
-                    critLow: critLow,
-                    critHigh: critHigh,
-                    category: refData?.category || 'OTHER',
-                    interpretation: interpretation,
-                    associations: refData?.associations || []
-                };
-            }
-
-            return processed;
-        }
-
-        /**
-         * Normalize test name to database key
-         */
-        _normalizeTestName(name) {
-            const upper = String(name).toUpperCase().replace(/[^A-Z0-9]/g, '');
-            
-            // Direct match
-            if (this.referenceDB[upper]) return upper;
-            
-            // Alias search
-            for (const [key, data] of Object.entries(this.referenceDB)) {
-                const aliases = [data.name.toUpperCase().replace(/[^A-Z0-9]/g, '')];
-                if (aliases.includes(upper)) return key;
-                
-                // Partial match for common variations
-                if (upper.includes(key) || key.includes(upper)) return key;
-            }
-            
-            // Common mappings
-            const mappings = {
-                'HEMOGLOBIN': 'HB', 'HGB': 'HB',
-                'CREATININE': 'CR', 'CREAT': 'CR',
-                'SODIUM': 'NA', 'POTASSIUM': 'K',
-                'CHLORIDE': 'CL', 'CALCIUM': 'CA',
-                'PHOSPHORUS': 'PHOS', 'PHOSPHATE': 'PHOS',
-                'MAGNESIUM': 'MG', 'ALBUMIN': 'ALB',
-                'TOTALPROTEIN': 'TP', 'PROTEIN': 'TP',
-                'BILIRUBIN': 'TBIL', 'TOTALBILIRUBIN': 'TBIL',
-                'ALKALINEPHOSPHATASE': 'ALP',
-                'URICACID': 'URIC', 'BLOODUREA': 'UREA',
-                'PLATELET': 'PLT', 'PLATELETS': 'PLT',
-                'TROPONIN': 'TROP', 'LACTATE': 'LAC',
-                'BICARBONATE': 'HCO3', 'GLUCOSE': 'GLUCOSE',
-                'HEMATOCRIT': 'HCT', 'PCV': 'HCT'
-            };
-            
-            return mappings[upper] || null;
-        }
-
-        /**
-         * Identify clinical patterns from processed labs
-         */
-        identifyPatterns(processedLabs) {
-            const identified = [];
-            
-            for (const pattern of this.patterns) {
-                try {
-                    if (pattern.criteria(processedLabs)) {
-                        identified.push({
-                            name: pattern.name,
-                            tests: pattern.tests.filter(t => processedLabs[t]),
-                            interpretation: pattern.interpretation,
-                            priority: pattern.priority || 'ROUTINE'
-                        });
-                    }
-                } catch (e) {
-                    // Pattern evaluation failed, skip
-                }
-            }
-            
-            // Sort by priority
-            identified.sort((a, b) => {
-                const order = { 'CRITICAL': 0, 'URGENT': 1, 'ROUTINE': 2 };
-                return (order[a.priority] || 2) - (order[b.priority] || 2);
-            });
-            
-            return identified;
-        }
-
-        /**
-         * Generate structured Markdown report
-         */
-        generateReport(labData, patientInfo = {}) {
-            const processed = this.processInput(labData);
-            const patterns = this.identifyPatterns(processed);
-            
-            const criticalValues = [];
-            const abnormalValues = [];
-            const normalValues = [];
-            
-            // Categorize results
-            for (const [key, result] of Object.entries(processed)) {
-                if (result.status === 'CRITICAL_LOW' || result.status === 'CRITICAL_HIGH') {
-                    criticalValues.push({ key, ...result });
-                } else if (result.flag === 'L' || result.flag === 'H') {
-                    abnormalValues.push({ key, ...result });
-                } else if (result.flag === 'N') {
-                    normalValues.push({ key, ...result });
-                }
-            }
-
-            // Build report
-            let report = `# PRELIMINARY LABORATORY REPORT\n\n`;
-            report += `**Report Generated:** ${new Date().toISOString()}\n`;
-            report += `**Status:** PRELIMINARY - Requires Clinical Correlation\n\n`;
-            
-            if (patientInfo.name) report += `**Patient:** ${patientInfo.name}\n`;
-            if (patientInfo.mrn) report += `**MRN:** ${patientInfo.mrn}\n`;
-            report += `\n---\n\n`;
-
-            // Critical Values Section
-            if (criticalValues.length > 0) {
-                report += `## ⚠️ CRITICAL VALUES - IMMEDIATE ATTENTION REQUIRED\n\n`;
-                report += `| Test | Value | Reference | Flag | Interpretation |\n`;
-                report += `|------|-------|-----------|------|----------------|\n`;
-                for (const v of criticalValues) {
-                    report += `| **${v.name}** | **${v.value} ${v.unit}** | ${v.reference} ${v.unit} | **${v.flag}** | ${v.interpretation} |\n`;
-                }
-                report += `\n`;
-            }
-
-            // Summary of Abnormalities
-            report += `## Summary of Abnormalities\n\n`;
-            if (abnormalValues.length === 0 && criticalValues.length === 0) {
-                report += `All tested parameters are within normal limits.\n\n`;
+            if (isCriticalLow) {
+                flag = 'LL';
+                status = 'CRITICAL_LOW';
+                interpretation = ref.interpret?.criticalLow || ref.interpret?.low || 'Critically low';
+                summary.critical++;
+            } else if (isCriticalHigh) {
+                flag = 'HH';
+                status = 'CRITICAL_HIGH';
+                interpretation = ref.interpret?.criticalHigh || ref.interpret?.high || 'Critically high';
+                summary.critical++;
+            } else if (isLow) {
+                flag = 'L';
+                status = 'LOW';
+                interpretation = ref.interpret?.low || 'Below reference range';
+                summary.abnormal++;
+            } else if (isHigh) {
+                flag = 'H';
+                status = 'HIGH';
+                interpretation = ref.interpret?.high || 'Above reference range';
+                summary.abnormal++;
             } else {
-                // Group by category
-                const byCategory = {};
-                for (const v of [...criticalValues, ...abnormalValues]) {
-                    const cat = v.category || 'OTHER';
-                    if (!byCategory[cat]) byCategory[cat] = [];
-                    byCategory[cat].push(v);
-                }
-                
-                for (const [category, values] of Object.entries(byCategory)) {
-                    report += `### ${category}\n`;
-                    for (const v of values) {
-                        const arrow = v.flag.includes('H') ? '↑' : '↓';
-                        const severity = v.flag.length > 1 ? ' (CRITICAL)' : '';
-                        report += `- **${v.name}**: ${v.value} ${v.unit} ${arrow}${severity} (Ref: ${v.reference})\n`;
-                        report += `  - *${v.interpretation}*\n`;
-                    }
-                    report += `\n`;
-                }
+                summary.normal++;
             }
 
-            // Clinical Patterns
-            if (patterns.length > 0) {
-                report += `## Clinical Patterns Identified\n\n`;
-                for (const p of patterns) {
-                    const priorityBadge = p.priority === 'CRITICAL' ? '🔴 ' : p.priority === 'URGENT' ? '🟡 ' : '';
-                    report += `### ${priorityBadge}${p.name}\n`;
-                    report += `${p.interpretation}\n`;
-                    report += `*Relevant tests: ${p.tests.join(', ')}*\n\n`;
-                }
-            }
-
-            // Complete Results Table
-            report += `## Complete Results\n\n`;
-            report += `| Test | Result | Reference | Unit | Flag |\n`;
-            report += `|------|--------|-----------|------|------|\n`;
-            for (const [key, v] of Object.entries(processed)) {
-                const flagEmoji = v.flag === 'N' ? '✓' : v.flag.includes('H') ? '↑' : v.flag.includes('L') ? '↓' : '?';
-                report += `| ${v.name} | ${v.value} | ${v.reference || 'N/A'} | ${v.unit} | ${flagEmoji} ${v.flag} |\n`;
-            }
-            report += `\n`;
-
-            // Disclaimer
-            report += `---\n\n`;
-            report += `## ⚕️ Important Notice\n\n`;
-            report += `> **DISCLAIMER:** This is a PRELIMINARY computer-generated report.\n`;
-            report += `> \n`;
-            report += `> **Interpretation requires clinical correlation.**\n`;
-            report += `> \n`;
-            report += `> This analysis is provided for informational purposes only and does not constitute medical advice. `;
-            report += `All findings must be reviewed and interpreted by a qualified healthcare provider in the context of `;
-            report += `the patient's clinical presentation, medical history, and other diagnostic information.\n`;
-            report += `> \n`;
-            report += `> Reference: Harrison's Principles of Internal Medicine, WHO Guidelines\n`;
-
-            return {
-                report: report,
-                processed: processed,
-                patterns: patterns,
-                summary: {
-                    total: Object.keys(processed).length,
-                    critical: criticalValues.length,
-                    abnormal: abnormalValues.length,
-                    normal: normalValues.length
-                }
+            processed[testKey] = {
+                name: ref.name,
+                value: numValue,
+                unit: lab.unit || ref.unit,
+                flag,
+                status,
+                reference: `${ref.min} - ${ref.max}`,
+                refLow: ref.min,
+                refHigh: ref.max,
+                interpretation,
+                numValue
             };
         }
 
-        /**
-         * Get LLM-enhanced interpretation (if API configured)
-         */
-        async getLLMInterpretation(labData, patientContext = '') {
-            if (!this.apiEndpoint || !this.apiKey) {
-                console.warn('[CDSS] LLM API not configured');
-                return null;
-            }
-
-            const processed = this.processInput(labData);
-            const basicReport = this.generateReport(labData);
-
-            const userMessage = `Analyze these laboratory results and provide a clinical interpretation:
-
-${JSON.stringify(processed, null, 2)}
-
-Patient Context: ${patientContext || 'Not provided'}
-
-Basic Analysis Summary:
-- Critical values: ${basicReport.summary.critical}
-- Abnormal values: ${basicReport.summary.abnormal}
-- Normal values: ${basicReport.summary.normal}
-
-Provide your interpretation following the exact structure specified in your instructions.`;
-
-            try {
-                const response = await fetch(this.apiEndpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'x-api-key': this.apiKey,
-                        'anthropic-version': '2023-06-01'
-                    },
-                    body: JSON.stringify({
-                        model: this.model,
-                        max_tokens: 2000,
-                        system: CDSS_SYSTEM_PROMPT,
-                        messages: [{ role: 'user', content: userMessage }]
-                    })
+        // Detect clinical patterns
+        const patterns = [];
+        for (const pattern of PATTERNS) {
+            const result = pattern.test(processed);
+            if (result && result.match) {
+                patterns.push({
+                    id: pattern.id,
+                    name: pattern.name,
+                    priority: pattern.priority,
+                    interpretation: typeof pattern.interpretation === 'function' 
+                        ? pattern.interpretation(result)
+                        : pattern.interpretation,
+                    details: result
                 });
-
-                const data = await response.json();
-                return data.content?.[0]?.text || null;
-            } catch (error) {
-                console.error('[CDSS] LLM API error:', error);
-                return null;
             }
         }
+
+        // Sort patterns by priority
+        patterns.sort((a, b) => {
+            const order = { CRITICAL: 0, HIGH: 1, MODERATE: 2, LOW: 3 };
+            return (order[a.priority] || 99) - (order[b.priority] || 99);
+        });
+
+        // Generate report
+        const report = generateReport(processed, patterns, summary, patientInfo);
+
+        return { processed, patterns, summary, report };
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // EXPORT
-    // ════════════════════════════════════════════════════════════════════════
-    
-    window.CDSS = new ClinicalDecisionSupportSystem();
-    window.CDSSClass = ClinicalDecisionSupportSystem;
-    window.CDSS_SYSTEM_PROMPT = CDSS_SYSTEM_PROMPT;
-    
-    // Safety: Always print disclaimer on load
-    console.log('%c⚕️ CLINICAL DECISION SUPPORT SYSTEM LOADED', 'color: #0ea5e9; font-weight: bold; font-size: 14px;');
-    console.log('%c⚠️ DISCLAIMER: All interpretations require clinical correlation by a qualified healthcare provider.', 'color: #f59e0b; font-weight: bold;');
-    console.log('%cThis system provides PRELIMINARY analysis only and does not replace professional medical judgment.', 'color: #64748b;');
+    // ═══════════════════════════════════════════════════════════════════════
+    // REPORT GENERATION
+    // ═══════════════════════════════════════════════════════════════════════
+    function generateReport(processed, patterns, summary, patientInfo) {
+        const lines = [];
+        const timestamp = new Date().toLocaleString();
 
-    // Test function
-    window.testCDSS = function() {
-        const sampleLabs = [
-            { test: 'Urea', value: '15', unit: 'mg/dL' },
-            { test: 'Creatinine', value: '1.5', unit: 'mg/dL' },  // High
-            { test: 'Sodium', value: '139', unit: 'mEq/L' },
-            { test: 'Potassium', value: '5.8', unit: 'mEq/L' },   // High
-            { test: 'Chloride', value: '100', unit: 'mEq/L' },
-            { test: 'Calcium', value: '10.2', unit: 'mg/dL' },
-            { test: 'Phosphorus', value: '1.4', unit: 'mg/dL' },  // Low
-            { test: 'Albumin', value: '4.1', unit: 'g/dL' },
-            { test: 'Hemoglobin', value: '9.5', unit: 'g/dL' },   // Low
-            { test: 'WBC', value: '12.5', unit: '10^9/L' },       // High
-            { test: 'Platelets', value: '180', unit: '10^9/L' }
-        ];
+        lines.push('# CLINICAL LABORATORY INTERPRETATION');
+        lines.push(`Generated: ${timestamp}`);
+        if (patientInfo.name) lines.push(`Patient: ${patientInfo.name}`);
+        if (patientInfo.mrn) lines.push(`MRN: ${patientInfo.mrn}`);
+        lines.push('');
 
-        console.log('%c[CDSS TEST] Input Labs:', 'color: yellow; font-weight: bold');
-        console.table(sampleLabs);
+        lines.push('## SUMMARY');
+        lines.push(`- **Critical:** ${summary.critical}`);
+        lines.push(`- **Abnormal:** ${summary.abnormal}`);
+        lines.push(`- **Normal:** ${summary.normal}`);
+        lines.push(`- **Total:** ${summary.total}`);
+        lines.push('');
 
-        const result = window.CDSS.generateReport(sampleLabs, { name: 'Test Patient', mrn: '12345' });
-        
-        console.log('%c[CDSS TEST] Summary:', 'color: cyan; font-weight: bold');
-        console.log(result.summary);
-        
-        console.log('%c[CDSS TEST] Patterns:', 'color: magenta; font-weight: bold');
-        console.table(result.patterns);
-        
-        console.log('%c[CDSS TEST] Report:', 'color: #0f0; font-weight: bold');
-        console.log(result.report);
+        if (patterns.length > 0) {
+            lines.push('## CLINICAL PATTERNS IDENTIFIED');
+            for (const p of patterns) {
+                lines.push(`### ${p.priority === 'CRITICAL' ? '🔴' : '🔵'} ${p.name}`);
+                lines.push(p.interpretation);
+                lines.push('');
+            }
+        }
 
-        return result;
+        lines.push('## DETAILED RESULTS');
+        const categories = {};
+        for (const [key, val] of Object.entries(processed)) {
+            const cat = REFERENCE[key]?.cat || 'OTHER';
+            if (!categories[cat]) categories[cat] = [];
+            categories[cat].push({ key, ...val });
+        }
+
+        for (const [cat, tests] of Object.entries(categories)) {
+            lines.push(`### ${cat}`);
+            for (const t of tests) {
+                const arrow = t.flag.includes('H') ? '↑' : t.flag.includes('L') ? '↓' : '';
+                lines.push(`**${t.name}**: ${t.value} ${t.unit} ${arrow}`);
+                lines.push(`  - Reference: ${t.reference} ${t.unit}`);
+                if (t.flag !== 'N') {
+                    lines.push(`  - *${t.interpretation}*`);
+                }
+            }
+            lines.push('');
+        }
+
+        lines.push('---');
+        lines.push('*DISCLAIMER: This is a PRELIMINARY interpretation generated by an automated clinical decision support system. All findings require clinical correlation by a qualified healthcare provider. This tool is not a substitute for clinical judgment.*');
+        lines.push('');
+        lines.push('*References: Harrison\'s Principles of Internal Medicine, UpToDate, WHO Clinical Guidelines*');
+
+        return lines.join('\n');
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // EXPOSE GLOBAL API
+    // ═══════════════════════════════════════════════════════════════════════
+    window.CDSS = {
+        version: '2.0',
+        generateReport: processLabs,
+        getReference: (test) => REFERENCE[test?.toUpperCase()],
+        getAllTests: () => Object.keys(REFERENCE),
+        isReady: true
     };
 
+    console.log('[CDSS v2.0] Clinical Decision Support System loaded with enhanced interpretations');
 })();
