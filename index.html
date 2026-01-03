@@ -3,16 +3,17 @@
 <head>
     <meta charset="UTF-8"/>
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"/>
-    <title>Unit E Ward Rounds - Vision API Enhanced</title>
+    <title>Unit E Ward Rounds</title>
     <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script crossorigin src="https://unpkg.com/tesseract.js@5.0.5/dist/tesseract.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <!-- Neural OCR v5 - Auto-Detect -->
-    <script src="ocr-neural-v5.js"></script>
+    <!-- OCR Engine Module -->
+    <script src="ocr-engine.js"></script>
+    <!-- Lab Parser Module -->
+    <script src="lab-parser.js"></script>
     <!-- Clinical Decision Support System -->
     <script src="cdss-module.js"></script>
     <style>
@@ -957,79 +958,12 @@ const preprocessForOCR = async (dataUrl, options = {}) => {
     return { processed: upCanvas.toDataURL("image/png"), cropUsed: crop, skewAngle: 0, threshold: 128 };
 };
 
-// ============ TESSERACT OCR ============
-let _ocrWorker = null;
-let _ocrWorkerReady = false;
-
-const getOcrWorker = async (loggerFn) => {
-    if (_ocrWorker && _ocrWorkerReady) return _ocrWorker;
-    if (_ocrWorker) { try { await _ocrWorker.terminate(); } catch (e) {} _ocrWorker = null; _ocrWorkerReady = false; }
-    try {
-        _ocrWorker = await Tesseract.createWorker('eng', 1, { logger: (m) => loggerFn && loggerFn(m) });
-        _ocrWorkerReady = true;
-        return _ocrWorker;
-    } catch (err) { throw err; }
-};
-
-// ============ GOOGLE VISION API (FAST) ============
-const callVisionAPI = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
-    debugLog && debugLog('info', 'Starting Vision API...');
-    setStage && setStage("Analyzing image...");
-    setProgress && setProgress(20);
-    
-    // Extract base64 directly - minimal preprocessing for speed
-    let imageData = dataUrl;
-    if (imageData.includes(',')) imageData = imageData.split(',')[1];
-    
-    try {
-        setProgress && setProgress(30);
-        const response = await fetch(VISION_API_PROXY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'ocr', image: imageData, mode: 'DOCUMENT_TEXT_DETECTION' }),
-            redirect: 'follow'
-        });
-        setProgress && setProgress(80);
-        const responseText = await response.text();
-        if (!response.ok) throw new Error(`Vision API HTTP ${response.status}`);
-        let result;
-        try { result = JSON.parse(responseText); } catch { throw new Error(`Failed to parse response`); }
-        if (result.error) throw new Error(result.error);
-        setProgress && setProgress(95);
-        debugLog && debugLog('success', `Vision API returned ${result.text?.length || 0} chars`);
-        return { text: result.text || "", confidence: result.confidence || 85, lines: result.lines || [], source: 'google_vision' };
-    } catch (err) {
-        debugLog && debugLog('error', `Vision API failed: ${err.message}`);
-        throw err;
-    }
-};
-
-// ============ TESSERACT OCR ============
-const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
-    debugLog && debugLog('info', 'Starting Tesseract OCR...');
-    try {
-        setStage && setStage("Preprocessing...");
-        setProgress && setProgress(5);
-        const pre = await preprocessForOCR(dataUrl, options);
-        setStage && setStage("Initializing Tesseract...");
-        setProgress && setProgress(10);
-        const worker = await getOcrWorker((m) => {
-            if (m?.status === "recognizing text" && typeof m.progress === "number") setProgress && setProgress(10 + Math.round(m.progress * 80));
-        });
-        setStage && setStage("Recognizing text...");
-        const result = await worker.recognize(pre.processed);
-        setProgress && setProgress(95);
-        return { text: result?.data?.text || "", confidence: Number(result?.data?.confidence || 0), lines: [], source: 'tesseract', cropUsed: pre.cropUsed };
-    } catch (err) {
-        debugLog && debugLog('error', `Tesseract error: ${err.message}`);
-        throw err;
-    }
-};
-
-// ============ SIMPLIFIED OCR (Vision only) ============
-const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEngine = 'vision', debugLog) => {
-    return await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
-};
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR FUNCTIONALITY - NOW IN SEPARATE MODULES:
+// - ocr-engine.js: Google Vision API integration
+// - lab-parser.js: Lab value extraction and normalization  
+// - cdss-module.js: Clinical decision support
+// ═══════════════════════════════════════════════════════════════════════════
 
 // ============ FALLBACK PARSER ============
 const parseLabsFromTextFallback = (text) => {
@@ -1052,7 +986,7 @@ const parseLabsFromTextFallback = (text) => {
 
 const redactPHI = (text) => String(text || "").replace(/\b\d{3}-\d{2}-\d{4}\b/g, "███-██-████");
 
-const compressImage = (file, maxWidth = 1600) => {
+const compressImageFallback = (file, maxWidth = 1600) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -1194,13 +1128,19 @@ const LabModal = ({ patient, onClose, onSave }) => {
         addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
         
         try {
-            const result = await runHybridOCR(
+            // Check if OCR Engine is loaded
+            if (!window.OCREngine || !window.OCREngine.isReady) {
+                throw new Error('OCR Engine not loaded. Please refresh the page.');
+            }
+            
+            // Run OCR using the modular engine
+            const result = await window.OCREngine.runOCR(
                 imgObj.image,
-                { smartCrop: true },
-                setOcrProgress,
-                setOcrStage,
-                ocrEngine,
-                addDebugLog
+                {
+                    onProgress: setOcrProgress,
+                    onStage: setOcrStage,
+                    onLog: addDebugLog
+                }
             );
 
             addDebugLog('info', `OCR returned ${result.text?.length || 0} chars, confidence: ${result.confidence}%`);
@@ -1209,43 +1149,16 @@ const LabModal = ({ patient, onClose, onSave }) => {
             let processedValues = [];
             let labType = 'AUTO';
             
-            // Use Neural v5 auto-detect
-            if (window.LabOCR && window.LabOCR.isReady) {
-                addDebugLog('info', 'Processing with Neural v5 (auto-detect)...');
-                const rawNeuralInput = parseVisionToNeuralInput(result.text);
-                addDebugLog('info', `Parsed ${rawNeuralInput.length} items: ${rawNeuralInput.map(i => i.test + '=' + i.value).join(', ')}`);
-                console.log('[PARSER OUTPUT]:', rawNeuralInput);
-                
-                if (rawNeuralInput.length === 0) {
-                    addDebugLog('warn', 'Parser found 0 values! Check raw text format.');
-                }
-                
-                const { results: neuralResults, labType: detected } = window.LabOCR.process(rawNeuralInput);
-                labType = detected;
-                setDetectedLabType(detected);
-                addDebugLog('success', `Auto-detected: ${detected} panel, ${neuralResults.length} processed values`);
-                console.log('[NEURAL OUTPUT]:', neuralResults);
-                
-                processedValues = neuralResults.map(item => ({
-                    test: item.test,
-                    value: item.value,
-                    unit: item.unit || '',
-                    flag: item.flag || 'N',
-                    confidence: item.confidence || 50,
-                    status: item.status,
-                    validation: { status: ['OK', 'AUTO_FIX', 'LEARNED'].includes(item.status) ? 'normal' : 'invalid' },
-                    rawOcr: item.rawOcr,
-                    lowConfidence: item.confidence < 60,
-                    corrected: item.corrected,
-                    reason: item.reason,
-                    refLow: item.refLow,
-                    refHigh: item.refHigh,
-                    category: item.category
-                }));
-                
-                addDebugLog('success', `Final: ${processedValues.length} values ready for display`);
+            // Use Lab Parser module
+            if (window.LabParser && window.LabParser.isReady) {
+                addDebugLog('info', 'Processing with LabParser module...');
+                processedValues = window.LabParser.parse(result.text);
+                labType = window.LabParser.detectLabType(processedValues);
+                setDetectedLabType(labType);
+                addDebugLog('success', `Detected: ${labType} panel, ${processedValues.length} values`);
+                console.log('[PARSER OUTPUT]:', processedValues);
             } else {
-                addDebugLog('warn', 'Neural v5 offline. Using fallback.');
+                addDebugLog('warn', 'LabParser not loaded. Using inline fallback.');
                 processedValues = parseLabsFromTextFallback(result.text);
             }
 
@@ -1262,7 +1175,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     confidence: result.confidence,
                     avgValueConfidence: avgConfidence,
                     updatedAt: Date.now(),
-                    source: result.source || 'unknown',
+                    source: result.source || 'google_vision',
                     labType: labType
                 }
             } : x));
@@ -1287,7 +1200,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
         setOcrError(null);
         addDebugLog('info', `Processing file: ${file.name}`);
         try {
-            const compressed = await compressImage(file);
+            // Use OCREngine module for compression
+            const compressed = window.OCREngine?.compressImage 
+                ? await window.OCREngine.compressImage(file)
+                : await compressImageFallback(file);
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
@@ -1315,10 +1231,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
             if (img.id !== imgId) return img;
             const vals = (img.ocr?.values || []).map(v => {
                 if (v.test !== test) return v;
-                // Learn from correction if value changed
-                if (field === 'value' && v.rawOcr && newVal !== v.value && window.LabOCR?.learnCorrection) {
-                    window.LabOCR.learnCorrection(test, v.rawOcr, newVal);
-                    addDebugLog('info', `Learned: ${test} "${v.rawOcr}" → "${newVal}"`);
+                // Log value corrections for debugging
+                if (field === 'value' && newVal !== v.value) {
+                    addDebugLog('info', `Corrected: ${test} "${v.value}" → "${newVal}"`);
                 }
                 return { ...v, [field]: newVal };
             });
@@ -1370,26 +1285,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     {tab === "Debug" && (
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
                             <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', fontSize: 12, color: '#64748b' }}>
-                                <span>Neural v4: <strong style={{ color: window.LabOCR?.isReady ? '#22c55e' : '#ef4444' }}>{window.LabOCR?.isReady ? 'ONLINE' : 'OFFLINE'}</strong></span>
-                                <span>Patterns: <strong style={{ color: '#0ff' }}>{window.LabOCR?.getStats?.()?.patterns || 0}</strong></span>
+                                <span>OCREngine: <strong style={{ color: window.OCREngine?.isReady ? '#22c55e' : '#ef4444' }}>{window.OCREngine?.isReady ? 'READY' : 'OFFLINE'}</strong></span>
+                                <span>LabParser: <strong style={{ color: window.LabParser?.isReady ? '#22c55e' : '#ef4444' }}>{window.LabParser?.isReady ? 'READY' : 'OFFLINE'}</strong></span>
+                                <span>CDSS: <strong style={{ color: window.CDSS?.isReady ? '#22c55e' : '#ef4444' }}>{window.CDSS?.isReady ? 'READY' : 'OFFLINE'}</strong></span>
                             </div>
                             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                                 <button className="btn btn-white" onClick={() => setDebugLogs([])}>🗑 Clear Logs</button>
-                                <button className="btn btn-blue" onClick={() => {
-                                    if (window.LabOCR?.clearLearning) {
-                                        if (confirm('Clear all learned patterns?')) {
-                                            window.LabOCR.clearLearning();
-                                            addDebugLog('info', 'Learning cleared');
-                                        }
-                                    }
-                                }}>🧹 Clear Learning</button>
                                 <button className="btn btn-green" onClick={() => {
-                                    window.testOCR && window.testOCR();
-                                    addDebugLog('info', 'Test run - check console');
-                                }}>🧪 Test OCR</button>
+                                    addDebugLog('info', `Modules: OCR=${!!window.OCREngine?.isReady}, Parser=${!!window.LabParser?.isReady}, CDSS=${!!window.CDSS?.isReady}`);
+                                }}>🧪 Check Modules</button>
                             </div>
                             <div style={{ fontSize: 11, color: '#64748b', background: '#f0f9ff', padding: 10, borderRadius: 8 }}>
-                                💡 <strong>Learning:</strong> Edit any value manually and the system learns the correction for next time.
+                                💡 <strong>Modules:</strong> OCR Engine (Vision API), Lab Parser (value extraction), CDSS (clinical interpretations)
                             </div>
                             <div className="debug-panel" style={{ minHeight: 200, maxHeight: 400, overflow: 'auto' }}>
                                 {debugLogs.length === 0 ? (
