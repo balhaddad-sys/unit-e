@@ -698,132 +698,198 @@ const parseVisionToNeuralInput = (rawText) => {
     const text = String(rawText || "");
     const lines = text.split(/\r?\n/).map(l => l.trim()).filter(l => l.length > 2);
     
-    console.log('[Parser] Processing', lines.length, 'lines');
+    console.log('[Parser] Input lines:', lines.length);
     
-    // Words that indicate metadata - skip lines containing these
-    const SKIP_WORDS = ['age','sex','gender','pid','page','date','time','collected','reported',
-        'registered','sample','specimen','patient','name','mrn','hospital','lab','report',
-        'doctor','technician','pathologist','phone','email','address','investigation','result',
-        'reference value','unit','thanks','end of report','advice','guideline','copyright',
-        'drlogy','pathology','modified','jaffe','kinetic','urease','uricase','arsenazo',
-        'molybdate','biuret','bcg','indirect ise','ifcc','primary sample','serum'];
-    
-    // Map of test name patterns to standard keys
-    const TEST_MAP = {
-        'urea': 'UREA', 'blood urea': 'UREA', 'bun': 'UREA',
-        'creatinine': 'CR', 'creat': 'CR', 'serum creatinine': 'CR',
-        'uric acid': 'URIC', 'uric': 'URIC',
-        'sodium': 'NA', 'na+': 'NA', 'na': 'NA',
-        'potassium': 'K', 'k+': 'K',
-        'chloride': 'CL', 'cl': 'CL',
-        'calcium': 'CA', 'calcium total': 'CA', 'total calcium': 'CA', 'ca': 'CA',
-        'phosphorus': 'PHOS', 'phosphate': 'PHOS', 'phos': 'PHOS', 'po4': 'PHOS',
-        'magnesium': 'MG', 'mg': 'MG',
-        'albumin': 'ALB', 'alb': 'ALB',
-        'total protein': 'TP', 'protein': 'TP', 'tp': 'TP',
-        'alkaline phosphatase': 'ALP', 'alp': 'ALP', 'alk phos': 'ALP',
-        'alt': 'ALT', 'sgpt': 'ALT',
-        'ast': 'AST', 'sgot': 'AST',
-        'bilirubin': 'TBIL', 'total bilirubin': 'TBIL', 'tbil': 'TBIL',
-        'ggt': 'GGT', 'gamma gt': 'GGT',
-        'wbc': 'WBC', 'white blood': 'WBC', 'leukocyte': 'WBC',
-        'rbc': 'RBC', 'red blood': 'RBC', 'erythrocyte': 'RBC',
-        'hemoglobin': 'HB', 'hb': 'HB', 'hgb': 'HB', 'haemoglobin': 'HB',
-        'hematocrit': 'HCT', 'hct': 'HCT', 'pcv': 'HCT',
-        'platelet': 'PLT', 'plt': 'PLT', 'platelets': 'PLT',
-        'mcv': 'MCV', 'mch': 'MCH', 'mchc': 'MCHC', 'rdw': 'RDW', 'mpv': 'MPV',
-        'glucose': 'GLUCOSE', 'glu': 'GLUCOSE', 'sugar': 'GLUCOSE', 'fbs': 'GLUCOSE', 'rbs': 'GLUCOSE', 'blood sugar': 'GLUCOSE',
-        'troponin': 'TROP', 'trop': 'TROP', 'tni': 'TROP',
-        'pt': 'PT', 'prothrombin': 'PT',
-        'inr': 'INR',
-        'ptt': 'PTT', 'aptt': 'PTT',
+    // Comprehensive test name mappings (lowercase keys)
+    const TEST_MAPPINGS = {
+        // CBC
+        'wbc': 'WBC', 'white blood cell': 'WBC', 'white blood cells': 'WBC', 'leukocyte': 'WBC', 'leucocyte': 'WBC', 'w.b.c': 'WBC',
+        'rbc': 'RBC', 'red blood cell': 'RBC', 'red blood cells': 'RBC', 'erythrocyte': 'RBC', 'r.b.c': 'RBC',
+        'hemoglobin': 'HB', 'haemoglobin': 'HB', 'hb': 'HB', 'hgb': 'HB',
+        'hematocrit': 'HCT', 'haematocrit': 'HCT', 'hct': 'HCT', 'pcv': 'HCT', 'packed cell volume': 'HCT',
+        'mcv': 'MCV', 'mean cell volume': 'MCV', 'mean corpuscular volume': 'MCV',
+        'mch': 'MCH', 'mean cell hemoglobin': 'MCH', 'mean corpuscular hemoglobin': 'MCH',
+        'mchc': 'MCHC', 'mean cell hb conc': 'MCHC',
+        'rdw': 'RDW', 'rdw-cv': 'RDW', 'red cell distribution': 'RDW',
+        'platelet': 'PLT', 'platelets': 'PLT', 'plt': 'PLT', 'thrombocyte': 'PLT', 'platelet count': 'PLT',
+        'mpv': 'MPV', 'mean platelet volume': 'MPV',
+        
+        // Chemistry / KFT
+        'sodium': 'NA', 'na': 'NA', 'na+': 'NA', 'serum sodium': 'NA',
+        'potassium': 'K', 'k': 'K', 'k+': 'K', 'serum potassium': 'K',
+        'chloride': 'CL', 'cl': 'CL', 'cl-': 'CL',
+        'co2': 'CO2', 'tco2': 'CO2', 'bicarbonate': 'HCO3', 'hco3': 'HCO3',
+        'urea': 'UREA', 'blood urea': 'UREA', 'bun': 'UREA', 'blood urea nitrogen': 'UREA',
+        'creatinine': 'CR', 'creat': 'CR', 'serum creatinine': 'CR', 'cr': 'CR', 'crea': 'CR',
+        'uric acid': 'URIC', 'uric': 'URIC', 'serum uric acid': 'URIC',
+        'glucose': 'GLUCOSE', 'blood sugar': 'GLUCOSE', 'sugar': 'GLUCOSE', 'glu': 'GLUCOSE', 'fbs': 'GLUCOSE', 'rbs': 'GLUCOSE', 'blood glucose': 'GLUCOSE',
+        'calcium': 'CA', 'ca': 'CA', 'total calcium': 'CA', 'calcium total': 'CA', 'serum calcium': 'CA',
+        'magnesium': 'MG', 'mg': 'MG', 'serum magnesium': 'MG',
+        'phosphorus': 'PHOS', 'phosphate': 'PHOS', 'phos': 'PHOS', 'po4': 'PHOS', 'inorganic phosphorus': 'PHOS',
+        
+        // LFT
+        'alt': 'ALT', 'sgpt': 'ALT', 'alanine aminotransferase': 'ALT', 'alanine transaminase': 'ALT',
+        'ast': 'AST', 'sgot': 'AST', 'aspartate aminotransferase': 'AST', 'aspartate transaminase': 'AST',
+        'alp': 'ALP', 'alkaline phosphatase': 'ALP', 'alk phos': 'ALP', 'alk. phosphatase': 'ALP',
+        'ggt': 'GGT', 'gamma gt': 'GGT', 'gamma-gt': 'GGT', 'gamma glutamyl': 'GGT',
+        'bilirubin': 'TBIL', 'total bilirubin': 'TBIL', 'tbil': 'TBIL', 't. bilirubin': 'TBIL', 't.bil': 'TBIL', 'serum bilirubin': 'TBIL',
+        'direct bilirubin': 'DBIL', 'd. bilirubin': 'DBIL', 'dbil': 'DBIL', 'd.bil': 'DBIL',
+        'albumin': 'ALB', 'alb': 'ALB', 'serum albumin': 'ALB',
+        'total protein': 'TP', 'protein': 'TP', 'tp': 'TP', 'serum protein': 'TP',
+        'globulin': 'GLOB',
+        
+        // Coagulation
+        'pt': 'PT', 'prothrombin time': 'PT', 'prothrombin': 'PT',
+        'inr': 'INR', 'international normalized ratio': 'INR',
+        'ptt': 'PTT', 'aptt': 'PTT', 'activated ptt': 'PTT', 'partial thromboplastin': 'PTT',
+        
+        // ABG
         'ph': 'PH', 'blood ph': 'PH',
         'pco2': 'PCO2', 'paco2': 'PCO2',
         'po2': 'PO2', 'pao2': 'PO2',
-        'hco3': 'HCO3', 'bicarbonate': 'HCO3',
-        'lactate': 'LAC', 'lactic': 'LAC',
-        'tsh': 'TSH', 't3': 'T3', 't4': 'T4', 'ft3': 'T3', 'ft4': 'T4',
-        'crp': 'CRP', 'c reactive': 'CRP',
-        'esr': 'ESR', 'sed rate': 'ESR'
+        'lactate': 'LAC', 'lactic acid': 'LAC', 'lactic': 'LAC',
+        
+        // Cardiac
+        'troponin': 'TROP', 'trop': 'TROP', 'tni': 'TROP', 'tnt': 'TROP', 'hs-trop': 'TROP', 'troponin i': 'TROP', 'troponin t': 'TROP',
+        'bnp': 'BNP', 'nt-probnp': 'BNP', 'pro-bnp': 'BNP',
+        'ck': 'CK', 'cpk': 'CK', 'creatine kinase': 'CK',
+        'ckmb': 'CKMB', 'ck-mb': 'CKMB',
+        
+        // Thyroid
+        'tsh': 'TSH', 'thyroid stimulating': 'TSH',
+        't3': 'T3', 'ft3': 'T3', 'free t3': 'T3',
+        't4': 'T4', 'ft4': 'T4', 'free t4': 'T4', 'thyroxine': 'T4',
+        
+        // Inflammatory
+        'crp': 'CRP', 'c-reactive protein': 'CRP', 'c reactive protein': 'CRP',
+        'esr': 'ESR', 'sed rate': 'ESR', 'sedimentation rate': 'ESR',
+        'procalcitonin': 'PCT', 'pct': 'PCT'
     };
     
-    const shouldSkip = (line) => {
-        const lower = line.toLowerCase();
-        return SKIP_WORDS.some(w => lower.includes(w));
-    };
+    // Words to skip (metadata, headers, units)
+    const SKIP_PATTERNS = /^(age|sex|gender|patient|name|mrn|id|date|time|page|ref|collected|reported|sample|specimen|hospital|lab|report|doctor|technician|result|value|unit|investigation|normal|range|method|thanks|copyright|generated|drlogy|pathology|primary|serum|plasma|blood|urine|csf|male|female|years?|old|collection|mmol|mg|dl|fl|pg|ul|ml|cells|mm3|10\^|iu|umol|nmol|pmol)/i;
     
+    // Find test name in mappings
     const findTest = (name) => {
-        const lower = name.toLowerCase().trim();
+        const normalized = name.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, '')
+            .replace(/\s+/g, ' ')
+            .trim();
+        
         // Direct match
-        if (TEST_MAP[lower]) return TEST_MAP[lower];
-        // Remove parentheses content and try again
-        const noParens = lower.replace(/\s*\([^)]*\)/g, '').trim();
-        if (TEST_MAP[noParens]) return TEST_MAP[noParens];
-        // Try first word
-        const firstWord = lower.split(/[\s,]+/)[0];
-        if (TEST_MAP[firstWord]) return TEST_MAP[firstWord];
+        if (TEST_MAPPINGS[normalized]) return TEST_MAPPINGS[normalized];
+        
+        // Try without trailing numbers/spaces
+        const cleaned = normalized.replace(/\s*\d+$/, '').trim();
+        if (TEST_MAPPINGS[cleaned]) return TEST_MAPPINGS[cleaned];
+        
+        // Try each word
+        const words = normalized.split(' ');
+        for (const word of words) {
+            if (word.length >= 2 && TEST_MAPPINGS[word]) return TEST_MAPPINGS[word];
+        }
+        
+        // Try first two words combined
+        if (words.length >= 2) {
+            const twoWords = words.slice(0, 2).join(' ');
+            if (TEST_MAPPINGS[twoWords]) return TEST_MAPPINGS[twoWords];
+        }
+        
         // Partial match
-        for (const [pattern, mapped] of Object.entries(TEST_MAP)) {
-            if (lower.includes(pattern) || pattern.includes(lower)) {
+        for (const [pattern, mapped] of Object.entries(TEST_MAPPINGS)) {
+            if (pattern.length >= 3 && (normalized.includes(pattern) || pattern.includes(normalized))) {
                 return mapped;
             }
         }
+        
         return null;
     };
     
-    for (const line of lines) {
-        if (shouldSkip(line)) continue;
-        if (/^\d{1,2}[:\-\/]\d{1,2}/.test(line)) continue;
+    // Process each line with multiple patterns
+    for (let i = 0; i < lines.length; i++) {
+        const line = lines[i];
         
-        // Try multiple patterns
+        // Skip metadata lines
+        if (SKIP_PATTERNS.test(line)) continue;
+        if (/^\d{1,2}[\-\/\.]\d{1,2}[\-\/\.]\d{2,4}/.test(line)) continue; // Date
+        if (line.length < 3 || line.length > 80) continue;
+        
+        // Multiple regex patterns to catch different formats
         const patterns = [
-            // Table: "Sodium    139"
-            /^([A-Za-z][A-Za-z\s\(\),\-\.]{1,35}?)\s{2,}(\d+\.?\d*)/,
-            // Colon: "Sodium: 139"
-            /^([A-Za-z][A-Za-z\s\(\),\-\.]{1,30}?)\s*[:\=]\s*(\d+\.?\d*)/,
+            // Standard table: "Sodium    139    136-145"
+            /^([A-Za-z][A-Za-z\s\.\-\(\),]{1,40}?)\s{2,}(\d+\.?\d*)\s*/,
+            // With colon: "Sodium: 139"
+            /^([A-Za-z][A-Za-z\s\.\-\(\),]{1,35}?)\s*:\s*(\d+\.?\d*)/,
             // Simple: "Na 139"
-            /^([A-Za-z][A-Za-z0-9\+\-]{1,12})\s+(\d+\.?\d*)$/,
-            // With flag: "Sodium  139  High"
-            /^([A-Za-z][A-Za-z\s\(\),\-\.]{1,30}?)\s+(\d+\.?\d*)\s+(High|Low|Normal|H|L|N)?/i
+            /^([A-Za-z][A-Za-z0-9\.\-]{1,15})\s+(\d+\.?\d*)\s*$/,
+            // Value first (some reports): "139 Sodium"
+            /^(\d+\.?\d*)\s+([A-Za-z][A-Za-z\s]{2,20})$/,
+            // Equals: "Sodium = 139"
+            /^([A-Za-z][A-Za-z\s\.\-]{1,30}?)\s*=\s*(\d+\.?\d*)/,
+            // Tab separated
+            /^([A-Za-z][A-Za-z\s\.\-\(\)]{1,35})\t+(\d+\.?\d*)/
         ];
         
-        for (const re of patterns) {
-            const match = line.match(re);
+        for (const regex of patterns) {
+            const match = line.match(regex);
             if (match) {
-                const testName = match[1].trim();
-                const value = match[2];
-                const mapped = findTest(testName);
+                let testName, value;
+                // Handle value-first pattern
+                if (/^\d/.test(match[1])) {
+                    value = match[1];
+                    testName = match[2];
+                } else {
+                    testName = match[1];
+                    value = match[2];
+                }
                 
+                testName = testName.trim();
+                value = value.trim();
+                
+                // Skip if test name is just numbers or too short
+                if (/^\d+$/.test(testName) || testName.length < 2) continue;
+                
+                const mapped = findTest(testName);
                 if (mapped && !seen.has(mapped)) {
                     seen.add(mapped);
-                    items.push({ test: mapped, value: value, originalName: testName });
-                    console.log(`[Parser] ✓ ${testName} → ${mapped} = ${value}`);
-                    break;
+                    const numVal = parseFloat(value);
+                    if (!isNaN(numVal) && numVal >= 0 && numVal < 100000) {
+                        items.push({ test: mapped, value: value, originalName: testName });
+                        console.log(`[Parser] ✓ "${testName}" → ${mapped} = ${value}`);
+                    }
                 }
+                break; // Found a match, move to next line
             }
         }
     }
     
-    // Aggressive fallback: scan entire text for known patterns
+    // Aggressive fallback: scan full text for known patterns
     if (items.length < 3) {
-        console.log('[Parser] Fallback: scanning full text...');
-        for (const [pattern, mapped] of Object.entries(TEST_MAP)) {
+        console.log('[Parser] Few items found, running fallback scan...');
+        const fullText = text.toLowerCase();
+        
+        for (const [pattern, mapped] of Object.entries(TEST_MAPPINGS)) {
             if (seen.has(mapped)) continue;
-            // Look for pattern followed by number
-            const re = new RegExp(pattern.replace(/[+]/g, '\\+') + '[\\s:=]+([\\d.]+)', 'gi');
-            const m = text.match(re);
-            if (m) {
-                const numMatch = m[0].match(/[\d.]+$/);
-                if (numMatch) {
+            if (pattern.length < 2) continue;
+            
+            // Create regex to find test name followed by number
+            const escaped = pattern.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const regex = new RegExp(escaped + '[:\\s]+([\\d\\.]+)', 'i');
+            const match = text.match(regex);
+            
+            if (match) {
+                const value = match[1];
+                const numVal = parseFloat(value);
+                if (!isNaN(numVal) && numVal >= 0 && numVal < 100000) {
                     seen.add(mapped);
-                    items.push({ test: mapped, value: numMatch[0] });
-                    console.log(`[Parser] ✓ Fallback: ${pattern} → ${mapped} = ${numMatch[0]}`);
+                    items.push({ test: mapped, value: value, originalName: pattern });
+                    console.log(`[Parser] ✓ Fallback: "${pattern}" → ${mapped} = ${value}`);
                 }
             }
         }
     }
     
-    console.log(`[Parser] Total: ${items.length} values extracted`);
+    console.log(`[Parser] Total extracted: ${items.length} values`);
     return items;
 };
 
@@ -986,7 +1052,7 @@ const parseLabsFromTextFallback = (text) => {
 
 const redactPHI = (text) => String(text || "").replace(/\b\d{3}-\d{2}-\d{4}\b/g, "███-██-████");
 
-const compressImage = (file, maxWidth = 1400) => {
+const compressImage = (file, maxWidth = 1600) => {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -994,10 +1060,28 @@ const compressImage = (file, maxWidth = 1400) => {
             img.onload = () => {
                 const canvas = document.createElement('canvas');
                 let width = img.width, height = img.height;
-                if (width > maxWidth) { height = (height * maxWidth) / width; width = maxWidth; }
-                canvas.width = width; canvas.height = height;
-                canvas.getContext('2d').drawImage(img, 0, 0, width, height);
-                resolve(canvas.toDataURL('image/jpeg', 0.85));
+                
+                // Scale down if needed but preserve quality
+                if (width > maxWidth) { 
+                    height = Math.round((height * maxWidth) / width); 
+                    width = maxWidth; 
+                }
+                
+                canvas.width = width; 
+                canvas.height = height;
+                
+                const ctx = canvas.getContext('2d', { alpha: false });
+                // White background for consistency
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, width, height);
+                // Use better interpolation
+                ctx.imageSmoothingEnabled = true;
+                ctx.imageSmoothingQuality = 'high';
+                ctx.drawImage(img, 0, 0, width, height);
+                
+                // Use PNG for better text clarity, JPEG for file size
+                // PNG is better for OCR but larger
+                resolve(canvas.toDataURL('image/jpeg', 0.92));
             };
             img.onerror = () => reject(new Error("Failed to load image"));
             img.src = e.target.result;
@@ -1036,16 +1120,29 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [ocrProgress, setOcrProgress] = useState(0);
     const [ocrStage, setOcrStage] = useState("");
     const [ocrError, setOcrError] = useState(null);
-    const [ocrEngine] = useState("vision"); // Always use Vision API
     const [detectedLabType, setDetectedLabType] = useState(null);
     const [debugLogs, setDebugLogs] = useState([]);
-    const [showInterpretation, setShowInterpretation] = useState({});  // {labId: reportData}
+    const [showInterpretation, setShowInterpretation] = useState({});
+    const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
+    
+    // Sync with patient data ONLY on initial load, not during editing
+    useEffect(() => {
+        if (!hasUnsavedChanges && patient.labImages) {
+            setLabImages(patient.labImages);
+        }
+    }, [patient.id]); // Only when patient ID changes, not on every patient update
     
     const addDebugLog = (type, msg) => {
         setDebugLogs(prev => [...prev.slice(-50), { type, msg, time: new Date().toLocaleTimeString() }]);
         console.log(`[DEBUG ${type}]`, msg);
+    };
+    
+    // Mark changes when labs are modified
+    const updateLabImages = (updater) => {
+        setHasUnsavedChanges(true);
+        setLabImages(updater);
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -1156,7 +1253,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 ? processedValues.reduce((sum, v) => sum + (v.confidence || 0), 0) / processedValues.length
                 : result.confidence;
 
-            setLabImages(prev => prev.map(x => x.id === imgObj.id ? {
+            updateLabImages(prev => prev.map(x => x.id === imgObj.id ? {
                 ...x,
                 labType: labType,
                 ocr: {
@@ -1198,7 +1295,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 note: "",
                 ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null, labType: null }
             };
-            setLabImages(prev => [newImage, ...prev]);
+            updateLabImages(prev => [newImage, ...prev]);
             setUploading(false);
             setTimeout(() => runOcrOnImage(newImage), 300);
         } catch (err) {
@@ -1210,11 +1307,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
     const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
-    const updateNote = (id, note) => setLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
-    const deleteImage = (id) => { if (confirm("Delete this lab?")) setLabImages(prev => prev.filter(img => img.id !== id)); };
+    const updateNote = (id, note) => updateLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
+    const deleteImage = (id) => { if (confirm("Delete this lab?")) updateLabImages(prev => prev.filter(img => img.id !== id)); };
 
     const updateOcrValue = (imgId, test, field, newVal) => {
-        setLabImages(prev => prev.map(img => {
+        updateLabImages(prev => prev.map(img => {
             if (img.id !== imgId) return img;
             const vals = (img.ocr?.values || []).map(v => {
                 if (v.test !== test) return v;
@@ -1246,7 +1343,8 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const handleSave = () => { 
         console.log('[LabModal] Saving labs for patient:', patient.id, patient.name);
         console.log('[LabModal] Lab images:', labImages.length);
-        onSave(patient.id, labImages); 
+        onSave(patient.id, labImages);
+        setHasUnsavedChanges(false);
         onClose(); 
     };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
@@ -1566,34 +1664,60 @@ const App = () => {
 
     const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
     const saveLabImages = (patientId, labImages) => {
-        console.log('[Save] Saving', labImages.length, 'images for patient', patientId);
-        // Clean up labImages before saving (remove functions, circular refs)
-        const cleanImages = labImages.map(img => ({
-            id: img.id,
-            image: img.image,
-            timestamp: img.timestamp,
-            note: img.note || '',
-            labType: img.labType || img.ocr?.labType || 'AUTO',
-            ocr: img.ocr ? {
-                text: img.ocr.text || '',
-                values: (img.ocr.values || []).map(v => ({
-                    test: v.test,
-                    value: v.value,
-                    unit: v.unit || '',
-                    flag: v.flag || 'N',
-                    refLow: v.refLow,
-                    refHigh: v.refHigh,
-                    category: v.category
-                })),
-                confidence: img.ocr.confidence || 0,
-                avgValueConfidence: img.ocr.avgValueConfidence || 0,
-                source: img.ocr.source || '',
-                labType: img.ocr.labType || 'AUTO'
-            } : null
-        }));
+        console.log('[Save] ═══════════════════════════════════════');
+        console.log('[Save] Patient ID:', patientId);
+        console.log('[Save] Total images:', labImages.length);
+        
+        if (!patientId) {
+            console.error('[Save] ERROR: No patient ID!');
+            showToast("❌ Save failed: No patient ID");
+            return Promise.reject(new Error('No patient ID'));
+        }
+        
+        // Clean up labImages before saving
+        const cleanImages = labImages.map((img, idx) => {
+            const clean = {
+                id: img.id || Date.now().toString() + idx,
+                image: img.image,
+                timestamp: img.timestamp || Date.now(),
+                note: img.note || '',
+                labType: img.labType || img.ocr?.labType || 'AUTO',
+                ocr: img.ocr ? {
+                    text: (img.ocr.text || '').substring(0, 5000), // Limit text size
+                    values: (img.ocr.values || []).slice(0, 50).map(v => ({
+                        test: v.test,
+                        value: v.value,
+                        unit: v.unit || '',
+                        flag: v.flag || 'N',
+                        refLow: v.refLow,
+                        refHigh: v.refHigh,
+                        category: v.category,
+                        confidence: v.confidence
+                    })),
+                    confidence: img.ocr.confidence || 0,
+                    avgValueConfidence: img.ocr.avgValueConfidence || 0,
+                    source: img.ocr.source || 'unknown',
+                    labType: img.ocr.labType || 'AUTO'
+                } : null
+            };
+            console.log(`[Save] Image ${idx + 1}: ${clean.ocr?.values?.length || 0} values`);
+            return clean;
+        });
+        
+        console.log('[Save] Cleaned images ready, writing to Firebase...');
+        
         return db.ref(`patients/${patientId}/labImages`).set(cleanImages)
-            .then(() => { console.log('[Save] Success!'); showToast("✓ Labs saved"); scheduleSync(); })
-            .catch(e => { console.error('[Save] Error:', e); showToast("❌ Save failed: " + e.message); });
+            .then(() => { 
+                console.log('[Save] ✓ SUCCESS - Labs saved to Firebase'); 
+                showToast("✓ Labs saved"); 
+                // Don't schedule sync immediately to avoid race conditions
+                setTimeout(scheduleSync, 1000);
+            })
+            .catch(e => { 
+                console.error('[Save] ✗ FAILED:', e); 
+                showToast("❌ Save failed: " + e.message);
+                throw e;
+            });
     };
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
     const update = useCallback((id, field, value) => { const p = patients.find(x => x.id === id); if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; } if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; } db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync); }, [patients, scheduleSync]);
