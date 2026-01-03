@@ -905,31 +905,33 @@ const getOcrWorker = async (loggerFn) => {
     } catch (err) { throw err; }
 };
 
-// ============ GOOGLE VISION API ============
+// ============ GOOGLE VISION API (FAST) ============
 const callVisionAPI = async (dataUrl, options = {}, setProgress, setStage, debugLog) => {
-    debugLog && debugLog('info', 'Starting Vision API call...');
-    setStage && setStage("Preprocessing...");
-    setProgress && setProgress(5);
-    const pre = await preprocessForOCR(dataUrl, options);
-    setStage && setStage("Connecting to Google Vision API...");
-    setProgress && setProgress(15);
-    let imageData = pre.processed;
+    debugLog && debugLog('info', 'Starting Vision API...');
+    setStage && setStage("Analyzing image...");
+    setProgress && setProgress(20);
+    
+    // Extract base64 directly - minimal preprocessing for speed
+    let imageData = dataUrl;
     if (imageData.includes(',')) imageData = imageData.split(',')[1];
+    
     try {
+        setProgress && setProgress(30);
         const response = await fetch(VISION_API_PROXY_URL, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({ action: 'ocr', image: imageData, mode: 'DOCUMENT_TEXT_DETECTION' }),
             redirect: 'follow'
         });
-        setProgress && setProgress(70);
+        setProgress && setProgress(80);
         const responseText = await response.text();
         if (!response.ok) throw new Error(`Vision API HTTP ${response.status}`);
         let result;
         try { result = JSON.parse(responseText); } catch { throw new Error(`Failed to parse response`); }
         if (result.error) throw new Error(result.error);
         setProgress && setProgress(95);
-        return { text: result.text || "", confidence: result.confidence || 85, lines: result.lines || [], source: 'google_vision', cropUsed: pre.cropUsed };
+        debugLog && debugLog('success', `Vision API returned ${result.text?.length || 0} chars`);
+        return { text: result.text || "", confidence: result.confidence || 85, lines: result.lines || [], source: 'google_vision' };
     } catch (err) {
         debugLog && debugLog('error', `Vision API failed: ${err.message}`);
         throw err;
@@ -958,18 +960,9 @@ const runTesseractOCR = async (dataUrl, options = {}, setProgress, setStage, deb
     }
 };
 
-// ============ HYBRID OCR ============
+// ============ SIMPLIFIED OCR (Vision only) ============
 const runHybridOCR = async (dataUrl, options = {}, setProgress, setStage, ocrEngine = 'vision', debugLog) => {
-    if (ocrEngine === 'tesseract') return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
-    if (ocrEngine === 'vision') return await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
-    // Hybrid: Try Vision first
-    try {
-        const visionResult = await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
-        if (visionResult.text.length > 50) return visionResult;
-        return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
-    } catch {
-        return await runTesseractOCR(dataUrl, options, setProgress, setStage, debugLog);
-    }
+    return await callVisionAPI(dataUrl, options, setProgress, setStage, debugLog);
 };
 
 // ============ FALLBACK PARSER ============
@@ -1043,7 +1036,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [ocrProgress, setOcrProgress] = useState(0);
     const [ocrStage, setOcrStage] = useState("");
     const [ocrError, setOcrError] = useState(null);
-    const [ocrEngine, setOcrEngine] = useState("vision");
+    const [ocrEngine] = useState("vision"); // Always use Vision API
     const [detectedLabType, setDetectedLabType] = useState(null);
     const [debugLogs, setDebugLogs] = useState([]);
     const [showInterpretation, setShowInterpretation] = useState({});  // {labId: reportData}
@@ -1273,9 +1266,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     </div>
 
                     <div className="ocr-engine-toggle">
-                        <button className={`engine-btn vision ${ocrEngine === 'vision' ? 'active' : ''}`} onClick={() => setOcrEngine('vision')}>🌐 Vision</button>
-                        <button className={`engine-btn hybrid ${ocrEngine === 'hybrid' ? 'active' : ''}`} onClick={() => setOcrEngine('hybrid')}>⚡ Hybrid</button>
-                        <button className={`engine-btn tesseract ${ocrEngine === 'tesseract' ? 'active' : ''}`} onClick={() => setOcrEngine('tesseract')}>📱 Tesseract</button>
+
                     </div>
 
                     {tab === "Debug" && (
@@ -1322,7 +1313,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                             </div>
 
                             <div className={`add-lab-area ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
-                                {uploading ? (<><div className="add-lab-icon">⏳</div><div className="add-lab-text">Processing...</div></>) : (<><div className="add-lab-icon">📷</div><div className="add-lab-text">Add Lab Image</div><div className="add-lab-hint">{ocrEngine === 'vision' ? '🌐 Google Vision' : ocrEngine === 'hybrid' ? '⚡ Hybrid' : '📱 Tesseract'}</div></>)}
+                                {uploading ? (<><div className="add-lab-icon">⏳</div><div className="add-lab-text">Processing...</div></>) : (<><div className="add-lab-icon">📷</div><div className="add-lab-text">Add Lab Image</div><div className="add-lab-hint">Tap to scan</div></>)}
                             </div>
                             <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
                                 <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
@@ -1333,7 +1324,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                             {ocrError && <div className="ocr-error">⚠ {ocrError}</div>}
                             {ocrBusyId && (
-                                <div className={`ocr-progress ${ocrEngine === 'vision' ? 'vision' : ''}`}>
+                                <div className="ocr-progress vision">
                                     <div className="ocr-progress-bar"><div className="ocr-progress-fill" style={{ width: `${ocrProgress}%` }}></div></div>
                                     <div className="ocr-progress-text"><span>🔎 {ocrStage}</span><span>{ocrProgress}%</span></div>
                                 </div>
