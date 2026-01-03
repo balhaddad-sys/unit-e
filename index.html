@@ -1113,6 +1113,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 addDebugLog
             );
 
+            addDebugLog('info', `OCR returned ${result.text?.length || 0} chars, confidence: ${result.confidence}%`);
+            console.log('[OCR RAW TEXT]:', result.text?.substring(0, 500));
+
             let processedValues = [];
             let labType = 'AUTO';
             
@@ -1120,12 +1123,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
             if (window.LabOCR && window.LabOCR.isReady) {
                 addDebugLog('info', 'Processing with Neural v5 (auto-detect)...');
                 const rawNeuralInput = parseVisionToNeuralInput(result.text);
-                addDebugLog('info', `Parsed ${rawNeuralInput.length} items from raw text`);
+                addDebugLog('info', `Parsed ${rawNeuralInput.length} items: ${rawNeuralInput.map(i => i.test + '=' + i.value).join(', ')}`);
+                console.log('[PARSER OUTPUT]:', rawNeuralInput);
+                
+                if (rawNeuralInput.length === 0) {
+                    addDebugLog('warn', 'Parser found 0 values! Check raw text format.');
+                }
                 
                 const { results: neuralResults, labType: detected } = window.LabOCR.process(rawNeuralInput);
                 labType = detected;
                 setDetectedLabType(detected);
-                addDebugLog('success', `Auto-detected: ${detected} panel`);
+                addDebugLog('success', `Auto-detected: ${detected} panel, ${neuralResults.length} processed values`);
+                console.log('[NEURAL OUTPUT]:', neuralResults);
                 
                 processedValues = neuralResults.map(item => ({
                     test: item.test,
@@ -1144,7 +1153,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     category: item.category
                 }));
                 
-                addDebugLog('success', `Processed ${processedValues.length} values`);
+                addDebugLog('success', `Final: ${processedValues.length} values ready for display`);
             } else {
                 addDebugLog('warn', 'Neural v5 offline. Using fallback.');
                 processedValues = parseLabsFromTextFallback(result.text);
@@ -1167,6 +1176,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     labType: labType
                 }
             } : x));
+
+            if (processedValues.length === 0) {
+                setOcrError("No lab values detected. Try different image or check Debug tab.");
+            }
 
         } catch (e) {
             console.error("OCR ERROR:", e);
