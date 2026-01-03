@@ -13,6 +13,8 @@
     <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
     <!-- Neural OCR v5 - Auto-Detect -->
     <script src="ocr-neural-v5.js"></script>
+    <!-- Clinical Decision Support System -->
+    <script src="cdss-module.js"></script>
     <style>
         :root {
             --green: #15803d;
@@ -1048,12 +1050,63 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [ocrEngine, setOcrEngine] = useState("vision");
     const [detectedLabType, setDetectedLabType] = useState(null);
     const [debugLogs, setDebugLogs] = useState([]);
+    const [clinicalReport, setClinicalReport] = useState(null);
+    const [showClinicalReport, setShowClinicalReport] = useState(false);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
     
     const addDebugLog = (type, msg) => {
         setDebugLogs(prev => [...prev.slice(-50), { type, msg, time: new Date().toLocaleTimeString() }]);
         console.log(`[DEBUG ${type}]`, msg);
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // CLINICAL DECISION SUPPORT SYSTEM - Report Generation
+    // ═══════════════════════════════════════════════════════════════════════
+    const generateClinicalReport = () => {
+        if (!window.CDSS) {
+            alert('Clinical Decision Support System not loaded');
+            return;
+        }
+
+        // Collect all lab values from all images
+        const allLabValues = [];
+        for (const img of labImages) {
+            if (img.ocr?.values) {
+                for (const v of img.ocr.values) {
+                    if (v.value && v.test) {
+                        allLabValues.push({
+                            test: v.test,
+                            value: v.value,
+                            unit: v.unit || '',
+                            refLow: v.refLow,
+                            refHigh: v.refHigh
+                        });
+                    }
+                }
+            }
+        }
+
+        if (allLabValues.length === 0) {
+            alert('No lab values available. Please scan lab images first.');
+            return;
+        }
+
+        addDebugLog('info', `Generating clinical report for ${allLabValues.length} values`);
+
+        try {
+            const result = window.CDSS.generateReport(allLabValues, {
+                name: patient.name || 'Unknown',
+                mrn: patient.mrn || ''
+            });
+
+            setClinicalReport(result);
+            setShowClinicalReport(true);
+            addDebugLog('success', `Clinical report generated: ${result.summary.critical} critical, ${result.summary.abnormal} abnormal`);
+        } catch (e) {
+            addDebugLog('error', `CDSS Error: ${e.message}`);
+            alert('Failed to generate clinical report: ' + e.message);
+        }
     };
 
     const runOcrOnImage = async (imgObj) => {
@@ -1210,6 +1263,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="modal-body">
                     <div className="tabs">
                         <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
+                        <button className={`tab ${tab === "Clinical" ? "active" : ""}`} onClick={() => setTab("Clinical")}>🏥 Clinical</button>
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
                     </div>
@@ -1344,6 +1398,119 @@ const LabModal = ({ patient, onClose, onSave }) => {
                             })}
                         </div>
                     ))}
+
+                    {tab === "Clinical" && (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                            {/* CDSS Header */}
+                            <div style={{ background: 'linear-gradient(135deg, #0ea5e9 0%, #6366f1 100%)', padding: 16, borderRadius: 12, color: 'white' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+                                    <span style={{ fontSize: 24 }}>🏥</span>
+                                    <div>
+                                        <div style={{ fontWeight: 800, fontSize: 16 }}>Clinical Decision Support System</div>
+                                        <div style={{ fontSize: 11, opacity: 0.9 }}>PRELIMINARY REPORT GENERATOR</div>
+                                    </div>
+                                </div>
+                                <div style={{ fontSize: 11, background: 'rgba(255,255,255,0.2)', padding: 8, borderRadius: 6 }}>
+                                    ⚠️ <strong>Disclaimer:</strong> All interpretations require clinical correlation by a qualified healthcare provider.
+                                </div>
+                            </div>
+
+                            {/* Generate Report Button */}
+                            <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap' }}>
+                                <button 
+                                    className="btn" 
+                                    style={{ background: '#0ea5e9', color: 'white', flex: 1 }}
+                                    onClick={generateClinicalReport}
+                                >
+                                    📊 Generate Clinical Report
+                                </button>
+                                {clinicalReport && (
+                                    <button 
+                                        className="btn btn-white" 
+                                        onClick={() => {
+                                            const blob = new Blob([clinicalReport.report], { type: 'text/markdown' });
+                                            const url = URL.createObjectURL(blob);
+                                            const a = document.createElement('a');
+                                            a.href = url;
+                                            a.download = `clinical-report-${patient.name || 'patient'}-${new Date().toISOString().split('T')[0]}.md`;
+                                            a.click();
+                                            URL.revokeObjectURL(url);
+                                        }}
+                                    >
+                                        💾 Export MD
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Summary Stats */}
+                            {clinicalReport && (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                                    <div style={{ background: '#fee2e2', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#dc2626' }}>{clinicalReport.summary.critical}</div>
+                                        <div style={{ fontSize: 10, color: '#991b1b', fontWeight: 700 }}>CRITICAL</div>
+                                    </div>
+                                    <div style={{ background: '#fef3c7', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#d97706' }}>{clinicalReport.summary.abnormal}</div>
+                                        <div style={{ fontSize: 10, color: '#92400e', fontWeight: 700 }}>ABNORMAL</div>
+                                    </div>
+                                    <div style={{ background: '#d1fae5', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#059669' }}>{clinicalReport.summary.normal}</div>
+                                        <div style={{ fontSize: 10, color: '#065f46', fontWeight: 700 }}>NORMAL</div>
+                                    </div>
+                                    <div style={{ background: '#e0e7ff', padding: 12, borderRadius: 8, textAlign: 'center' }}>
+                                        <div style={{ fontSize: 24, fontWeight: 800, color: '#4f46e5' }}>{clinicalReport.summary.total}</div>
+                                        <div style={{ fontSize: 10, color: '#3730a3', fontWeight: 700 }}>TOTAL</div>
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Clinical Patterns */}
+                            {clinicalReport?.patterns?.length > 0 && (
+                                <div style={{ background: '#fef3c7', border: '2px solid #f59e0b', borderRadius: 12, padding: 12 }}>
+                                    <div style={{ fontWeight: 800, color: '#92400e', marginBottom: 8 }}>⚡ Clinical Patterns Identified</div>
+                                    {clinicalReport.patterns.map((p, i) => (
+                                        <div key={i} style={{ background: 'white', padding: 10, borderRadius: 8, marginBottom: 8 }}>
+                                            <div style={{ fontWeight: 700, color: p.priority === 'CRITICAL' ? '#dc2626' : '#1e40af' }}>
+                                                {p.priority === 'CRITICAL' ? '🔴 ' : '🔵 '}{p.name}
+                                            </div>
+                                            <div style={{ fontSize: 12, color: '#475569', marginTop: 4 }}>{p.interpretation}</div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Full Report */}
+                            {clinicalReport && (
+                                <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 12, padding: 16, maxHeight: '400px', overflow: 'auto' }}>
+                                    <div style={{ fontWeight: 800, color: '#1e293b', marginBottom: 12, fontSize: 14 }}>📄 Full Report (Markdown)</div>
+                                    <pre style={{ 
+                                        whiteSpace: 'pre-wrap', 
+                                        wordBreak: 'break-word', 
+                                        fontSize: 11, 
+                                        fontFamily: 'ui-monospace, SFMono-Regular, monospace',
+                                        color: '#334155',
+                                        lineHeight: 1.6
+                                    }}>
+                                        {clinicalReport.report}
+                                    </pre>
+                                </div>
+                            )}
+
+                            {/* No Report Yet */}
+                            {!clinicalReport && (
+                                <div style={{ textAlign: 'center', padding: 40, color: '#94a3b8' }}>
+                                    <div style={{ fontSize: 48, marginBottom: 16 }}>📋</div>
+                                    <div style={{ fontWeight: 600 }}>No clinical report generated yet</div>
+                                    <div style={{ fontSize: 12, marginTop: 8 }}>Click "Generate Clinical Report" to analyze lab values</div>
+                                </div>
+                            )}
+
+                            {/* Reference Info */}
+                            <div style={{ fontSize: 10, color: '#94a3b8', textAlign: 'center', padding: 8, borderTop: '1px solid #e2e8f0' }}>
+                                References: Harrison's Principles of Internal Medicine • WHO Clinical Guidelines • UpToDate
+                            </div>
+                        </div>
+                    )}
 
                     {tab === "Images" && (labImages.length === 0 ? (
                         <div className="empty-labs"><div className="empty-labs-icon">🔬</div><div>No lab images yet.</div></div>
