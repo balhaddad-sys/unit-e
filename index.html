@@ -1835,7 +1835,38 @@ const App = () => {
     const update = useCallback((id, field, value) => { const p = patients.find(x => x.id === id); if (field === 'name' && isDup(p?.ward, value, id)) { showToast("⚠ Duplicate"); return; } if (field === 'ward' && isDup(value, p?.name, id)) { showToast("⚠ Duplicate"); return; } db.ref(`patients/${id}`).update({ [field]: field === 'bed' ? cleanBed(value) : value, timestamp: Date.now() }).then(scheduleSync); }, [patients, scheduleSync]);
     const del = (id) => confirm("Delete?") && db.ref(`patients/${id}`).remove().then(() => { showToast("✓ Deleted"); pingSheets(); });
     const saveNew = () => { const c = { ward: newP.ward || "Unassigned", bed: cleanBed(newP.bed), name: newP.name.trim(), diagnosis: newP.diagnosis, doctor: newP.doctor, status: newP.status || "New", plan: newP.plan, mrn: newP.mrn, timestamp: Date.now(), labData: [] }; if (!c.name) { alert("Enter name"); return; } if (isDup(c.ward, c.name)) { alert("Duplicate"); return; } db.ref("patients").push(c).then(() => { setAddModal(false); setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); showToast("✓ Added"); pingSheets(); }); };
-    const groups = useMemo(() => { const g = {}; (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter)).filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase())).forEach(p => { const w = p.ward || "Unassigned"; (g[w] = g[w] || []).push(p); }); return { g, keys: Object.keys(g).sort((a, b) => WARD_ORDER.indexOf(a) - WARD_ORDER.indexOf(b)) }; }, [patients, search, viewFilter]);
+   // MODIFIED: Handle custom wards in sorting
+    const groups = useMemo(() => { 
+        const g = {}; 
+        (viewFilter === 'All' ? patients : patients.filter(p => p.status === viewFilter))
+            .filter(p => `${p.name}${p.bed}${p.ward}${p.diagnosis}`.toLowerCase().includes(search.toLowerCase()))
+            .forEach(p => { 
+                // Default to Unassigned if ward is empty
+                const w = p.ward && p.ward.trim() ? p.ward.trim() : "Unassigned"; 
+                (g[w] = g[w] || []).push(p); 
+            }); 
+        
+        return { 
+            g, 
+            keys: Object.keys(g).sort((a, b) => {
+                const idxA = WARD_ORDER.indexOf(a);
+                const idxB = WARD_ORDER.indexOf(b);
+                
+                // If both are in the default list, sort by that order
+                if (idxA > -1 && idxB > -1) return idxA - idxB;
+                
+                // If only A is in default list, A goes first
+                if (idxA > -1) return -1;
+                
+                // If only B is in default list, B goes first
+                if (idxB > -1) return 1;
+                
+                // If neither are in default list (custom wards), sort alphabetically
+                return a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+            }) 
+        }; 
+    }, [patients, search, viewFilter]);
+
     const getLabCount = (p) => p.labInfo?.count || (p.labData || p.labImages || []).length;
 
     return (
@@ -1884,7 +1915,21 @@ const App = () => {
                     <div className="modal" style={{ maxWidth: '450px' }}>
                         <div className="modal-head" style={{ background: 'var(--green)' }}>Add Patient</div>
                         <div className="modal-body">
-                            <div><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Ward</label><select className="inp" value={newP.ward} onChange={e => setNewP({ ...newP, ward: e.target.value })}>{WARD_ORDER.map(w => <option key={w}>{w}</option>)}</select></div>
+                                                  {/* MODIFIED: Input with Datalist to allow typing OR selecting */}
+                            <div>
+                                <label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Ward</label>
+                                <input 
+                                    className="inp" 
+                                    value={newP.ward} 
+                                    list="ward-options" 
+                                    placeholder="Type or select ward..."
+                                    onChange={e => setNewP({ ...newP, ward: e.target.value })} 
+                                />
+                                <datalist id="ward-options">
+                                    {WARD_ORDER.map(w => <option key={w} value={w} />)}
+                                </datalist>
+                            </div>
+
                             <div style={{ display: 'flex', gap: 10 }}><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Bed</label><input className="inp" value={newP.bed} onChange={e => setNewP({ ...newP, bed: e.target.value })} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Doctor</label><input className="inp" value={newP.doctor} onChange={e => setNewP({ ...newP, doctor: e.target.value })} /></div></div>
                             <div><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Name</label><input className="inp" value={newP.name} onChange={e => setNewP({ ...newP, name: e.target.value })} /></div>
                             <div style={{ display: 'flex', gap: 10 }}><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>MRN</label><input className="inp" value={newP.mrn} onChange={e => setNewP({ ...newP, mrn: e.target.value })} /></div><div style={{ flex: 1 }}><label style={{ fontSize: 11, fontWeight: 800, color: "#64748b", textTransform: "uppercase" }}>Status</label><select className="inp" value={newP.status} onChange={e => setNewP({ ...newP, status: e.target.value })}>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select></div></div>
