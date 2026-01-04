@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   MEDICAL REPORT PARSER v3.0
+   MEDICAL REPORT PARSER v3.1 (Fix: Null Safety)
    Intelligent parser with clinical interpretation
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -299,7 +299,7 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // GENERATE CLINICAL SUMMARY
+    // GENERATE CLINICAL SUMMARY (FIXED)
     // ═══════════════════════════════════════════════════════════════════════
     const generateClinicalSummary = (result) => {
         const parts = [];
@@ -313,9 +313,10 @@
         
         if (critical.length > 0) parts.push('CRITICAL: ' + critical.join('; '));
         
+        // FIX: Added 'v &&' check to prevent crash if test is not found
         ['EF', 'Hgb', 'Cr', 'K', 'Troponin', 'Lactate'].forEach(test => {
             const v = result.values.find(x => x.test === test);
-            if (v?.interpretation?.severity !== 'normal') {
+            if (v && v.interpretation?.severity !== 'normal') {
                 parts.push(`${v.test}: ${v.interpretation?.text || ''}`);
             }
         });
@@ -362,6 +363,6 @@
         return result;
     };
 
-    window.LabParser = { version: '3.0', parse, detectReportType, parseEcho, parseEndoscopy, parseLab, getInterpretation, generateClinicalSummary, isReady: true };
-    console.log('[LabParser v3.0] Medical Report Parser with Clinical Interpretation');
+    window.LabParser = { version: '3.1', parse, detectReportType, parseEcho, parseEndoscopy, parseLab, getInterpretation, generateClinicalSummary, isReady: true };
+    console.log('[LabParser v3.1] Medical Report Parser with Clinical Interpretation (Bug Fixed)');
 })();
