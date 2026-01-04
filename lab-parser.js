@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   MEDICAL REPORT PARSER v3.2 (Fix: Missing Interpretations)
+   MEDICAL REPORT PARSER v3.0
    Intelligent parser with clinical interpretation
    ═══════════════════════════════════════════════════════════════════════════ */
 
@@ -10,7 +10,7 @@
     // CLINICAL INTERPRETATIONS
     // ═══════════════════════════════════════════════════════════════════════
     const interpretations = {
-        // --- ECHO: Function ---
+        // Echo
         'EF': (v) => {
             if (v >= 55) return { severity: 'normal', text: 'Normal LV systolic function' };
             if (v >= 45) return { severity: 'mild', text: 'Mildly reduced LVEF' };
@@ -18,66 +18,30 @@
             if (v >= 20) return { severity: 'severe', text: 'Severely reduced LVEF' };
             return { severity: 'critical', text: 'Critically impaired LVEF' };
         },
-        'TAPSE': (v) => {
-            if (v >= 1.7) return { severity: 'normal', text: 'Normal RV function' };
-            if (v >= 1.4) return { severity: 'mild', text: 'Mildly reduced RV function' };
-            return { severity: 'severe', text: 'Reduced RV function' };
-        },
-
-        // --- ECHO: Dimensions & Structure ---
-        'LA Diam': (v) => {
-            if (v <= 4.0) return { severity: 'normal', text: 'Normal LA' };
-            if (v <= 4.5) return { severity: 'mild', text: 'Mildly dilated LA' };
-            if (v <= 5.0) return { severity: 'moderate', text: 'Moderately dilated LA' };
-            return { severity: 'severe', text: 'Severely dilated LA' };
-        },
-        'LVIDd': (v) => {
-            if (v <= 5.6) return { severity: 'normal', text: 'Normal LV size' };
-            if (v <= 6.0) return { severity: 'mild', text: 'Mildly dilated LV' };
-            if (v <= 6.5) return { severity: 'moderate', text: 'Moderately dilated LV' };
-            return { severity: 'severe', text: 'Severely dilated LV' };
-        },
-        'IVSd': (v) => {
-            if (v <= 1.1) return { severity: 'normal', text: 'Normal thickness' };
-            if (v <= 1.3) return { severity: 'mild', text: 'Mild LVH' };
-            if (v <= 1.6) return { severity: 'moderate', text: 'Moderate LVH' };
-            return { severity: 'severe', text: 'Severe LVH' };
-        },
-        'LVPWd': (v) => {
-            if (v <= 1.1) return { severity: 'normal', text: 'Normal thickness' };
-            if (v <= 1.3) return { severity: 'mild', text: 'Mild LVH' };
-            return { severity: 'severe', text: 'Significant LVH' };
-        },
-
-        // --- ECHO: Pressures ---
         'RVSP': (v) => {
             if (v <= 30) return { severity: 'normal', text: 'Normal pulmonary pressure' };
             if (v <= 45) return { severity: 'mild', text: 'Mild pulmonary HTN' };
             if (v <= 60) return { severity: 'moderate', text: 'Moderate pulmonary HTN' };
             return { severity: 'severe', text: 'Severe pulmonary HTN' };
         },
+        'LA Diam': (v) => {
+            if (v <= 4.0) return { severity: 'normal', text: 'Normal LA' };
+            if (v <= 4.5) return { severity: 'mild', text: 'Mildly dilated LA' };
+            if (v <= 5.0) return { severity: 'moderate', text: 'Moderately dilated LA' };
+            return { severity: 'severe', text: 'Severely dilated LA' };
+        },
+        'TAPSE': (v) => {
+            if (v >= 1.7) return { severity: 'normal', text: 'Normal RV function' };
+            if (v >= 1.4) return { severity: 'mild', text: 'Mildly reduced RV function' };
+            return { severity: 'severe', text: 'Reduced RV function' };
+        },
         'E/E\'': (v) => {
             if (v <= 8) return { severity: 'normal', text: 'Normal filling pressures' };
             if (v <= 14) return { severity: 'mild', text: 'Indeterminate filling pressures' };
             return { severity: 'elevated', text: 'Elevated filling pressures' };
         },
-        'TR maxPG': (v) => {
-            if (v < 30) return { severity: 'normal', text: 'Normal gradients' };
-            return { severity: 'elevated', text: 'Elevated TR gradient' };
-        },
-
-        // --- ENDOSCOPY ---
-        'Polyp Size': (v) => {
-            if (v < 5) return { severity: 'mild', text: 'Diminutive polyp' };
-            if (v < 10) return { severity: 'moderate', text: 'Small polyp' };
-            return { severity: 'severe', text: 'Large polyp - advanced' };
-        },
-        'BBPS': (v) => {
-            if (v >= 6) return { severity: 'normal', text: 'Adequate bowel prep' };
-            return { severity: 'suboptimal', text: 'Inadequate bowel prep' };
-        },
         
-        // --- LABS ---
+        // Labs
         'Hgb': (v) => {
             if (v < 7) return { severity: 'critical', text: 'Severe anemia - transfuse' };
             if (v < 10) return { severity: 'moderate', text: 'Moderate anemia' };
@@ -253,7 +217,7 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // ENDOSCOPY PARSER (FIXED: Now uses Interpretations)
+    // ENDOSCOPY PARSER
     // ═══════════════════════════════════════════════════════════════════════
     const parseEndoscopy = (text) => {
         const findings = [];
@@ -269,16 +233,10 @@
         });
         
         const polyp = text.match(/(\d+)\s*mm\s*(?:polyp|pedunculated)/i);
-        if (polyp) {
-            const val = parseInt(polyp[1]);
-            values.push({ test: 'Polyp Size', value: val, unit: 'mm', flag: '', interpretation: getInterpretation('Polyp Size', val) });
-        }
+        if (polyp) values.push({ test: 'Polyp Size', value: parseInt(polyp[1]), unit: 'mm', flag: '' });
         
         const bbps = text.match(/BBPS[=:\s]*(\d+)/i);
-        if (bbps) {
-            const val = parseInt(bbps[1]);
-            values.push({ test: 'BBPS', value: val, unit: '', flag: '', interpretation: getInterpretation('BBPS', val) });
-        }
+        if (bbps) values.push({ test: 'BBPS', value: parseInt(bbps[1]), unit: '', flag: '' });
         
         return { 
             values, 
@@ -341,7 +299,7 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // GENERATE CLINICAL SUMMARY (Safety Checked)
+    // GENERATE CLINICAL SUMMARY
     // ═══════════════════════════════════════════════════════════════════════
     const generateClinicalSummary = (result) => {
         const parts = [];
@@ -355,10 +313,9 @@
         
         if (critical.length > 0) parts.push('CRITICAL: ' + critical.join('; '));
         
-        // Extended echo summary logic
-        ['EF', 'Hgb', 'Cr', 'K', 'Troponin', 'Lactate', 'LVIDd', 'IVSd'].forEach(test => {
+        ['EF', 'Hgb', 'Cr', 'K', 'Troponin', 'Lactate'].forEach(test => {
             const v = result.values.find(x => x.test === test);
-            if (v && v.interpretation?.severity !== 'normal') {
+            if (v?.interpretation?.severity !== 'normal') {
                 parts.push(`${v.test}: ${v.interpretation?.text || ''}`);
             }
         });
@@ -405,6 +362,6 @@
         return result;
     };
 
-    window.LabParser = { version: '3.2', parse, detectReportType, parseEcho, parseEndoscopy, parseLab, getInterpretation, generateClinicalSummary, isReady: true };
-    console.log('[LabParser v3.2] Medical Report Parser with Clinical Interpretation (Expanded Logic)');
+    window.LabParser = { version: '3.0', parse, detectReportType, parseEcho, parseEndoscopy, parseLab, getInterpretation, generateClinicalSummary, isReady: true };
+    console.log('[LabParser v3.0] Medical Report Parser with Clinical Interpretation');
 })();
