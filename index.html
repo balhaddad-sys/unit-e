@@ -1302,15 +1302,23 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
             let processedValues = [];
             let labType = 'AUTO';
+            let parseResult = null;
             
             // Use Lab Parser module
             if (window.LabParser && window.LabParser.isReady) {
                 addDebugLog('info', 'Processing with LabParser module...');
-                processedValues = window.LabParser.parse(result.text);
-                labType = window.LabParser.detectLabType(processedValues);
+                parseResult = window.LabParser.parse(result.text);
+                processedValues = parseResult.values || [];
+                labType = parseResult.labType || parseResult.reportType || 'AUTO';
                 setDetectedLabType(labType);
-                addDebugLog('success', `Detected: ${labType} panel, ${processedValues.length} values`);
-                console.log('[PARSER OUTPUT]:', processedValues);
+                addDebugLog('success', `Detected: ${parseResult.reportType} (${labType}), ${processedValues.length} values`);
+                if (parseResult.findings?.length > 0) {
+                    addDebugLog('info', `Findings: ${parseResult.findings.slice(0, 3).join('; ')}`);
+                }
+                if (parseResult.impression) {
+                    addDebugLog('info', `Impression: ${parseResult.impression.substring(0, 100)}`);
+                }
+                console.log('[PARSER OUTPUT]:', parseResult);
             } else {
                 addDebugLog('warn', 'LabParser not loaded. Using inline fallback.');
                 processedValues = parseLabsFromTextFallback(result.text);
@@ -1733,8 +1741,22 @@ const App = () => {
 
     useEffect(() => {
         db.ref('notice').on('value', snap => setNotice(snap.val() || { text: "" }));
-        db.ref('patients').on('value', snap => { const val = snap.val(); setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []); });
-        return () => { db.ref('notice').off(); db.ref('patients').off(); };
+        db.ref('patients').on('value', snap => { 
+            const val = snap.val(); 
+            setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []); 
+        });
+        
+        // Sync sheet on initial load (after short delay)
+        const initialSync = setTimeout(() => {
+            pingSheets();
+            console.log('[Init] Initial sheet sync triggered');
+        }, 2000);
+        
+        return () => { 
+            db.ref('notice').off(); 
+            db.ref('patients').off(); 
+            clearTimeout(initialSync);
+        };
     }, []);
 
     const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
