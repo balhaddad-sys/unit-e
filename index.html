@@ -735,7 +735,7 @@ if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseCon
 const db = firebase.database();
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbzpceeqLk50diawA_pxX24M4t-ZWwNmAVQFwZHz4LAJniFsqXJwYrFuxqZdUHDAKe4mng/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
@@ -1164,10 +1164,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log(`[DEBUG ${type}]`, msg);
     };
     
-    // Load labs from Google Drive on mount (non-blocking)
+    // Load labs from Google Drive on mount (non-blocking, filter deleted)
     useEffect(() => {
         const loadLabsFromDrive = async () => {
-            // Don't block UI - load in background
             addDebugLog('info', `Loading labs for ${patient.name}...`);
             
             try {
@@ -1186,7 +1185,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 if (result.error) {
                     addDebugLog('warn', `Drive load: ${result.error}`);
                 } else if (result.labData && result.labData.length > 0) {
-                    const labs = result.labData.map(lab => ({
+                    // Filter out deleted items
+                    const nonDeletedLabs = result.labData.filter(lab => !lab.deleted);
+                    
+                    const labs = nonDeletedLabs.map(lab => ({
                         id: lab.id,
                         image: null,
                         timestamp: lab.timestamp,
@@ -1201,7 +1203,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         }
                     }));
                     setLabImages(labs);
-                    addDebugLog('success', `Loaded ${labs.length} labs from Drive`);
+                    addDebugLog('success', `Loaded ${labs.length} labs from Drive (filtered ${result.labData.length - nonDeletedLabs.length} deleted)`);
                 } else {
                     addDebugLog('info', 'No labs found in Drive');
                 }
