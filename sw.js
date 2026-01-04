@@ -4,12 +4,11 @@
 const CACHE_NAME = 'unit-e-v2.0.0';
 const urlsToCache = [
   '/',
-  '/index.html',
-  '/styles.css',
-  '/config.js',
-  '/ocr-engine.js',
-  '/lab-parser.js',
-  '/cdss-module.js'
+  '/index.html'
+  // Note: Only caching essential files. Add more as needed:
+  // '/ocr-engine.js',
+  // '/lab-parser.js',
+  // '/cdss-module.js'
 ];
 
 // Install event - cache resources
@@ -89,8 +88,12 @@ self.addEventListener('sync', event => {
 
 async function syncData() {
   // Placeholder for syncing offline data
-  console.log('[SW] Syncing offline data...');
-  // Implementation would depend on your offline storage strategy
+  console.log('[SW] Background sync triggered - no offline data to sync yet');
+  // Future implementation:
+  // - Retrieve offline changes from IndexedDB
+  // - Send to Firebase when online
+  // - Clear synced data from local storage
+  return Promise.resolve();
 }
 
 // Push notifications

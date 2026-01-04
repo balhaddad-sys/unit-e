@@ -989,7 +989,10 @@ const validatePatient = (patient) => {
 // Log audit events to Firebase
 const logAuditEvent = async (action, details) => {
     try {
-        if (!firebase.apps.length) return;
+        if (!firebase.apps.length) {
+            console.warn('[Audit] Firebase not initialized, skipping audit log');
+            return;
+        }
         
         await db.ref('audit_log').push({
             action,
@@ -998,8 +1001,9 @@ const logAuditEvent = async (action, details) => {
             userAgent: navigator.userAgent,
             url: window.location.href
         });
+        console.log('[Audit] Logged:', action, details);
     } catch (e) {
-        console.error('Failed to log audit event:', e);
+        console.error('[Audit] Failed to log event:', e);
     }
 };
 
@@ -1136,6 +1140,11 @@ const useToast = () => {
 
 // ============ AUTH CONTEXT ============
 const AuthContext = createContext();
+// Authentication is disabled by default for ease of use
+// To enable authentication:
+// 1. Set AUTH_ENABLED to true
+// 2. Configure Firebase Authentication in Firebase Console
+// 3. Add user credentials or enable sign-up
 const AUTH_ENABLED = false; // Set to true to enable authentication
 
 const AuthProvider = ({ children }) => {
@@ -2560,30 +2569,41 @@ const App = () => {
     };
     
     const saveNew = () => { 
-        const c = { 
+        // Validate BEFORE sanitization
+        const rawPatient = { 
             ward: newP.ward || "Unassigned", 
             bed: cleanBed(newP.bed), 
-            name: sanitizeInput(newP.name.trim()), 
-            diagnosis: sanitizeInput(newP.diagnosis), 
-            doctor: sanitizeInput(newP.doctor), 
+            name: newP.name.trim(), 
+            diagnosis: newP.diagnosis, 
+            doctor: newP.doctor, 
             status: newP.status || "New", 
-            plan: sanitizeInput(newP.plan), 
-            mrn: sanitizeInput(newP.mrn), 
+            plan: newP.plan, 
+            mrn: newP.mrn, 
             timestamp: Date.now(), 
             labData: [] 
-        }; 
+        };
         
-        // Validate patient data
-        const validation = validatePatient(c);
+        // Validate patient data before sanitization
+        const validation = validatePatient(rawPatient);
         if (!validation.isValid) {
             alert(validation.errors.join('\n'));
             return;
         }
         
-        if (isDup(c.ward, c.name)) { 
+        if (isDup(rawPatient.ward, rawPatient.name)) { 
             alert("Duplicate patient name in this ward"); 
             return; 
-        } 
+        }
+        
+        // Sanitize after validation
+        const c = {
+            ...rawPatient,
+            name: sanitizeInput(rawPatient.name), 
+            diagnosis: sanitizeInput(rawPatient.diagnosis), 
+            doctor: sanitizeInput(rawPatient.doctor), 
+            plan: sanitizeInput(rawPatient.plan), 
+            mrn: sanitizeInput(rawPatient.mrn)
+        };
         
         db.ref("patients").push(c).then(() => { 
             setAddModal(false); 
