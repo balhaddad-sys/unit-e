@@ -5,7 +5,7 @@ const CACHE_NAME = 'unit-e-v2.0.0';
 const urlsToCache = [
   '/',
   '/index.html'
-  // Note: Only caching essential files. Add more as needed:
+  // Additional files can be added here if they exist and are needed offline:
   // '/ocr-engine.js',
   // '/lab-parser.js',
   // '/cdss-module.js'
@@ -101,7 +101,7 @@ self.addEventListener('push', event => {
   const options = {
     body: event.data ? event.data.text() : 'New notification',
     icon: '/icon-192.png',
-    badge: '/badge.png',
+    // badge: '/badge.png', // Optional - add this file if you want a badge icon
     vibrate: [200, 100, 200],
     data: {
       dateOfArrival: Date.now(),

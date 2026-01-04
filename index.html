@@ -23,6 +23,8 @@
     <link rel="icon" type="image/png" href="/favicon.png"/>
     
     <!-- Preconnect for Performance -->
+    <!-- Note: For enhanced security, consider adding SRI (Subresource Integrity) hashes to external scripts -->
+    <!-- Example: <script src="..." integrity="sha384-..." crossorigin="anonymous"></script> -->
     <link rel="preconnect" href="https://www.gstatic.com" crossorigin/>
     <link rel="preconnect" href="https://unpkg.com" crossorigin/>
     
@@ -2531,17 +2533,18 @@ const App = () => {
     const update = useCallback((id, field, value) => { 
         const p = patients.find(x => x.id === id); 
         
-        // Sanitize input
-        const sanitizedValue = typeof value === 'string' ? sanitizeInput(value) : value;
+        // Use raw value for duplicate checking before sanitization
+        if (field === 'name' && isDup(p?.ward, value, id)) { 
+            showToast("⚠ Duplicate"); 
+            return; 
+        } 
+        if (field === 'ward' && isDup(value, p?.name, id)) { 
+            showToast("⚠ Duplicate"); 
+            return; 
+        }
         
-        if (field === 'name' && isDup(p?.ward, sanitizedValue, id)) { 
-            showToast("⚠ Duplicate"); 
-            return; 
-        } 
-        if (field === 'ward' && isDup(sanitizedValue, p?.name, id)) { 
-            showToast("⚠ Duplicate"); 
-            return; 
-        } 
+        // Sanitize value only for storage
+        const sanitizedValue = typeof value === 'string' ? sanitizeInput(value) : value;
         
         db.ref(`patients/${id}`).update({ 
             [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue, 
