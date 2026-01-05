@@ -59,6 +59,7 @@
             range: [150, 400],
             unit:  '×10⁹/L',
             critical: { low:  20, high: 1000 },
+            panic: { low: 10, high: 1500 },
             aliases: ['PLT', 'PLATELET', 'PLATELETS', 'PLATELET COUNT', 'THROMBOCYTES', 'PLT COUNT'],
             unitVariants: ['10^9/L', 'x10^9/L', '10^3/uL', 'K/uL', 'thou/uL', '10*9/L', 'x10^3/uL'],
             ocrErrors: ['PIT', 'P1T', 'PLI', 'PL T', 'P LT'],
