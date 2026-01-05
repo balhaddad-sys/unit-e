@@ -1845,6 +1845,8 @@ const GuidelinesModal = ({ patient, onClose }) => {
     const [guideline, setGuideline] = useState(null);
     const [labAdjustments, setLabAdjustments] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [clinicalPearls, setClinicalPearls] = useState(null);
+    const [pearlsLoading, setPearlsLoading] = useState(false);
 
     useEffect(() => {
         // Find guidelines based on diagnosis
@@ -1856,6 +1858,27 @@ const GuidelinesModal = ({ patient, onClose }) => {
         const match = window.ClinicalGuidelines.findGuidelines(patient.diagnosis);
         if (match) {
             setGuideline(match);
+
+            // Fetch clinical pearls for this condition
+            (async () => {
+                setPearlsLoading(true);
+                try {
+                    // First try to get pearls from built-in guideline
+                    const builtInPearls = window.ClinicalGuidelines.generatePearlsFromBuiltIn(match.name);
+                    if (builtInPearls && builtInPearls.pearls.length > 0) {
+                        setClinicalPearls(builtInPearls);
+                    } else {
+                        // If no built-in pearls, try fetching from online sources
+                        const result = await window.ClinicalGuidelines.fetchClinicalPearls(patient.diagnosis);
+                        if (result && result.pearls) {
+                            setClinicalPearls(result.pearls);
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error loading clinical pearls:', error);
+                }
+                setPearlsLoading(false);
+            })();
 
             // Get lab-adjusted recommendations if patient has lab data
             if (patient.labImages && patient.labImages.length > 0) {
@@ -1879,7 +1902,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
                 }
             }
         } else {
-            // No exact match - get suggestions
+            // No exact match - get suggestions and try to fetch clinical pearls anyway
             const suggestions = window.ClinicalGuidelines.getSuggestions(patient.diagnosis);
             if (suggestions && suggestions.length > 0) {
                 setGuideline({
@@ -1888,6 +1911,20 @@ const GuidelinesModal = ({ patient, onClose }) => {
                     noMatch: true
                 });
             }
+
+            // Try to fetch clinical pearls for the diagnosis even if no match
+            (async () => {
+                setPearlsLoading(true);
+                try {
+                    const result = await window.ClinicalGuidelines.fetchClinicalPearls(patient.diagnosis);
+                    if (result && result.pearls) {
+                        setClinicalPearls(result.pearls);
+                    }
+                } catch (error) {
+                    console.error('Error loading clinical pearls:', error);
+                }
+                setPearlsLoading(false);
+            })();
         }
 
         setLoading(false);
@@ -1928,8 +1965,6 @@ const GuidelinesModal = ({ patient, onClose }) => {
     }
 
     if (!guideline) {
-        const onlineResources = window.ClinicalGuidelines?.searchOnlineGuidelines(patient.diagnosis) || [];
-
         return (
             <div className="modalOverlay" onClick={onClose}>
                 <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
@@ -1951,22 +1986,44 @@ const GuidelinesModal = ({ patient, onClose }) => {
                             </div>
                         </div>
 
-                        <div style={{ marginBottom: '24px' }}>
-                            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>🔍 Search Online Resources</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                {onlineResources.map((resource, i) => (
-                                    <a key={i} href={resource.url} target="_blank" rel="noopener noreferrer"
-                                       style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '10px', textDecoration: 'none', display: 'block', transition: 'all 0.2s' }}
-                                       onMouseOver={e => e.currentTarget.style.background = '#eff6ff'}
-                                       onMouseOut={e => e.currentTarget.style.background = '#f8fafc'}>
-                                        <div style={{ fontWeight: 600, color: '#3b82f6', fontSize: '13px', marginBottom: '2px' }}>
-                                            {resource.name} ↗
-                                        </div>
-                                        <div style={{ color: '#64748b', fontSize: '12px' }}>{resource.description}</div>
-                                    </a>
-                                ))}
+                        {pearlsLoading && (
+                            <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                                <div style={{ fontSize: '14px', marginBottom: '8px' }}>🔍 Fetching clinical guidelines...</div>
+                                <div style={{ fontSize: '12px' }}>Analyzing online medical resources</div>
                             </div>
-                        </div>
+                        )}
+
+                        {!pearlsLoading && clinicalPearls && clinicalPearls.pearls && clinicalPearls.pearls.length > 0 && (
+                            <div style={{ marginBottom: '24px' }}>
+                                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>💎 Clinical Pearls</h3>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>
+                                    Sources: {clinicalPearls.sources ? clinicalPearls.sources.join(', ') : 'Online Guidelines'}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {clinicalPearls.pearls.map((pearl, i) => {
+                                        const priorityColor = pearl.priority === 'critical' ? '#dc2626' : pearl.priority === 'high' ? '#f59e0b' : '#64748b';
+                                        const bgColor = pearl.priority === 'critical' ? '#fee2e2' : pearl.priority === 'high' ? '#fef3c7' : '#f8fafc';
+                                        const borderColor = pearl.priority === 'critical' ? '#fca5a5' : pearl.priority === 'high' ? '#fcd34d' : '#e2e8f0';
+
+                                        return (
+                                            <div key={i} style={{ background: bgColor, border: `2px solid ${borderColor}`, borderRadius: '8px', padding: '12px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '6px' }}>
+                                                    <span style={{ background: priorityColor, color: 'white', fontSize: '9px', fontWeight: 700, padding: '3px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                                        {pearl.priority}
+                                                    </span>
+                                                    <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                                                        {pearl.category}
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: '#0f172a', lineHeight: '1.6' }}>
+                                                    {pearl.pearl}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
 
                         <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '12px' }}>
                             <div style={{ fontWeight: 700, color: '#1e40af', marginBottom: '8px', fontSize: '13px' }}>✅ Built-in Guidelines Available For:</div>
@@ -1985,8 +2042,6 @@ const GuidelinesModal = ({ patient, onClose }) => {
 
     // Handle suggestions mode
     if (guideline.noMatch && guideline.suggestions) {
-        const onlineResources = window.ClinicalGuidelines?.searchOnlineGuidelines(patient.diagnosis) || [];
-
         return (
             <div className="modalOverlay" onClick={onClose}>
                 <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '700px' }}>
@@ -2031,17 +2086,44 @@ const GuidelinesModal = ({ patient, onClose }) => {
                             ))}
                         </div>
 
-                        <div style={{ marginBottom: '16px' }}>
-                            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>🔍 Or Search Online</h3>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                                {onlineResources.slice(0, 3).map((resource, i) => (
-                                    <a key={i} href={resource.url} target="_blank" rel="noopener noreferrer"
-                                       style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '6px', padding: '8px', textDecoration: 'none', fontSize: '12px', color: '#3b82f6', fontWeight: 600 }}>
-                                        {resource.name} ↗
-                                    </a>
-                                ))}
+                        {pearlsLoading && (
+                            <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                                <div style={{ fontSize: '14px', marginBottom: '8px' }}>🔍 Fetching clinical guidelines...</div>
+                                <div style={{ fontSize: '12px' }}>Analyzing online medical resources</div>
                             </div>
-                        </div>
+                        )}
+
+                        {!pearlsLoading && clinicalPearls && clinicalPearls.pearls && clinicalPearls.pearls.length > 0 && (
+                            <div style={{ marginBottom: '16px' }}>
+                                <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>💎 Clinical Pearls</h3>
+                                <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '12px' }}>
+                                    Sources: {clinicalPearls.sources ? clinicalPearls.sources.join(', ') : 'Online Guidelines'}
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                    {clinicalPearls.pearls.slice(0, 5).map((pearl, i) => {
+                                        const priorityColor = pearl.priority === 'critical' ? '#dc2626' : pearl.priority === 'high' ? '#f59e0b' : '#64748b';
+                                        const bgColor = pearl.priority === 'critical' ? '#fee2e2' : pearl.priority === 'high' ? '#fef3c7' : '#f8fafc';
+                                        const borderColor = pearl.priority === 'critical' ? '#fca5a5' : pearl.priority === 'high' ? '#fcd34d' : '#e2e8f0';
+
+                                        return (
+                                            <div key={i} style={{ background: bgColor, border: `2px solid ${borderColor}`, borderRadius: '8px', padding: '12px' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '6px' }}>
+                                                    <span style={{ background: priorityColor, color: 'white', fontSize: '9px', fontWeight: 700, padding: '3px 6px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                                        {pearl.priority}
+                                                    </span>
+                                                    <span style={{ fontSize: '10px', fontWeight: 600, color: '#64748b', textTransform: 'uppercase' }}>
+                                                        {pearl.category}
+                                                    </span>
+                                                </div>
+                                                <div style={{ fontSize: '13px', color: '#0f172a', lineHeight: '1.6' }}>
+                                                    {pearl.pearl}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
                     </div>
                     <div className="modal-foot">
                         <button className="btn btn-blue" onClick={onClose}>Close</button>
@@ -2066,6 +2148,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
 
                 <div className="tabs" style={{ borderBottom: '1px solid #e2e8f0' }}>
                     <button className={`tab ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>📖 Overview</button>
+                    <button className={`tab ${activeTab === 'pearls' ? 'active' : ''}`} onClick={() => setActiveTab('pearls')}>💎 Clinical Pearls</button>
                     <button className={`tab ${activeTab === 'treatment' ? 'active' : ''}`} onClick={() => setActiveTab('treatment')}>💊 Treatment</button>
                     <button className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>🔬 Monitoring</button>
                     {labAdjustments.length > 0 && (
@@ -2108,6 +2191,71 @@ const GuidelinesModal = ({ patient, onClose }) => {
                                     </div>
                                 </div>
                             </div>
+                        </div>
+                    )}
+
+                    {activeTab === 'pearls' && (
+                        <div style={{ padding: '16px' }}>
+                            <h3 style={{ fontSize: '15px', fontWeight: 700, color: '#0f172a', marginBottom: '12px' }}>💎 Clinical Pearls</h3>
+
+                            {pearlsLoading && (
+                                <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>🔍 Fetching clinical guidelines...</div>
+                                    <div style={{ fontSize: '12px' }}>Analyzing online medical resources</div>
+                                </div>
+                            )}
+
+                            {!pearlsLoading && (!clinicalPearls || !clinicalPearls.pearls || clinicalPearls.pearls.length === 0) && (
+                                <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+                                    <div style={{ fontSize: '14px', marginBottom: '8px' }}>No clinical pearls available</div>
+                                    <div style={{ fontSize: '12px' }}>Check the Treatment and Monitoring tabs for detailed recommendations</div>
+                                </div>
+                            )}
+
+                            {!pearlsLoading && clinicalPearls && clinicalPearls.pearls && clinicalPearls.pearls.length > 0 && (
+                                <>
+                                    <div style={{ background: '#eff6ff', borderRadius: '8px', padding: '12px', marginBottom: '16px' }}>
+                                        <div style={{ fontSize: '11px', fontWeight: 700, color: '#1e40af', marginBottom: '4px', textTransform: 'uppercase' }}>Sources</div>
+                                        <div style={{ fontSize: '13px', color: '#3b82f6' }}>
+                                            {clinicalPearls.sources ? clinicalPearls.sources.join(', ') : 'Evidence-based guidelines'}
+                                        </div>
+                                    </div>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                                        {clinicalPearls.pearls.map((pearl, i) => {
+                                            const priorityColor = pearl.priority === 'critical' ? '#dc2626' : pearl.priority === 'high' ? '#f59e0b' : '#64748b';
+                                            const bgColor = pearl.priority === 'critical' ? '#fee2e2' : pearl.priority === 'high' ? '#fef3c7' : '#f8fafc';
+                                            const borderColor = pearl.priority === 'critical' ? '#fca5a5' : pearl.priority === 'high' ? '#fcd34d' : '#e2e8f0';
+                                            const icon = pearl.category === 'treatment' ? '💊' : pearl.category === 'monitoring' ? '🔬' : pearl.category === 'diagnosis' ? '🔍' : pearl.category === 'prevention' ? '🛡️' : '📋';
+
+                                            return (
+                                                <div key={i} style={{ background: bgColor, border: `2px solid ${borderColor}`, borderRadius: '8px', padding: '14px' }}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '8px' }}>
+                                                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                                                            <span style={{ fontSize: '16px' }}>{icon}</span>
+                                                            <span style={{ fontSize: '10px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
+                                                                {pearl.category}
+                                                            </span>
+                                                        </div>
+                                                        <span style={{ background: priorityColor, color: 'white', fontSize: '9px', fontWeight: 700, padding: '4px 8px', borderRadius: '4px', textTransform: 'uppercase' }}>
+                                                            {pearl.priority}
+                                                        </span>
+                                                    </div>
+                                                    <div style={{ fontSize: '14px', color: '#0f172a', lineHeight: '1.7', fontWeight: 500 }}>
+                                                        {pearl.pearl}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+
+                                    {clinicalPearls.fetchedAt && (
+                                        <div style={{ marginTop: '16px', fontSize: '11px', color: '#94a3b8', textAlign: 'center' }}>
+                                            Last updated: {new Date(clinicalPearls.fetchedAt).toLocaleString()}
+                                        </div>
+                                    )}
+                                </>
+                            )}
                         </div>
                     )}
 
