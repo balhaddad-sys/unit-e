@@ -43,6 +43,10 @@
     <script src="cdss-module.js"></script>
     <!-- Clinical Guidelines Module -->
     <script src="clinical-guidelines.js"></script>
+    <!-- Neural Clinical Interpreter - Advanced AI Engine -->
+    <script src="neural-clinical-interpreter.js"></script>
+    <!-- Clinical Results Parser - Imaging, Scopes, Organizer -->
+    <script src="clinical-results-parser.js"></script>
     <style>
         /* ═══════════════════════════════════════════════════════════════
            MODERN ELEGANT DESIGN - Mobile-First Responsive UI
@@ -1484,6 +1488,402 @@
         .auth-error { background: #fef2f2; color: #b91c1c; padding: 12px; border-radius: 8px; font-size: 13px; }
         .auth-footer { text-align: center; margin-top: 20px; color: #64748b; font-size: 13px; }
         .auth-footer a { color: #15803d; font-weight: 600; text-decoration: none; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           ELEGANT CLINICAL GUIDELINES STYLING - Enhanced Visual Design
+           ═══════════════════════════════════════════════════════════════ */
+
+        .treatment-section {
+            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
+            margin-bottom: 16px;
+        }
+
+        .treatment-category {
+            margin-bottom: 24px;
+            animation: fadeInUp 0.4s ease-out;
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .treatment-category-header {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 16px;
+            padding-bottom: 12px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .treatment-category-icon {
+            font-size: 28px;
+            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+        }
+
+        .treatment-category-title {
+            font-size: 16px;
+            font-weight: 800;
+            color: #0f172a;
+            letter-spacing: -0.02em;
+        }
+
+        .treatment-category-subtitle {
+            font-size: 12px;
+            color: #64748b;
+            font-weight: 500;
+        }
+
+        .medication-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .medication-card::before {
+            content: '';
+            position: absolute;
+            left: 0;
+            top: 0;
+            bottom: 0;
+            width: 4px;
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            opacity: 0;
+            transition: opacity 0.3s;
+        }
+
+        .medication-card:hover {
+            border-color: #10b981;
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
+            transform: translateX(4px);
+        }
+
+        .medication-card:hover::before {
+            opacity: 1;
+        }
+
+        .medication-name {
+            font-size: 14px;
+            font-weight: 700;
+            color: #0f172a;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .medication-badge {
+            font-size: 10px;
+            padding: 3px 8px;
+            border-radius: 6px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .medication-badge.first-line {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+            color: white;
+        }
+
+        .medication-badge.second-line {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .medication-badge.adjunct {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .medication-details {
+            font-size: 13px;
+            color: #475569;
+            line-height: 1.6;
+        }
+
+        .medication-dosage {
+            font-weight: 600;
+            color: #059669;
+            margin-top: 6px;
+            font-size: 12px;
+        }
+
+        .monitoring-card {
+            background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+            border: 2px solid #3b82f6;
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 12px;
+        }
+
+        .monitoring-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 12px;
+            margin-bottom: 12px;
+            padding-bottom: 12px;
+            border-bottom: 1px solid #bfdbfe;
+        }
+
+        .monitoring-item:last-child {
+            margin-bottom: 0;
+            padding-bottom: 0;
+            border-bottom: none;
+        }
+
+        .monitoring-icon {
+            font-size: 20px;
+            min-width: 24px;
+        }
+
+        .monitoring-content {
+            flex: 1;
+        }
+
+        .monitoring-label {
+            font-size: 13px;
+            font-weight: 700;
+            color: #1e40af;
+            margin-bottom: 4px;
+        }
+
+        .monitoring-value {
+            font-size: 12px;
+            color: #475569;
+            line-height: 1.5;
+        }
+
+        .clinical-pearl-card {
+            background: linear-gradient(135deg, #fefce8 0%, #fef3c7 100%);
+            border-left: 4px solid #f59e0b;
+            border-radius: 8px;
+            padding: 16px;
+            margin-bottom: 12px;
+            box-shadow: 0 2px 4px rgba(245, 158, 11, 0.1);
+        }
+
+        .clinical-pearl-card.critical {
+            background: linear-gradient(135deg, #fee2e2 0%, #fecaca 100%);
+            border-left-color: #dc2626;
+        }
+
+        .clinical-pearl-card.high {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border-left-color: #f59e0b;
+        }
+
+        .clinical-pearl-header {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-bottom: 8px;
+        }
+
+        .clinical-pearl-icon {
+            font-size: 18px;
+        }
+
+        .clinical-pearl-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #92400e;
+        }
+
+        .clinical-pearl-content {
+            font-size: 13px;
+            color: #78350f;
+            line-height: 1.6;
+        }
+
+        .neural-insight-card {
+            background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+            border: 2px solid #a855f7;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 16px;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .neural-insight-card::before {
+            content: '🧠';
+            position: absolute;
+            right: 10px;
+            top: 10px;
+            font-size: 40px;
+            opacity: 0.15;
+        }
+
+        .neural-insight-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        .neural-badge {
+            background: linear-gradient(135deg, #7e22ce 0%, #6b21a8 100%);
+            color: white;
+            padding: 4px 12px;
+            border-radius: 6px;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .neural-confidence {
+            font-size: 11px;
+            color: #7e22ce;
+            font-weight: 600;
+        }
+
+        .neural-insight-content {
+            font-size: 13px;
+            color: #581c87;
+            line-height: 1.7;
+        }
+
+        .recommendation-card {
+            background: white;
+            border-left: 4px solid #10b981;
+            border-radius: 8px;
+            padding: 14px;
+            margin-bottom: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+            transition: all 0.2s;
+        }
+
+        .recommendation-card:hover {
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.12);
+            transform: translateX(2px);
+        }
+
+        .recommendation-card.urgent {
+            border-left-color: #ef4444;
+            background: #fef2f2;
+        }
+
+        .recommendation-card.immediate {
+            border-left-color: #dc2626;
+            background: #fee2e2;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.95; }
+        }
+
+        .recommendation-text {
+            font-size: 13px;
+            color: #0f172a;
+            line-height: 1.6;
+        }
+
+        .score-calculator {
+            background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+            border: 2px solid #10b981;
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 16px;
+        }
+
+        .score-title {
+            font-size: 15px;
+            font-weight: 800;
+            color: #065f46;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .score-input-group {
+            margin-bottom: 12px;
+        }
+
+        .score-input-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: #047857;
+            margin-bottom: 6px;
+            display: block;
+        }
+
+        .score-input {
+            width: 100%;
+            padding: 10px 12px;
+            border: 2px solid #a7f3d0;
+            border-radius: 8px;
+            font-size: 13px;
+            transition: all 0.2s;
+        }
+
+        .score-input:focus {
+            outline: none;
+            border-color: #10b981;
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+        }
+
+        .score-result {
+            background: white;
+            padding: 14px;
+            border-radius: 8px;
+            margin-top: 12px;
+            text-align: center;
+        }
+
+        .score-value {
+            font-size: 32px;
+            font-weight: 800;
+            color: #059669;
+            margin-bottom: 6px;
+        }
+
+        .score-interpretation {
+            font-size: 13px;
+            color: #475569;
+            line-height: 1.5;
+        }
+
+        .lab-adjustment-alert {
+            background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+            border: 2px solid #f59e0b;
+            border-radius: 10px;
+            padding: 14px;
+            margin-bottom: 12px;
+        }
+
+        .lab-adjustment-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #92400e;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .lab-adjustment-content {
+            font-size: 12px;
+            color: #78350f;
+            line-height: 1.6;
+        }
 
         /* Print Styles */
         @media print {
