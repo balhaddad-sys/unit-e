@@ -997,8 +997,9 @@
             overflow-y: visible;
             scrollbar-width: thin;
             flex-wrap: nowrap;
-            position: relative;
-            z-index: 1;
+            position: sticky;
+            top: 0;
+            z-index: 10;
         }
         .tabs::-webkit-scrollbar {
             height: 4px;
@@ -2455,6 +2456,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
     const [loading, setLoading] = useState(true);
     const [clinicalPearls, setClinicalPearls] = useState(null);
     const [pearlsLoading, setPearlsLoading] = useState(false);
+    const [scoreValues, setScoreValues] = useState({});
 
     useEffect(() => {
         // Find guidelines based on diagnosis
@@ -2800,6 +2802,20 @@ const GuidelinesModal = ({ patient, onClose }) => {
                     <button className={`tab ${activeTab === 'pearls' ? 'active' : ''}`} onClick={() => setActiveTab('pearls')}>💎 Clinical Pearls</button>
                     <button className={`tab ${activeTab === 'treatment' ? 'active' : ''}`} onClick={() => setActiveTab('treatment')}>💊 Treatment</button>
                     <button className={`tab ${activeTab === 'monitoring' ? 'active' : ''}`} onClick={() => setActiveTab('monitoring')}>🔬 Monitoring</button>
+                    {g.scores && g.scores.length > 0 && (
+                        <button className={`tab ${activeTab === 'scores' ? 'active' : ''}`} onClick={() => setActiveTab('scores')}>
+                            📊 Scores <span style={{
+                                background: 'linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%)',
+                                color: 'white',
+                                borderRadius: 'var(--radius-full)',
+                                padding: '3px 8px',
+                                marginLeft: '6px',
+                                fontSize: '10px',
+                                fontWeight: 700,
+                                boxShadow: '0 2px 4px rgba(124, 58, 237, 0.4)'
+                            }}>{g.scores.length}</span>
+                        </button>
+                    )}
                     {labAdjustments.length > 0 && (
                         <button className={`tab ${activeTab === 'labs' ? 'active' : ''}`} onClick={() => setActiveTab('labs')}>
                             ⚠️ Lab Adjustments <span style={{
@@ -2817,7 +2833,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
                     <button className={`tab ${activeTab === 'references' ? 'active' : ''}`} onClick={() => setActiveTab('references')}>📚 References</button>
                 </div>
 
-                <div className="modal-body" style={{ maxHeight: 'calc(92vh - 180px)', overflowY: 'auto', background: '#f8fafc' }}>
+                <div className="modal-body" style={{ maxHeight: 'calc(92vh - 180px)', overflowY: 'auto', overflowX: 'hidden', background: '#f8fafc', position: 'relative' }}>
                     {activeTab === 'overview' && (
                         <div style={{ padding: '20px' }}>
                             <div style={{
@@ -3110,6 +3126,144 @@ const GuidelinesModal = ({ patient, onClose }) => {
                                     <div style={{ fontSize: '13px', color: '#166534', lineHeight: '1.7', fontWeight: 500, paddingLeft: '14px' }}>{g.monitoring.vitals}</div>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {activeTab === 'scores' && g.scores && g.scores.length > 0 && (
+                        <div style={{ padding: '20px' }}>
+                            <div style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '12px',
+                                marginBottom: '20px',
+                                paddingBottom: '12px',
+                                borderBottom: '2px solid #e2e8f0'
+                            }}>
+                                <div style={{ fontSize: '24px' }}>📊</div>
+                                <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Clinical Scoring Systems</h3>
+                            </div>
+
+                            {g.scores.map((score, scoreIdx) => {
+                                const scoreKey = `score_${scoreIdx}`;
+                                const currentValues = scoreValues[scoreKey] || {};
+                                const totalScore = score.fields.reduce((sum, field) => {
+                                    return sum + (currentValues[field.id] ? field.points : 0);
+                                }, 0);
+                                const interpretation = score.interpretation[totalScore] || score.interpretation[9] || { risk: 'Unknown', recommendation: 'See guideline', color: '#64748b' };
+
+                                return (
+                                    <div key={scoreIdx} style={{
+                                        background: 'linear-gradient(135deg, #ffffff 0%, #faf5ff 100%)',
+                                        border: '2px solid #e9d5ff',
+                                        borderRadius: 'var(--radius-xl)',
+                                        padding: '20px',
+                                        marginBottom: '20px',
+                                        boxShadow: '0 4px 6px -1px rgba(139, 92, 246, 0.1)'
+                                    }}>
+                                        <div style={{ marginBottom: '16px' }}>
+                                            <h4 style={{ fontSize: '18px', fontWeight: 700, color: '#7c3aed', marginBottom: '6px' }}>
+                                                {score.name}
+                                            </h4>
+                                            <div style={{ fontSize: '13px', color: '#6b7280', fontStyle: 'italic' }}>
+                                                {score.purpose}
+                                            </div>
+                                        </div>
+
+                                        <div style={{ marginBottom: '20px' }}>
+                                            {score.fields.map((field) => (
+                                                <label key={field.id} style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    padding: '12px',
+                                                    marginBottom: '8px',
+                                                    background: currentValues[field.id] ? 'linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%)' : '#ffffff',
+                                                    borderRadius: 'var(--radius-md)',
+                                                    border: `2px solid ${currentValues[field.id] ? '#a78bfa' : '#e5e7eb'}`,
+                                                    cursor: 'pointer',
+                                                    transition: 'all 0.2s',
+                                                    fontWeight: currentValues[field.id] ? 600 : 400
+                                                }}
+                                                onMouseEnter={(e) => {
+                                                    if (!currentValues[field.id]) {
+                                                        e.currentTarget.style.borderColor = '#d8b4fe';
+                                                        e.currentTarget.style.background = '#faf5ff';
+                                                    }
+                                                }}
+                                                onMouseLeave={(e) => {
+                                                    if (!currentValues[field.id]) {
+                                                        e.currentTarget.style.borderColor = '#e5e7eb';
+                                                        e.currentTarget.style.background = '#ffffff';
+                                                    }
+                                                }}
+                                                >
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={currentValues[field.id] || false}
+                                                        onChange={(e) => {
+                                                            setScoreValues(prev => ({
+                                                                ...prev,
+                                                                [scoreKey]: {
+                                                                    ...prev[scoreKey],
+                                                                    [field.id]: e.target.checked
+                                                                }
+                                                            }));
+                                                        }}
+                                                        style={{
+                                                            width: '20px',
+                                                            height: '20px',
+                                                            marginRight: '12px',
+                                                            cursor: 'pointer',
+                                                            accentColor: '#8b5cf6'
+                                                        }}
+                                                    />
+                                                    <span style={{ flex: 1, fontSize: '14px', color: '#334155' }}>{field.label}</span>
+                                                    <span style={{
+                                                        background: currentValues[field.id] ? '#7c3aed' : '#e5e7eb',
+                                                        color: currentValues[field.id] ? 'white' : '#6b7280',
+                                                        padding: '4px 10px',
+                                                        borderRadius: 'var(--radius-full)',
+                                                        fontSize: '12px',
+                                                        fontWeight: 700
+                                                    }}>+{field.points}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+
+                                        <div style={{
+                                            background: interpretation.color,
+                                            padding: '16px',
+                                            borderRadius: 'var(--radius-lg)',
+                                            marginTop: '16px'
+                                        }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
+                                                <div style={{ color: 'white', fontSize: '16px', fontWeight: 700 }}>Total Score</div>
+                                                <div style={{
+                                                    background: 'rgba(255,255,255,0.3)',
+                                                    color: 'white',
+                                                    padding: '8px 20px',
+                                                    borderRadius: 'var(--radius-full)',
+                                                    fontSize: '24px',
+                                                    fontWeight: 800,
+                                                    backdropFilter: 'blur(10px)'
+                                                }}>{totalScore}</div>
+                                            </div>
+                                            <div style={{
+                                                background: 'rgba(255,255,255,0.95)',
+                                                padding: '12px',
+                                                borderRadius: 'var(--radius-md)',
+                                                marginTop: '12px'
+                                            }}>
+                                                <div style={{ fontSize: '12px', fontWeight: 700, color: '#6b7280', textTransform: 'uppercase', marginBottom: '6px' }}>
+                                                    Risk Level: {interpretation.risk}
+                                                </div>
+                                                <div style={{ fontSize: '14px', color: '#0f172a', lineHeight: '1.6' }}>
+                                                    {interpretation.recommendation}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                );
+                            })}
                         </div>
                     )}
 

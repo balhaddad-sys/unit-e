@@ -310,6 +310,51 @@
         'Atrial Fibrillation': {
             keywords: ['atrial fibrillation', 'afib', 'af', 'atrial fib', 'paroxysmal af', 'permanent af'],
             category: 'Cardiovascular',
+            scores: [
+                {
+                    name: 'CHA2DS2-VASc Score',
+                    purpose: 'Stroke risk stratification in atrial fibrillation',
+                    fields: [
+                        { id: 'chf', label: 'Congestive Heart Failure history', type: 'checkbox', points: 1 },
+                        { id: 'htn', label: 'Hypertension history', type: 'checkbox', points: 1 },
+                        { id: 'age75', label: 'Age ≥75 years', type: 'checkbox', points: 2 },
+                        { id: 'diabetes', label: 'Diabetes Mellitus', type: 'checkbox', points: 1 },
+                        { id: 'stroke', label: 'Prior Stroke/TIA/Thromboembolism', type: 'checkbox', points: 2 },
+                        { id: 'vascular', label: 'Vascular disease (MI, PAD, aortic plaque)', type: 'checkbox', points: 1 },
+                        { id: 'age65', label: 'Age 65-74 years', type: 'checkbox', points: 1 },
+                        { id: 'female', label: 'Female sex', type: 'checkbox', points: 1 }
+                    ],
+                    interpretation: {
+                        0: { risk: 'Low', recommendation: 'No anticoagulation (or aspirin)', color: '#10b981' },
+                        1: { risk: 'Low-Moderate', recommendation: 'Consider anticoagulation (DOAC preferred)', color: '#f59e0b' },
+                        2: { risk: 'Moderate', recommendation: 'Anticoagulation recommended (DOAC preferred)', color: '#f97316' },
+                        3: { risk: 'Moderate-High', recommendation: 'Anticoagulation strongly recommended', color: '#dc2626' },
+                        9: { risk: 'High', recommendation: 'Anticoagulation required', color: '#991b1b' }
+                    }
+                },
+                {
+                    name: 'HAS-BLED Score',
+                    purpose: 'Bleeding risk on anticoagulation',
+                    fields: [
+                        { id: 'htn_uncontrolled', label: 'Uncontrolled Hypertension (SBP >160)', type: 'checkbox', points: 1 },
+                        { id: 'renal', label: 'Abnormal renal function (dialysis, Cr >2.26)', type: 'checkbox', points: 1 },
+                        { id: 'liver', label: 'Abnormal liver function (cirrhosis, bilirubin >2x)', type: 'checkbox', points: 1 },
+                        { id: 'stroke_h', label: 'Prior stroke', type: 'checkbox', points: 1 },
+                        { id: 'bleeding', label: 'Prior major bleeding or predisposition', type: 'checkbox', points: 1 },
+                        { id: 'labile_inr', label: 'Labile INR (if on warfarin, <60% in range)', type: 'checkbox', points: 1 },
+                        { id: 'elderly', label: 'Age >65', type: 'checkbox', points: 1 },
+                        { id: 'drugs', label: 'Drugs (antiplatelet, NSAIDs) or alcohol', type: 'checkbox', points: 1 }
+                    ],
+                    interpretation: {
+                        0: { risk: 'Low', recommendation: 'Anticoagulation safe. Bleeding risk 1.13%/year', color: '#10b981' },
+                        1: { risk: 'Low', recommendation: 'Caution with anticoagulation. Risk 1.02%/year', color: '#10b981' },
+                        2: { risk: 'Moderate', recommendation: 'Moderate caution. Risk 1.88%/year', color: '#f59e0b' },
+                        3: { risk: 'High', recommendation: 'High bleeding risk 3.74%/year. Consider carefully', color: '#f97316' },
+                        4: { risk: 'Very High', recommendation: 'Very high risk 8.70%/year. Weigh risks/benefits', color: '#dc2626' },
+                        9: { risk: 'Extremely High', recommendation: 'Extremely high bleeding risk. Consider alternatives', color: '#991b1b' }
+                    }
+                }
+            ],
             monitoring: {
                 labs: ['CBC', 'CMP', 'TSH', 'PT/INR (if on warfarin)', 'Liver enzymes (if on amiodarone/DOACs)'],
                 frequency: 'TSH annually. INR q4 weeks if on warfarin (q1 week until stable). Cr/K q6-12 months on DOACs.',
@@ -364,6 +409,27 @@
         'Pneumonia': {
             keywords: ['pneumonia', 'cap', 'community acquired pneumonia', 'hap', 'hospital acquired pneumonia', 'aspiration pneumonia'],
             category: 'Infectious Disease',
+            scores: [
+                {
+                    name: 'CURB-65 Score',
+                    purpose: 'Pneumonia severity assessment and disposition decision',
+                    fields: [
+                        { id: 'confusion', label: 'Confusion (new onset, AMT ≤8)', type: 'checkbox', points: 1 },
+                        { id: 'urea', label: 'Urea >7 mmol/L (BUN >19 mg/dL)', type: 'checkbox', points: 1 },
+                        { id: 'rr', label: 'Respiratory rate ≥30/min', type: 'checkbox', points: 1 },
+                        { id: 'bp', label: 'Blood pressure: SBP <90 or DBP ≤60 mmHg', type: 'checkbox', points: 1 },
+                        { id: 'age', label: 'Age ≥65 years', type: 'checkbox', points: 1 }
+                    ],
+                    interpretation: {
+                        0: { risk: 'Low', recommendation: 'Outpatient treatment. Mortality <1%', color: '#10b981' },
+                        1: { risk: 'Low', recommendation: 'Consider outpatient vs short inpatient. Mortality 1.5%', color: '#10b981' },
+                        2: { risk: 'Moderate', recommendation: 'Hospital admission recommended. Mortality 9.2%', color: '#f59e0b' },
+                        3: { risk: 'High', recommendation: 'Hospital admission required. Consider ICU. Mortality 22%', color: '#f97316' },
+                        4: { risk: 'Severe', recommendation: 'ICU admission likely needed. Mortality 27%', color: '#dc2626' },
+                        5: { risk: 'Critical', recommendation: 'ICU admission required. Mortality 27-50%', color: '#991b1b' }
+                    }
+                }
+            ],
             monitoring: {
                 labs: ['CBC with diff', 'CMP', 'Blood cultures (if admitted)', 'Sputum culture if productive cough', 'Procalcitonin (optional)', 'CXR'],
                 frequency: 'Repeat CXR in 6-8 weeks if >50 years old or smoker (r/o underlying malignancy).',
