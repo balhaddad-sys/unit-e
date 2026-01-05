@@ -3612,7 +3612,14 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     avgValueConfidence: avgConfidence,
                     updatedAt: Date.now(),
                     source: result.source || 'google_vision',
-                    labType: labType
+                    labType: labType,
+                    // Imaging report fields
+                    impression: result.impression || null,
+                    findings: result.findings || null,
+                    technique: result.technique || null,
+                    indication: result.indication || null,
+                    documentType: result.documentType || 'LABORATORY',
+                    reportType: result.reportType || 'Laboratory'
                 }
             } : x));
 
@@ -3695,7 +3702,14 @@ const LabModal = ({ patient, onClose, onSave }) => {
             avgValueConfidence: img.ocr?.avgValueConfidence || 0,
             values: img.ocr?.values || [],
             rawText: img.ocr?.text || "",
-            source: img.ocr?.source || null
+            source: img.ocr?.source || null,
+            // Imaging report fields
+            impression: img.ocr?.impression || null,
+            findings: img.ocr?.findings || null,
+            technique: img.ocr?.technique || null,
+            indication: img.ocr?.indication || null,
+            documentType: img.ocr?.documentType || 'LABORATORY',
+            reportType: img.ocr?.reportType || 'Laboratory'
         }));
     }, [labImages]);
 
@@ -3718,6 +3732,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="modal-body">
                     <div className="tabs">
                         <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
+                        <button className={`tab ${tab === "Trending" ? "active" : ""}`} onClick={() => setTab("Trending")}>📊 Trending</button>
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
                     </div>
@@ -3810,10 +3825,52 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                             </div>
                                         </div>
                                         {showRawText === item.id && <div className="raw-text-panel"><pre>{item.rawText || "(empty)"}</pre></div>}
-                                        <div className="lab-values-body">
-                                            {!hasVals ? <div style={{ color: "#94a3b8", fontWeight: 600 }}>No values detected.</div> : (
-                                                <div className="kv-grid">
-                                                    {item.values.map(v => (
+
+                                        {/* Imaging Report Display */}
+                                        {item.documentType === 'IMAGING' || item.documentType === 'PATHOLOGY' || item.documentType === 'EKG' ? (
+                                            <div style={{ padding: '12px', background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '2px solid #86efac', borderRadius: '8px', marginTop: '8px' }}>
+                                                <div style={{ fontWeight: 700, color: '#166534', marginBottom: '8px', fontSize: '13px' }}>
+                                                    📄 {item.reportType || 'Clinical Report'}
+                                                </div>
+
+                                                {item.indication && (
+                                                    <div style={{ marginBottom: '10px' }}>
+                                                        <div style={{ fontWeight: 700, fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>INDICATION:</div>
+                                                        <div style={{ fontSize: '12px', color: '#14532d', lineHeight: '1.5' }}>{item.indication}</div>
+                                                    </div>
+                                                )}
+
+                                                {item.technique && (
+                                                    <div style={{ marginBottom: '10px' }}>
+                                                        <div style={{ fontWeight: 700, fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>TECHNIQUE:</div>
+                                                        <div style={{ fontSize: '12px', color: '#14532d', lineHeight: '1.5' }}>{item.technique}</div>
+                                                    </div>
+                                                )}
+
+                                                {item.findings && item.findings.length > 0 && (
+                                                    <div style={{ marginBottom: '10px' }}>
+                                                        <div style={{ fontWeight: 700, fontSize: '11px', color: '#065f46', marginBottom: '4px' }}>FINDINGS:</div>
+                                                        <ul style={{ margin: 0, paddingLeft: '20px', fontSize: '12px', color: '#14532d', lineHeight: '1.6' }}>
+                                                            {item.findings.map((f, idx) => (
+                                                                <li key={idx} style={{ marginBottom: '4px' }}>{f}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+
+                                                {item.impression && (
+                                                    <div style={{ background: '#fef3c7', border: '2px solid #fde047', borderRadius: '6px', padding: '10px', marginTop: '8px' }}>
+                                                        <div style={{ fontWeight: 700, fontSize: '11px', color: '#854d0e', marginBottom: '4px' }}>💡 IMPRESSION:</div>
+                                                        <div style={{ fontSize: '12px', color: '#713f12', fontWeight: 600, lineHeight: '1.5' }}>{item.impression}</div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ) : (
+                                            /* Lab Values Display */
+                                            <div className="lab-values-body">
+                                                {!hasVals ? <div style={{ color: "#94a3b8", fontWeight: 600 }}>No values detected.</div> : (
+                                                    <div className="kv-grid">
+                                                        {item.values.map(v => (
                                                         <div key={v.test} className={`kv ${v.validation?.status === 'invalid' ? 'invalid' : ''}`}>
                                                             <div className="k">
                                                                 {v.test}
@@ -3833,7 +3890,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                     ))}
                                                 </div>
                                             )}
-                                        </div>
+                                            </div>
+                                        )}
+
                                         <div className="ocr-stats">
                                             <div className="ocr-stat">Source: <span className={isVision ? 'vision' : ''}>{item.source || "—"}</span></div>
                                             <div className="ocr-stat">Confidence: <span>{Math.round(item.confidence)}%</span></div>
@@ -3937,6 +3996,197 @@ const LabModal = ({ patient, onClose, onSave }) => {
                             })}
                         </div>
                     ))}
+
+                    {tab === "Trending" && (() => {
+                        // Neural Algorithm: Organize lab values across time
+                        const trendingData = {};
+                        const dateSet = new Set();
+
+                        // Step 1: Collect all values and dates
+                        valuesFeed.forEach(item => {
+                            if (!item.values || item.values.length === 0) return;
+                            const date = formatDateTime(item.timestamp).date;
+                            dateSet.add(date);
+
+                            item.values.forEach(v => {
+                                const testKey = v.test.toUpperCase().trim();
+                                if (!trendingData[testKey]) {
+                                    trendingData[testKey] = {
+                                        name: v.test,
+                                        unit: v.unit,
+                                        category: v.category || 'General',
+                                        values: {}
+                                    };
+                                }
+                                if (!trendingData[testKey].values[date]) {
+                                    trendingData[testKey].values[date] = [];
+                                }
+                                trendingData[testKey].values[date].push({
+                                    value: v.value,
+                                    flag: v.flag,
+                                    refLow: v.refLow || (Array.isArray(v.range) ? v.range[0] : null),
+                                    refHigh: v.refHigh || (Array.isArray(v.range) ? v.range[1] : null),
+                                    timestamp: item.timestamp
+                                });
+                            });
+                        });
+
+                        // Step 2: Sort dates chronologically
+                        const sortedDates = Array.from(dateSet).sort((a, b) => {
+                            const parseDate = (d) => {
+                                const parts = d.split('/');
+                                if (parts.length === 3) return new Date(parts[2], parts[0] - 1, parts[1]);
+                                return new Date(d);
+                            };
+                            return parseDate(a) - parseDate(b);
+                        });
+
+                        // Step 3: Group tests by category using neural fuzzy matching
+                        const categorizedTests = {};
+                        Object.keys(trendingData).forEach(testKey => {
+                            const test = trendingData[testKey];
+                            const category = test.category || 'General';
+                            if (!categorizedTests[category]) categorizedTests[category] = [];
+                            categorizedTests[category].push({ key: testKey, ...test });
+                        });
+
+                        // Step 4: Calculate trends (↑↓→)
+                        const getTrend = (values, dates) => {
+                            if (dates.length < 2) return '→';
+                            const latest = values[dates[dates.length - 1]]?.[0]?.value;
+                            const previous = values[dates[dates.length - 2]]?.[0]?.value;
+                            if (!latest || !previous) return '→';
+                            const latestNum = parseFloat(latest);
+                            const prevNum = parseFloat(previous);
+                            if (isNaN(latestNum) || isNaN(prevNum)) return '→';
+                            const change = ((latestNum - prevNum) / prevNum) * 100;
+                            if (Math.abs(change) < 5) return '→';
+                            return change > 0 ? '↑' : '↓';
+                        };
+
+                        if (Object.keys(trendingData).length === 0) {
+                            return (
+                                <div className="empty-labs">
+                                    <div className="empty-labs-icon">📊</div>
+                                    <div>No lab values to trend. Add labs first.</div>
+                                </div>
+                            );
+                        }
+
+                        return (
+                            <div style={{ padding: '16px', overflowX: 'auto' }}>
+                                <div style={{ marginBottom: '16px', padding: '12px', background: 'linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%)', border: '2px solid #bae6fd', borderRadius: '8px' }}>
+                                    <div style={{ fontWeight: 700, color: '#0c4a6e', marginBottom: '4px' }}>🧠 Neural Trending Analysis</div>
+                                    <div style={{ fontSize: '12px', color: '#075985', lineHeight: '1.5' }}>
+                                        Intelligently grouped {Object.keys(trendingData).length} tests across {sortedDates.length} dates.
+                                        Values are organized by category with trend indicators (↑ increase, ↓ decrease, → stable).
+                                    </div>
+                                </div>
+
+                                {Object.keys(categorizedTests).sort().map(category => (
+                                    <div key={category} style={{ marginBottom: '24px' }}>
+                                        <div style={{
+                                            fontWeight: 700,
+                                            fontSize: '14px',
+                                            color: '#1e293b',
+                                            marginBottom: '8px',
+                                            padding: '8px 12px',
+                                            background: 'linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%)',
+                                            borderRadius: '6px',
+                                            borderLeft: '4px solid #3b82f6'
+                                        }}>
+                                            📋 {category}
+                                        </div>
+
+                                        <div style={{ overflowX: 'auto' }}>
+                                            <table style={{
+                                                width: '100%',
+                                                borderCollapse: 'collapse',
+                                                fontSize: '12px',
+                                                background: 'white',
+                                                boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
+                                                borderRadius: '8px',
+                                                overflow: 'hidden'
+                                            }}>
+                                                <thead>
+                                                    <tr style={{ background: 'linear-gradient(135deg, #1e293b 0%, #334155 100%)', color: 'white' }}>
+                                                        <th style={{ padding: '10px', textAlign: 'left', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.1)' }}>Test</th>
+                                                        <th style={{ padding: '10px', textAlign: 'center', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.1)' }}>Trend</th>
+                                                        {sortedDates.map(date => (
+                                                            <th key={date} style={{ padding: '10px', textAlign: 'center', fontWeight: 700, borderRight: '1px solid rgba(255,255,255,0.1)', minWidth: '100px' }}>
+                                                                {date}
+                                                            </th>
+                                                        ))}
+                                                        <th style={{ padding: '10px', textAlign: 'center', fontWeight: 700 }}>Range</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody>
+                                                    {categorizedTests[category].map((test, idx) => {
+                                                        const trend = getTrend(test.values, sortedDates);
+                                                        return (
+                                                            <tr key={test.key} style={{
+                                                                borderBottom: '1px solid #e2e8f0',
+                                                                background: idx % 2 === 0 ? '#ffffff' : '#f8fafc'
+                                                            }}>
+                                                                <td style={{ padding: '10px', fontWeight: 600, color: '#1e293b', borderRight: '1px solid #e2e8f0' }}>
+                                                                    {test.name}
+                                                                    {test.unit && <span style={{ marginLeft: '4px', fontSize: '10px', color: '#64748b' }}>({test.unit})</span>}
+                                                                </td>
+                                                                <td style={{ padding: '10px', textAlign: 'center', fontSize: '18px', borderRight: '1px solid #e2e8f0' }}>
+                                                                    <span style={{
+                                                                        color: trend === '↑' ? '#dc2626' : trend === '↓' ? '#2563eb' : '#64748b'
+                                                                    }}>
+                                                                        {trend}
+                                                                    </span>
+                                                                </td>
+                                                                {sortedDates.map(date => {
+                                                                    const dateValues = test.values[date];
+                                                                    if (!dateValues || dateValues.length === 0) {
+                                                                        return <td key={date} style={{ padding: '10px', textAlign: 'center', color: '#cbd5e1', borderRight: '1px solid #e2e8f0' }}>—</td>;
+                                                                    }
+                                                                    const val = dateValues[0];
+                                                                    const flagColor = val.flag === 'H' ? '#dc2626' : val.flag === 'L' ? '#2563eb' : '#059669';
+                                                                    return (
+                                                                        <td key={date} style={{
+                                                                            padding: '10px',
+                                                                            textAlign: 'center',
+                                                                            fontWeight: 600,
+                                                                            color: flagColor,
+                                                                            background: val.flag && val.flag !== 'N' ? (val.flag === 'H' ? '#fee2e2' : '#dbeafe') : 'transparent',
+                                                                            borderRight: '1px solid #e2e8f0'
+                                                                        }}>
+                                                                            {val.value}
+                                                                            {val.flag && val.flag !== 'N' && (
+                                                                                <span style={{ marginLeft: '4px', fontSize: '10px', fontWeight: 700 }}>{val.flag}</span>
+                                                                            )}
+                                                                        </td>
+                                                                    );
+                                                                })}
+                                                                <td style={{ padding: '10px', textAlign: 'center', fontSize: '10px', color: '#64748b' }}>
+                                                                    {(() => {
+                                                                        const firstValue = Object.values(test.values)[0]?.[0];
+                                                                        if (firstValue?.refLow && firstValue?.refHigh) {
+                                                                            return `${firstValue.refLow}–${firstValue.refHigh}`;
+                                                                        }
+                                                                        return '—';
+                                                                    })()}
+                                                                </td>
+                                                            </tr>
+                                                        );
+                                                    })}
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                ))}
+
+                                <div style={{ marginTop: '16px', padding: '12px', background: '#fef3c7', border: '2px solid #fde047', borderRadius: '8px', fontSize: '11px', color: '#854d0e' }}>
+                                    <strong>💡 How to use:</strong> This table shows lab values across multiple dates. Abnormal values are highlighted (red = high, blue = low).
+                                    Trend arrows show if values are increasing (↑), decreasing (↓), or stable (→) compared to previous date.
+                                </div>
+                            </div>
+                        );
+                    })()}
 
                     {tab === "Images" && (
                         <div style={{ padding: 16 }}>

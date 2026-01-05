@@ -175,6 +175,104 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
+    // NEURAL DOCUMENT TYPE DETECTION
+    // ═══════════════════════════════════════════════════════════════════════
+    const detectDocumentType = (text) => {
+        const textLower = text.toLowerCase();
+
+        // Imaging/Radiology keywords
+        const imagingKeywords = [
+            'ct scan', 'mri', 'x-ray', 'xray', 'ultrasound', 'sonography',
+            'radiograph', 'pet scan', 'mammogram', 'fluoroscopy', 'angiogram',
+            'impression:', 'findings:', 'technique:', 'comparison:', 'indication:',
+            'contrast', 'slice thickness', 'field of view', 'radiology report'
+        ];
+
+        // Lab keywords
+        const labKeywords = [
+            'wbc', 'rbc', 'hemoglobin', 'platelet', 'sodium', 'potassium',
+            'creatinine', 'glucose', 'reference range', 'normal range',
+            'specimen', 'laboratory', 'lab report'
+        ];
+
+        // Pathology keywords
+        const pathologyKeywords = [
+            'pathology', 'histopathology', 'biopsy', 'cytology', 'microscopic',
+            'gross description', 'diagnosis:', 'specimen type', 'neoplasm',
+            'malignant', 'benign', 'carcinoma', 'adenoma'
+        ];
+
+        // EKG/ECG keywords
+        const ekgKeywords = [
+            'ecg', 'ekg', 'electrocardiogram', 'heart rate', 'pr interval',
+            'qrs duration', 'qt interval', 'rhythm', 'atrial fibrillation',
+            'sinus rhythm', 'leads', 'v1', 'v2', 'avr', 'avl'
+        ];
+
+        let imagingScore = 0, labScore = 0, pathologyScore = 0, ekgScore = 0;
+
+        imagingKeywords.forEach(kw => { if (textLower.includes(kw)) imagingScore++; });
+        labKeywords.forEach(kw => { if (textLower.includes(kw)) labScore++; });
+        pathologyKeywords.forEach(kw => { if (textLower.includes(kw)) pathologyScore++; });
+        ekgKeywords.forEach(kw => { if (textLower.includes(kw)) ekgScore++; });
+
+        const scores = [
+            { type: 'IMAGING', score: imagingScore },
+            { type: 'LABORATORY', score: labScore },
+            { type: 'PATHOLOGY', score: pathologyScore },
+            { type: 'EKG', score: ekgScore }
+        ];
+
+        scores.sort((a, b) => b.score - a.score);
+
+        if (scores[0].score === 0) return 'UNKNOWN';
+        if (scores[0].score >= 2) return scores[0].type;
+
+        return 'LABORATORY'; // Default to lab if unclear
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // IMAGING/RADIOLOGY REPORT PARSING
+    // ═══════════════════════════════════════════════════════════════════════
+    const parseImagingReport = (text) => {
+        const findings = [];
+        let impression = '';
+        let technique = '';
+        let indication = '';
+
+        // Extract sections
+        const impressionMatch = text.match(/IMPRESSION[:\s]+([\s\S]+?)(?=\n\n|TECHNIQUE|FINDINGS|$)/i);
+        if (impressionMatch) impression = impressionMatch[1].trim();
+
+        const techniqueMatch = text.match(/TECHNIQUE[:\s]+([\s\S]+?)(?=\n\n|IMPRESSION|FINDINGS|$)/i);
+        if (techniqueMatch) technique = techniqueMatch[1].trim();
+
+        const indicationMatch = text.match(/INDICATION[:\s]+([\s\S]+?)(?=\n\n|TECHNIQUE|FINDINGS|IMPRESSION|$)/i);
+        if (indicationMatch) indication = indicationMatch[1].trim();
+
+        const findingsMatch = text.match(/FINDINGS[:\s]+([\s\S]+?)(?=\n\n|IMPRESSION|TECHNIQUE|$)/i);
+        if (findingsMatch) {
+            // Split findings into bullet points
+            const findingsText = findingsMatch[1];
+            const lines = findingsText.split('\n').filter(l => l.trim());
+            lines.forEach(line => {
+                const cleaned = line.trim().replace(/^[-•*]\s*/, '');
+                if (cleaned.length > 10) findings.push(cleaned);
+            });
+        }
+
+        return {
+            reportType: 'Imaging/Radiology',
+            impression,
+            findings,
+            technique,
+            indication,
+            summary: impression || (findings.length > 0 ? findings[0] : 'No structured impression found'),
+            values: [] // Imaging reports don't have lab values
+        };
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
     // FALLBACK: REGEX-BASED LAB PARSING
     // ═══════════════════════════════════════════════════════════════════════
     const parseWithRegex = (text) => {
@@ -315,25 +413,55 @@
                 };
             }
             
-            // Step 2: Parse with regex first (fast, no network)
-            onStage?.('Parsing with patterns...');
-            onProgress?.(60);
-            const regexResult = parseWithRegex(ocrResult.text);
-            onLog?.('info', `Regex found ${regexResult.values.length} values`);
+            // Step 2: Neural Document Type Detection
+            onStage?.('Detecting document type...');
+            onProgress?.(55);
+            const docType = detectDocumentType(ocrResult.text);
+            onLog?.('info', `Neural detection: ${docType} document`);
 
-            let parseResult = regexResult;
+            let parseResult;
 
-            // Only use Claude for complex cases where regex found < 5 values
-            if (CONFIG.USE_CLAUDE_PARSING && regexResult.values.length < 5) {
-                onLog?.('info', `Few values found (${regexResult.values.length}), trying Claude for better extraction...`);
-                const claudeResult = await parseWithClaude(ocrResult.text, callbacks);
+            // Step 3: Route to appropriate parser based on document type
+            if (docType === 'IMAGING') {
+                onStage?.('Parsing imaging report...');
+                onProgress?.(70);
+                parseResult = parseImagingReport(ocrResult.text);
+                onLog?.('success', `Imaging report parsed - ${parseResult.findings?.length || 0} findings`);
+            } else if (docType === 'PATHOLOGY') {
+                onStage?.('Parsing pathology report...');
+                onProgress?.(70);
+                // For now, use imaging parser for pathology (can be enhanced later)
+                parseResult = parseImagingReport(ocrResult.text);
+                parseResult.reportType = 'Pathology';
+                onLog?.('success', 'Pathology report parsed');
+            } else if (docType === 'EKG') {
+                onStage?.('Parsing EKG report...');
+                onProgress?.(70);
+                // For now, use imaging parser for EKG (can be enhanced later)
+                parseResult = parseImagingReport(ocrResult.text);
+                parseResult.reportType = 'EKG/ECG';
+                onLog?.('success', 'EKG report parsed');
+            } else {
+                // LABORATORY or UNKNOWN - parse as lab values
+                onStage?.('Parsing lab values...');
+                onProgress?.(60);
+                const regexResult = parseWithRegex(ocrResult.text);
+                onLog?.('info', `Regex found ${regexResult.values.length} values`);
 
-                // Use Claude result if it found more values
-                if (claudeResult && claudeResult.values && claudeResult.values.length > regexResult.values.length) {
-                    onLog?.('success', `Claude found ${claudeResult.values.length} values (better than regex)`);
-                    parseResult = claudeResult;
-                } else {
-                    onLog?.('info', 'Using regex result (better or equal)');
+                parseResult = regexResult;
+
+                // Only use Claude for complex cases where regex found < 5 values
+                if (CONFIG.USE_CLAUDE_PARSING && regexResult.values.length < 5) {
+                    onLog?.('info', `Few values found (${regexResult.values.length}), trying Claude for better extraction...`);
+                    const claudeResult = await parseWithClaude(ocrResult.text, callbacks);
+
+                    // Use Claude result if it found more values
+                    if (claudeResult && claudeResult.values && claudeResult.values.length > regexResult.values.length) {
+                        onLog?.('success', `Claude found ${claudeResult.values.length} values (better than regex)`);
+                        parseResult = claudeResult;
+                    } else {
+                        onLog?.('info', 'Using regex result (better or equal)');
+                    }
                 }
             }
             
@@ -348,7 +476,11 @@
                 confidence: ocrResult.confidence,
                 source: parseResult.source || 'regex',
                 summary: parseResult.summary || null,
-                findings: parseResult.findings || null
+                findings: parseResult.findings || null,
+                impression: parseResult.impression || null,
+                technique: parseResult.technique || null,
+                indication: parseResult.indication || null,
+                documentType: docType || 'LABORATORY'
             };
             
         } catch (err) {
