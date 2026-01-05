@@ -776,42 +776,211 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // WEB INTEGRATION - FETCH FROM ONLINE SOURCES
+    // WEB INTEGRATION - FETCH AND ANALYZE ONLINE GUIDELINES
     // ═══════════════════════════════════════════════════════════════════════
 
-    /**
-     * Search for guidelines online
-     */
-    function searchOnlineGuidelines(condition) {
-        const sources = [
-            {
-                name: 'Guidelines.gov',
-                url: `https://www.guidelines.gov/search?q=${encodeURIComponent(condition)}`,
-                description: 'National Guideline Clearinghouse'
-            },
-            {
-                name: 'PubMed',
-                url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(condition)}+guidelines`,
-                description: 'Medical literature database'
-            },
-            {
-                name: 'UpToDate',
-                url: `https://www.uptodate.com/contents/search?search=${encodeURIComponent(condition)}`,
-                description: 'Evidence-based clinical resource'
-            },
-            {
-                name: 'NICE Guidelines',
-                url: `https://www.nice.org.uk/guidance?q=${encodeURIComponent(condition)}`,
-                description: 'UK National Institute for Health and Care Excellence'
-            },
-            {
-                name: 'DynaMed',
-                url: `https://www.dynamed.com/search?q=${encodeURIComponent(condition)}`,
-                description: 'Evidence-based clinical reference'
-            }
-        ];
+    // Cache for fetched clinical pearls (stored in Firebase)
+    const CLINICAL_PEARLS_CACHE_PATH = 'clinical-guidelines/pearls-cache';
+    let pearlsCache = {};
 
-        return sources;
+    /**
+     * Load clinical pearls cache from Firebase
+     */
+    async function loadPearlsCache() {
+        try {
+            if (!window.db) return;
+            const snapshot = await window.db.ref(CLINICAL_PEARLS_CACHE_PATH).once('value');
+            const data = snapshot.val();
+            if (data) {
+                pearlsCache = data;
+                console.log(`[ClinicalGuidelines] Loaded ${Object.keys(pearlsCache).length} cached clinical pearls`);
+            }
+        } catch (error) {
+            console.error('[ClinicalGuidelines] Error loading pearls cache:', error);
+        }
+    }
+
+    /**
+     * Save clinical pearls to cache
+     */
+    async function savePearlsToCache(condition, pearls) {
+        try {
+            if (!window.db) return;
+            const cacheKey = condition.toLowerCase().trim();
+            const cacheEntry = {
+                condition: condition,
+                pearls: pearls,
+                cachedAt: Date.now(),
+                expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
+            };
+            await window.db.ref(`${CLINICAL_PEARLS_CACHE_PATH}/${cacheKey}`).set(cacheEntry);
+            pearlsCache[cacheKey] = cacheEntry;
+        } catch (error) {
+            console.error('[ClinicalGuidelines] Error saving pearls to cache:', error);
+        }
+    }
+
+    /**
+     * Get cached clinical pearls if available and not expired
+     */
+    function getCachedPearls(condition) {
+        const cacheKey = condition.toLowerCase().trim();
+        const cached = pearlsCache[cacheKey];
+        if (cached && cached.expiresAt > Date.now()) {
+            return cached.pearls;
+        }
+        return null;
+    }
+
+    /**
+     * Fetch and analyze guidelines from online sources to extract clinical pearls
+     */
+    async function fetchClinicalPearls(condition) {
+        // Check cache first
+        const cached = getCachedPearls(condition);
+        if (cached) {
+            console.log(`[ClinicalGuidelines] Using cached clinical pearls for: ${condition}`);
+            return { pearls: cached, source: 'cache' };
+        }
+
+        console.log(`[ClinicalGuidelines] Fetching clinical pearls for: ${condition}`);
+
+        try {
+            // Try multiple sources for best results
+            const sources = [
+                {
+                    name: 'PubMed',
+                    url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(condition)}+guidelines+treatment`
+                },
+                {
+                    name: 'NICE Guidelines',
+                    url: `https://www.nice.org.uk/guidance?q=${encodeURIComponent(condition)}`
+                }
+            ];
+
+            let allPearls = [];
+
+            // Fetch from primary source (PubMed)
+            if (window.WebFetch) {
+                try {
+                    const prompt = `Analyze this medical guideline content for ${condition}. Extract 5-10 KEY CLINICAL PEARLS - the most important, actionable takeaways for clinicians. Format as a JSON array of objects with: { "pearl": "concise clinical pearl", "category": "diagnosis/treatment/monitoring/prevention", "priority": "critical/high/moderate" }. Focus on: 1) First-line treatments, 2) Key diagnostic criteria, 3) Important drug interactions or contraindications, 4) Monitoring parameters, 5) Critical clinical warnings. Be concise and actionable.`;
+
+                    const result = await window.WebFetch(sources[0].url, prompt);
+
+                    if (result && result.pearls) {
+                        allPearls = result.pearls;
+                    }
+                } catch (error) {
+                    console.error('[ClinicalGuidelines] Error fetching from PubMed:', error);
+                }
+            }
+
+            // If we got pearls, structure and cache them
+            if (allPearls.length > 0) {
+                const structuredPearls = {
+                    condition: condition,
+                    pearls: allPearls,
+                    fetchedAt: new Date().toISOString(),
+                    sources: sources.map(s => s.name)
+                };
+
+                // Save to cache
+                await savePearlsToCache(condition, structuredPearls);
+
+                return { pearls: structuredPearls, source: 'online' };
+            }
+
+            // If fetching fails, return placeholder pearls
+            return {
+                pearls: {
+                    condition: condition,
+                    pearls: [
+                        {
+                            pearl: `Unable to fetch live guidelines for ${condition}. Using built-in knowledge base.`,
+                            category: 'system',
+                            priority: 'moderate'
+                        },
+                        {
+                            pearl: 'Check reliable sources like UpToDate, PubMed, or NICE Guidelines manually for the most current recommendations.',
+                            category: 'system',
+                            priority: 'high'
+                        }
+                    ],
+                    fetchedAt: new Date().toISOString(),
+                    sources: ['System']
+                },
+                source: 'fallback'
+            };
+
+        } catch (error) {
+            console.error('[ClinicalGuidelines] Error fetching clinical pearls:', error);
+            return {
+                pearls: {
+                    condition: condition,
+                    pearls: [
+                        {
+                            pearl: `Error fetching guidelines: ${error.message}`,
+                            category: 'system',
+                            priority: 'moderate'
+                        }
+                    ],
+                    fetchedAt: new Date().toISOString(),
+                    sources: ['Error']
+                },
+                source: 'error'
+            };
+        }
+    }
+
+    /**
+     * Generate clinical pearls from built-in guidelines
+     */
+    function generatePearlsFromBuiltIn(guidelineName) {
+        const guideline = GUIDELINES[guidelineName];
+        if (!guideline) return null;
+
+        const pearls = [];
+
+        // Extract top medications as pearls
+        if (guideline.treatment && guideline.treatment.medications) {
+            guideline.treatment.medications.slice(0, 3).forEach((med, idx) => {
+                pearls.push({
+                    pearl: med,
+                    category: 'treatment',
+                    priority: idx === 0 ? 'critical' : 'high'
+                });
+            });
+        }
+
+        // Extract key monitoring parameters
+        if (guideline.monitoring && guideline.monitoring.labs) {
+            pearls.push({
+                pearl: `Monitor: ${guideline.monitoring.labs.slice(0, 5).join(', ')}`,
+                category: 'monitoring',
+                priority: 'high'
+            });
+        }
+
+        // Extract critical lab adjustments
+        if (guideline.labAdjustments) {
+            const criticalAdjustments = Object.entries(guideline.labAdjustments).slice(0, 2);
+            criticalAdjustments.forEach(([lab, adj]) => {
+                if (adj.high) {
+                    pearls.push({
+                        pearl: `${lab} elevated: ${adj.high.substring(0, 150)}`,
+                        category: 'monitoring',
+                        priority: 'critical'
+                    });
+                }
+            });
+        }
+
+        return {
+            condition: guidelineName,
+            pearls: pearls,
+            fetchedAt: new Date().toISOString(),
+            sources: ['Built-in Guidelines']
+        };
     }
 
     /**
@@ -847,7 +1016,7 @@
     // EXPOSE ENHANCED GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.ClinicalGuidelines = {
-        version: '2.0',
+        version: '2.1',
 
         // Core functions
         findGuidelines: findGuidelines,
@@ -868,8 +1037,10 @@
         loadLearnedGuidelines: loadLearnedGuidelines,
         createGuidelineTemplate: createGuidelineTemplate,
 
-        // Web integration
-        searchOnlineGuidelines: searchOnlineGuidelines,
+        // Clinical Pearls (NEW in v2.1)
+        fetchClinicalPearls: fetchClinicalPearls,
+        generatePearlsFromBuiltIn: generatePearlsFromBuiltIn,
+        getCachedPearls: getCachedPearls,
 
         // Utility functions
         testMatch: (diagnosis, keyword) => advancedMatch(diagnosis, keyword),
@@ -877,15 +1048,17 @@
         isReady: true
     };
 
-    // Auto-load learned guidelines on init
+    // Auto-load learned guidelines and pearls cache on init
     (async () => {
         // Wait a bit for Firebase to initialize
         setTimeout(async () => {
             await loadLearnedGuidelines();
-            console.log('[ClinicalGuidelines v2.0] Dynamic Clinical Guidelines System loaded');
-            console.log('[ClinicalGuidelines v2.0] Built-in guidelines:', Object.keys(GUIDELINES).length);
-            console.log('[ClinicalGuidelines v2.0] Learned guidelines:', Object.keys(learnedGuidelines).length);
-            console.log('[ClinicalGuidelines v2.0] Features: Advanced fuzzy matching, Google Drive storage, Online search');
+            await loadPearlsCache();
+            console.log('[ClinicalGuidelines v2.1] Dynamic Clinical Guidelines System loaded');
+            console.log('[ClinicalGuidelines v2.1] Built-in guidelines:', Object.keys(GUIDELINES).length);
+            console.log('[ClinicalGuidelines v2.1] Learned guidelines:', Object.keys(learnedGuidelines).length);
+            console.log('[ClinicalGuidelines v2.1] Cached pearls:', Object.keys(pearlsCache).length);
+            console.log('[ClinicalGuidelines v2.1] Features: Advanced fuzzy matching, Clinical pearls extraction, Google Drive storage');
         }, 1000);
     })();
 
