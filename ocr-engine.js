@@ -8,7 +8,7 @@
 
     // Configuration
     const CONFIG = {
-        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec',
+        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbzaxFpjxAYizDEhy8VbReRImAtTjk_2E1rj1Hinyu02KW0VHFpOD2Xo9qEFBvNx4gHW/exec',
         MAX_IMAGE_WIDTH: 1200,     // Reduced from 1600 for faster upload
         JPEG_QUALITY: 0.88,        // Reduced from 0.92 for smaller file size
         USE_CLAUDE_PARSING: true,  // Enable Claude API for smart parsing

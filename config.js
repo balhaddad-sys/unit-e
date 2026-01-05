@@ -13,8 +13,8 @@ const CONFIG = {
         appId: "1:811476183925:web:c3fe741cf3613fb4940ab6"
     },
     
-    // Google Apps Script Proxy URL
-    visionApiUrl: 'https://script.google.com/macros/s/AKfycbwT0sjHKwhPmFk5lgtLkHVUrJBXlmFbhLqfEn5My_rEMwNf4QaJhFqrqxVw9_cFo30/exec',
+    // Google Apps Script Proxy URL - Updated with new deployment
+    visionApiUrl: 'https://script.google.com/macros/s/AKfycbzaxFpjxAYizDEhy8VbReRImAtTjk_2E1rj1Hinyu02KW0VHFpOD2Xo9qEFBvNx4gHW/exec',
     
     // Google Sheet URL
     sheetUrl: 'https://docs.google.com/spreadsheets/d/1X1Dy5P3S_WPAi-SGKO8ZUwPLl1k4lZwJE6Gk_M62u9o/edit',
