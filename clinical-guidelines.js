@@ -16,11 +16,12 @@
    - Lab-value-adjusted recommendations
    - Evidence-based clinical guidelines for common conditions
 
-   Built-in Guidelines (11 conditions):
+   Built-in Guidelines (13 conditions):
    - Heart Failure, Hypertension, Diabetes Mellitus
    - Chronic Kidney Disease, COPD, Atrial Fibrillation
    - Pneumonia, Urosepsis, Chest Infection
    - CVA (Stroke), Post-Cardiac Arrest
+   - Symptomatic Anemia, Infective Endocarditis
 
    Guidelines Sources:
    - AHA/ACC, KDIGO, ADA, GOLD, ESC, NICE
