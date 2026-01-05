@@ -16,11 +16,12 @@
    - Lab-value-adjusted recommendations
    - Evidence-based clinical guidelines for common conditions
 
-   Built-in Guidelines (11 conditions):
+   Built-in Guidelines (13 conditions):
    - Heart Failure, Hypertension, Diabetes Mellitus
    - Chronic Kidney Disease, COPD, Atrial Fibrillation
    - Pneumonia, Urosepsis, Chest Infection
    - CVA (Stroke), Post-Cardiac Arrest
+   - Symptomatic Anemia, Infective Endocarditis
 
    Guidelines Sources:
    - AHA/ACC, KDIGO, ADA, GOLD, ESC, NICE
@@ -756,6 +757,207 @@
                 'Neuroprognostication: ERC/ESICM 2021 (use multimodal approach)'
             ],
             guidelineUrl: 'https://www.ahajournals.org/cpr'
+        },
+
+        'Symptomatic Anemia': {
+            keywords: ['symptomatic anemia', 'anemia symptomatic', 'anemic', 'low hemoglobin', 'low hgb', 'low hb', 'iron deficiency anemia', 'ida', 'anemia of chronic disease', 'microcytic anemia', 'macrocytic anemia', 'normocytic anemia'],
+            category: 'Hematology',
+            scores: [
+                {
+                    name: 'Transfusion Decision Tool',
+                    purpose: 'Guide RBC transfusion based on symptoms and Hgb level',
+                    fields: [
+                        { id: 'hgb_severe', label: 'Hgb <7 g/dL', type: 'checkbox', points: 3 },
+                        { id: 'chest_pain', label: 'Chest pain or angina', type: 'checkbox', points: 2 },
+                        { id: 'sob', label: 'Shortness of breath at rest', type: 'checkbox', points: 2 },
+                        { id: 'tachycardia', label: 'Tachycardia >110 bpm', type: 'checkbox', points: 1 },
+                        { id: 'orthostasis', label: 'Orthostatic hypotension', type: 'checkbox', points: 1 },
+                        { id: 'cad', label: 'Known CAD or acute coronary syndrome', type: 'checkbox', points: 2 }
+                    ],
+                    interpretation: {
+                        0: { risk: 'Low', recommendation: 'Transfusion likely not needed. Treat underlying cause.', color: '#10b981' },
+                        1: { risk: 'Low', recommendation: 'Monitor closely. Consider oral iron if Hgb 7-10.', color: '#10b981' },
+                        2: { risk: 'Moderate', recommendation: 'Consider 1 unit PRBC, reassess symptoms.', color: '#f59e0b' },
+                        3: { risk: 'Moderate-High', recommendation: 'Transfuse 1-2 units PRBC. Recheck Hgb.', color: '#f97316' },
+                        4: { risk: 'High', recommendation: 'Transfuse 2 units PRBC urgently. Monitor closely.', color: '#dc2626' },
+                        9: { risk: 'Critical', recommendation: 'Urgent transfusion required. ICU monitoring.', color: '#991b1b' }
+                    }
+                }
+            ],
+            monitoring: {
+                labs: ['CBC with differential', 'Reticulocyte count', 'Iron panel (Fe, TIBC, Ferritin)', 'B12, Folate', 'Peripheral smear', 'LDH, Haptoglobin (if hemolysis suspected)', 'Stool for occult blood'],
+                vitals: ['HR, BP (orthostatic vitals)', 'O2 saturation', 'Monitor for volume overload after transfusion'],
+                other: ['EKG if chest pain or CAD', 'Endoscopy if GI bleeding suspected', 'Colonoscopy if age >50 or alarm symptoms']
+            },
+            treatment: {
+                drugClasses: [
+                    {
+                        class: 'Transfusion Therapy',
+                        medications: [
+                            'PRBC 1-2 units if Hgb <7 g/dL or symptomatic',
+                            'Goal Hgb 7-9 g/dL in stable patients, 8-10 g/dL if CAD/ACS',
+                            'Transfuse slowly (2-4 hours per unit) to avoid volume overload',
+                            'Monitor for transfusion reactions (fever, urticaria, dyspnea, hemolysis)'
+                        ]
+                    },
+                    {
+                        class: 'Iron Replacement (if IDA)',
+                        medications: [
+                            'Oral: Ferrous sulfate 325mg PO TID (65mg elemental iron per tablet) - Take on empty stomach with vitamin C',
+                            'IV iron (Injectafer, Feraheme) if intolerant to PO or severe IDA',
+                            'Continue for 3-6 months after Hgb normalizes to replete stores'
+                        ]
+                    },
+                    {
+                        class: 'Vitamin Supplementation',
+                        medications: [
+                            'B12: 1000 mcg IM monthly if deficient (pernicious anemia, malabsorption)',
+                            'Folate: 1mg PO daily if deficient',
+                            'EPO (erythropoietin) if CKD-related anemia (Hgb <10 g/dL)'
+                        ]
+                    }
+                ],
+                nonpharm: [
+                    'Identify and treat underlying cause (GI bleeding, nutritional deficiency, hemolysis, CKD)',
+                    'Dietary counseling: Increase red meat, dark leafy greens, beans, fortified cereals',
+                    'Avoid tea/coffee with meals (inhibits iron absorption)',
+                    'Consider gastroenterology referral for endoscopy if occult GI bleeding',
+                    'Hematology referral if refractory or unclear etiology'
+                ]
+            },
+            labAdjustments: {
+                Hgb: {
+                    critical: 'Hgb <6 g/dL: CRITICAL - Transfuse immediately 2-4 units PRBC. Monitor in ICU if unstable or active bleeding.',
+                    low: 'Hgb 6-7 g/dL: Symptomatic or CAD → Transfuse 1-2 units. Asymptomatic → Oral iron, monitor closely.',
+                    moderate: 'Hgb 7-10 g/dL: Treat underlying cause. Oral iron if IDA. Transfuse only if symptomatic.',
+                    normal: 'Hgb >10 g/dL: Continue iron supplementation if IDA. No transfusion needed.'
+                },
+                MCV: {
+                    low: 'MCV <80 fL (Microcytic): Iron deficiency, thalassemia, or chronic disease. Check iron panel.',
+                    normal: 'MCV 80-100 fL (Normocytic): Acute blood loss, CKD, hemolysis, or chronic disease.',
+                    high: 'MCV >100 fL (Macrocytic): B12/folate deficiency, alcohol, hypothyroidism, or myelodysplasia.'
+                },
+                Ferritin: {
+                    low: 'Ferritin <30 ng/mL: Iron deficiency. Start oral iron 325mg TID.',
+                    normal: 'Ferritin 30-200 ng/mL: Adequate iron stores. Consider other causes of anemia.',
+                    high: 'Ferritin >200 ng/mL: Inflammation, infection, or iron overload. Not iron deficiency.'
+                },
+                Reticulocyte: {
+                    low: '<0.5%: Decreased RBC production (bone marrow problem, nutritional deficiency). Check B12, folate, iron.',
+                    high: '>2%: Increased RBC production (hemolysis, acute bleeding). Check LDH, haptoglobin, bilirubin.'
+                }
+            },
+            references: [
+                'AABB Red Blood Cell Transfusion Guidelines 2016',
+                'WHO Iron Deficiency Anemia Guidelines',
+                'UpToDate: Approach to the Adult with Anemia'
+            ],
+            guidelineUrl: 'https://www.aabb.org/news-resources/resources/transfusion-guidelines'
+        },
+
+        'Infective Endocarditis': {
+            keywords: ['endocarditis', 'infective endocarditis', 'ie', 'bacterial endocarditis', 'vegetation', 'valvular infection', 'blood culture positive endocarditis'],
+            category: 'Infectious Disease',
+            scores: [
+                {
+                    name: 'Modified Duke Criteria',
+                    purpose: 'Diagnostic criteria for infective endocarditis',
+                    fields: [
+                        { id: 'blood_culture_positive', label: '2+ positive blood cultures with typical organism', type: 'checkbox', points: 2 },
+                        { id: 'echo_vegetation', label: 'Echo: Vegetation, abscess, or new valve regurgitation', type: 'checkbox', points: 2 },
+                        { id: 'fever', label: 'Fever >38°C (100.4°F)', type: 'checkbox', points: 1 },
+                        { id: 'vascular_phenomena', label: 'Vascular phenomena (emboli, septic infarcts, Janeway lesions)', type: 'checkbox', points: 1 },
+                        { id: 'immunologic', label: 'Immunologic phenomena (Osler nodes, Roth spots, RF positive)', type: 'checkbox', points: 1 },
+                        { id: 'predisposing', label: 'Predisposing heart condition or IVDU', type: 'checkbox', points: 1 }
+                    ],
+                    interpretation: {
+                        0: { risk: 'Unlikely', recommendation: 'IE unlikely. Consider alternative diagnosis.', color: '#10b981' },
+                        1: { risk: 'Possible', recommendation: 'Possible IE. Repeat blood cultures, get TEE.', color: '#f59e0b' },
+                        2: { risk: 'Possible', recommendation: 'Possible IE. Start empiric antibiotics after cultures.', color: '#f59e0b' },
+                        3: { risk: 'Probable', recommendation: 'Probable IE. Start antibiotics, consult cardiology/ID.', color: '#f97316' },
+                        4: { risk: 'Definite', recommendation: 'Definite IE (2 major criteria). Urgent treatment required.', color: '#dc2626' },
+                        9: { risk: 'Definite', recommendation: 'Definite IE. Cardiology, cardiac surgery, ID consults.', color: '#991b1b' }
+                    }
+                }
+            ],
+            monitoring: {
+                labs: ['Blood cultures x3 sets from different sites BEFORE antibiotics', 'CBC with differential', 'ESR, CRP', 'Cr/eGFR (baseline renal function)', 'LFTs', 'UA with micro (check for glomerulonephritis)', 'RF, complement (C3, C4) if suspect immunologic phenomena'],
+                imaging: ['Transthoracic Echo (TTE) - initial screen', 'Transesophageal Echo (TEE) - more sensitive for vegetations, required if TTE negative and high suspicion', 'CT chest/abdomen if septic emboli suspected', 'MRI brain if neuro symptoms'],
+                vitals: ['Temperature q4h', 'BP, HR closely (risk of septic shock)', 'Daily cardiac exam for new murmurs', 'Neuro checks (risk of embolic stroke)'],
+                other: ['Daily assessment for embolic phenomena', 'Monitor for heart failure (valve destruction)', 'Weekly echo if unstable or worsening']
+            },
+            treatment: {
+                drugClasses: [
+                    {
+                        class: 'Empiric IV Antibiotics (Native Valve)',
+                        medications: [
+                            'Vancomycin 15-20 mg/kg IV q8-12h (target trough 15-20) + Ceftriaxone 2g IV q24h',
+                            'If PCN allergy: Vancomycin + Gentamicin 1 mg/kg IV q8h (check levels)',
+                            'Continue until organism identified, then narrow based on sensitivities'
+                        ]
+                    },
+                    {
+                        class: 'Empiric IV Antibiotics (Prosthetic Valve)',
+                        medications: [
+                            'Vancomycin 15-20 mg/kg IV q8-12h + Gentamicin 1 mg/kg IV q8h + Rifampin 300mg PO/IV q8h',
+                            'Broader coverage needed for prosthetic valves (S. epidermidis common)'
+                        ]
+                    },
+                    {
+                        class: 'Targeted Therapy (Organism-Specific)',
+                        medications: [
+                            'Strep viridans: PCN G 4 million units IV q4h or Ceftriaxone 2g IV q24h x 4 weeks',
+                            'Staph aureus (MSSA): Nafcillin 2g IV q4h or Cefazolin 2g IV q8h x 4-6 weeks',
+                            'Staph aureus (MRSA): Vancomycin 15-20 mg/kg IV q8-12h x 4-6 weeks',
+                            'Enterococcus: Ampicillin 2g IV q4h + Gentamicin 1 mg/kg IV q8h x 4-6 weeks',
+                            'HACEK organisms: Ceftriaxone 2g IV q24h x 4 weeks'
+                        ]
+                    },
+                    {
+                        class: 'Adjunctive Therapy',
+                        medications: [
+                            'Anticoagulation: AVOID unless mechanical valve or other indication (increases bleeding risk)',
+                            'Heart failure: Diuretics, ACE inhibitors as tolerated',
+                            'Consider cardiac surgery if: Heart failure, large vegetation >10mm, recurrent emboli, abscess, valve dehiscence'
+                        ]
+                    }
+                ],
+                nonpharm: [
+                    'Infectious Disease consult - MANDATORY for antibiotic selection and duration',
+                    'Cardiology consult - assess for surgery indications',
+                    'Cardiac surgery consult if severe valve dysfunction, heart failure, or abscess',
+                    'Dentistry evaluation (remove potential sources of bacteremia)',
+                    'Duration: 4-6 weeks IV antibiotics (native valve), 6-8 weeks (prosthetic valve)',
+                    'Repeat blood cultures 48-72h after starting antibiotics (should be negative)',
+                    'Repeat TTE/TEE at end of treatment to assess for residual vegetation',
+                    'Endocarditis prophylaxis for future dental procedures if high-risk'
+                ]
+            },
+            labAdjustments: {
+                WBC: {
+                    high: 'WBC >15,000: Severe infection or abscess formation. Ensure adequate antibiotic coverage. Consider CT scan for abscess.',
+                    normal: 'WBC normal: Doesn\'t rule out IE. Focus on blood culture results and echo findings.'
+                },
+                Cr: {
+                    rising: 'Creatinine rising: Antibiotic nephrotoxicity (vancomycin, gentamicin) OR immune complex glomerulonephritis OR septic emboli to kidneys. Check UA for RBC casts. Adjust antibiotic doses. Consider stopping gentamicin if Cr >2.0.',
+                    normal: 'Creatinine stable: Continue current antibiotics. Monitor closely.'
+                },
+                CRP_ESR: {
+                    high: 'ESR >50, CRP >10: Active infection. Trending down = treatment response. Persistent elevation = treatment failure, consider surgery.',
+                    trending: 'CRP/ESR trending: Serial values helpful to monitor treatment response. Should decrease by 50% in 2 weeks.'
+                },
+                BloodCulture: {
+                    positive: 'Blood cultures positive >72h after antibiotics: Treatment failure. Consider resistant organism, abscess, or need for surgery. Repeat TEE.',
+                    negative: 'Blood cultures negative at 72h: Good response to antibiotics. Continue full course (4-6 weeks).'
+                }
+            },
+            references: [
+                'AHA/ACC Infective Endocarditis Guidelines 2015',
+                'ESC Infective Endocarditis Guidelines 2023',
+                'Modified Duke Criteria (Circulation 2000;96:358-366)',
+                'UpToDate: Antimicrobial Therapy of Native Valve Endocarditis'
+            ],
+            guidelineUrl: 'https://www.ahajournals.org/doi/10.1161/CIR.0000000000000296'
         }
     };
 
@@ -884,7 +1086,12 @@
             'pe': ['pulmonary embolism'],
             'aki': ['acute kidney injury'],
             'uti': ['urinary tract infection'],
-            'gi': ['gastrointestinal']
+            'gi': ['gastrointestinal'],
+            'ie': ['infective endocarditis', 'endocarditis'],
+            'ida': ['iron deficiency anemia', 'anemia'],
+            'hgb': ['hemoglobin', 'anemia'],
+            'hct': ['hematocrit'],
+            'cva': ['stroke', 'cerebrovascular accident']
         };
 
         const textWords = extractKeywords(text);
@@ -976,7 +1183,19 @@
         // Severity modifiers
         'severe': ['critical', 'acute', 'serious', 'emergency', 'life-threatening'],
         'chronic': ['long-term', 'ongoing', 'persistent'],
-        'acute': ['sudden', 'severe', 'emergency', 'critical']
+        'acute': ['sudden', 'severe', 'emergency', 'critical'],
+
+        // Blood/Hematology patterns
+        'anemia': ['symptomatic anemia', 'low hemoglobin', 'low hgb', 'anemic', 'iron deficiency', 'ida'],
+        'hemoglobin': ['anemia', 'hgb', 'hb', 'low hemoglobin', 'anemic'],
+        'iron': ['anemia', 'iron deficiency', 'ida', 'ferritin', 'low iron'],
+        'symptomatic': ['symptoms', 'presenting', 'clinical'],
+
+        // Cardiac/Valve patterns
+        'endocarditis': ['infective endocarditis', 'ie', 'valve infection', 'bacterial endocarditis'],
+        'valve': ['endocarditis', 'valvular', 'valve infection', 'vegetation'],
+        'vegetation': ['endocarditis', 'ie', 'valve infection'],
+        'infective': ['infectious', 'infection', 'infected', 'bacterial']
     };
 
     /**
