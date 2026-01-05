@@ -1553,9 +1553,10 @@
         // PHASE 4: PROACTIVE AUTO-GENERATION & AUTONOMOUS LEARNING
         // Enhanced in v3.1: More aggressive autonomous learning
         // If no high-confidence match found, trigger neural research
-        const hasHighConfidenceMatch = matches.length > 0 && matches[0].confidence >= 75;
+        const bestMatch = matches.length > 0 ? matches[0] : null;
+        const hasGoodMatch = bestMatch && bestMatch.confidence >= 75;
 
-        if (!hasHighConfidenceMatch && !options.disableAutoGeneration) {
+        if (!hasGoodMatch && !options.disableAutoGeneration) {
             console.log('[NeuralEngine] 🚀 AUTONOMOUS LEARNING ACTIVATED');
             console.log(`[NeuralEngine] 📊 Current best match: ${matches.length > 0 ? matches[0].confidence + '%' : 'None'}`);
             console.log('[NeuralEngine] 🔬 Neural AI will research and learn about this condition in the background...');

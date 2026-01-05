@@ -9,9 +9,11 @@
     // Configuration
     const CONFIG = {
         VISION_API_URL: 'https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec',
-        MAX_IMAGE_WIDTH: 1600,
-        JPEG_QUALITY: 0.92,
-        USE_CLAUDE_PARSING: true  // Enable Claude API for smart parsing
+        MAX_IMAGE_WIDTH: 1200,     // Reduced from 1600 for faster upload
+        JPEG_QUALITY: 0.88,        // Reduced from 0.92 for smaller file size
+        USE_CLAUDE_PARSING: true,  // Enable Claude API for smart parsing
+        VISION_TIMEOUT: 8000,      // 8 second timeout for Vision API
+        CLAUDE_TIMEOUT: 5000       // 5 second timeout for Claude parsing
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -68,17 +70,23 @@
         
         try {
             onProgress?.(30);
-            
+
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), CONFIG.VISION_TIMEOUT);
+
             const response = await fetch(CONFIG.VISION_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ 
-                    action: 'ocr', 
-                    image: imageData, 
-                    mode: 'DOCUMENT_TEXT_DETECTION' 
-                })
+                body: JSON.stringify({
+                    action: 'ocr',
+                    image: imageData,
+                    mode: 'DOCUMENT_TEXT_DETECTION'
+                }),
+                signal: controller.signal
             });
-            
+
+            clearTimeout(timeoutId);
             onProgress?.(50);
             
             const responseText = await response.text();
@@ -107,6 +115,10 @@
             };
             
         } catch (err) {
+            if (err.name === 'AbortError') {
+                onLog?.('error', `Vision API timeout (${CONFIG.VISION_TIMEOUT / 1000}s) - network too slow or server not responding`);
+                throw new Error('OCR timeout - please try again or check connection');
+            }
             onLog?.('error', `Vision API failed: ${err.message}`);
             throw err;
         }
@@ -121,17 +133,23 @@
         onStage?.('AI analyzing report...');
         onProgress?.(60);
         onLog?.('info', 'Sending to Claude for intelligent parsing...');
-        
+
         try {
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), CONFIG.CLAUDE_TIMEOUT);
+
             const response = await fetch(CONFIG.VISION_API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ 
-                    action: 'claudeParse', 
+                body: JSON.stringify({
+                    action: 'claudeParse',
                     text: ocrText
-                })
+                }),
+                signal: controller.signal
             });
-            
+
+            clearTimeout(timeoutId);
             onProgress?.(85);
             
             const result = await response.json();
@@ -147,7 +165,11 @@
             return result;
             
         } catch (err) {
-            onLog?.('warn', `Claude API error: ${err.message}, falling back to regex`);
+            if (err.name === 'AbortError') {
+                onLog?.('warn', `Claude timeout (${CONFIG.CLAUDE_TIMEOUT / 1000}s) - falling back to regex`);
+            } else {
+                onLog?.('warn', `Claude API error: ${err.message}, falling back to regex`);
+            }
             return null;
         }
     };
@@ -293,19 +315,26 @@
                 };
             }
             
-            // Step 2: Parse with Claude (if enabled) or fallback to regex
-            let parseResult = null;
-            
-            if (CONFIG.USE_CLAUDE_PARSING) {
-                parseResult = await parseWithClaude(ocrResult.text, callbacks);
-            }
-            
-            // Fallback to regex if Claude fails or is disabled
-            if (!parseResult) {
-                onStage?.('Parsing with patterns...');
-                onProgress?.(90);
-                parseResult = parseWithRegex(ocrResult.text);
-                onLog?.('info', `Regex found ${parseResult.values.length} values`);
+            // Step 2: Parse with regex first (fast, no network)
+            onStage?.('Parsing with patterns...');
+            onProgress?.(60);
+            const regexResult = parseWithRegex(ocrResult.text);
+            onLog?.('info', `Regex found ${regexResult.values.length} values`);
+
+            let parseResult = regexResult;
+
+            // Only use Claude for complex cases where regex found < 5 values
+            if (CONFIG.USE_CLAUDE_PARSING && regexResult.values.length < 5) {
+                onLog?.('info', `Few values found (${regexResult.values.length}), trying Claude for better extraction...`);
+                const claudeResult = await parseWithClaude(ocrResult.text, callbacks);
+
+                // Use Claude result if it found more values
+                if (claudeResult && claudeResult.values && claudeResult.values.length > regexResult.values.length) {
+                    onLog?.('success', `Claude found ${claudeResult.values.length} values (better than regex)`);
+                    parseResult = claudeResult;
+                } else {
+                    onLog?.('info', 'Using regex result (better or equal)');
+                }
             }
             
             onProgress?.(100);

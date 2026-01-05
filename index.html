@@ -3454,19 +3454,19 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     addDebugLog('warn', 'Drive load timeout (5s) - using cached data if available');
                 } else {
                     addDebugLog('error', `Failed to load from Drive: ${err.message}`);
-                // Fall back to Firebase data if available
-                if (patient.labData && patient.labData.length > 0) {
-                    const labs = patient.labData.map(lab => ({
-                        id: lab.id,
-                        image: null,
-                        timestamp: lab.timestamp,
-                        note: lab.note || '',
-                        labType: lab.labType || 'AUTO',
-                        ocr: { text: '', values: lab.values || [], confidence: lab.confidence || 0, source: 'firebase' }
-                    }));
-                    setLabImages(labs);
-                    labsCache.current[patient.id] = labs; // Cache fallback data too
-                }
+                    // Fall back to Firebase data if available
+                    if (patient.labData && patient.labData.length > 0) {
+                        const labs = patient.labData.map(lab => ({
+                            id: lab.id,
+                            image: null,
+                            timestamp: lab.timestamp,
+                            note: lab.note || '',
+                            labType: lab.labType || 'AUTO',
+                            ocr: { text: '', values: lab.values || [], confidence: lab.confidence || 0, source: 'firebase' }
+                        }));
+                        setLabImages(labs);
+                        labsCache.current[patient.id] = labs; // Cache fallback data too
+                    }
                 }
             }
         };
@@ -3499,13 +3499,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
         }
 
         // Convert to CDSS input format with defensive checks
-        const labInput = values.filter(v => v && v.test && v.value != null).map(v => ({
-            test: v.test || 'Unknown',
-            value: parseFloat(v.value) || v.value,
-            unit: v.unit || '',
-            refLow: v.refLow != null ? parseFloat(v.refLow) : undefined,
-            refHigh: v.refHigh != null ? parseFloat(v.refHigh) : undefined
-        }));
+        const labInput = values.filter(v => v && v.test && v.value != null).map(v => {
+            // Handle both range array [low, high] and individual refLow/refHigh properties
+            let refLow, refHigh;
+            if (Array.isArray(v.range) && v.range.length === 2) {
+                refLow = v.range[0];
+                refHigh = v.range[1];
+            } else {
+                refLow = v.refLow;
+                refHigh = v.refHigh;
+            }
+
+            return {
+                test: v.test || 'Unknown',
+                value: parseFloat(v.value) || v.value,
+                unit: v.unit || '',
+                refLow: refLow != null ? parseFloat(refLow) : undefined,
+                refHigh: refHigh != null ? parseFloat(refHigh) : undefined
+            };
+        });
 
         if (labInput.length === 0) {
             addDebugLog('warn', 'No valid lab values after filtering');
