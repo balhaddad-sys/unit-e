@@ -442,32 +442,51 @@
                 parseResult.reportType = 'EKG/ECG';
                 onLog?.('success', 'EKG report parsed');
             } else {
-                // LABORATORY or UNKNOWN - parse as lab values
-                onStage?.('Parsing lab values...');
+                // LABORATORY or UNKNOWN - use advanced LabParser with neural analysis
+                onStage?.('Parsing lab values with neural engine...');
                 onProgress?.(60);
-                const regexResult = parseWithRegex(ocrResult.text);
-                onLog?.('info', `Regex found ${regexResult.values.length} values`);
 
-                parseResult = regexResult;
+                // Check if LabParser module is available (enhanced neural parser)
+                if (window.LabParser && window.LabParser.isReady) {
+                    onLog?.('info', '🧠 Using advanced LabParser with neural analysis (cloud vision enhanced)');
+                    parseResult = window.LabParser.parse(ocrResult.text, { includeNeural: true });
+                    onLog?.('success', `Neural parser found ${parseResult.values.length} values with confidence scoring`);
 
-                // Only use Claude for complex cases where regex found < 5 values
-                if (CONFIG.USE_CLAUDE_PARSING && regexResult.values.length < 5) {
-                    onLog?.('info', `Few values found (${regexResult.values.length}), trying Claude for better extraction...`);
-                    const claudeResult = await parseWithClaude(ocrResult.text, callbacks);
+                    // Add source info
+                    parseResult.source = 'cloud_vision_neural';
+                    parseResult.labType = parseResult.labType || 'GENERAL';
+                    parseResult.reportType = parseResult.reportType || 'Laboratory';
 
-                    // Use Claude result if it found more values
-                    if (claudeResult && claudeResult.values && claudeResult.values.length > regexResult.values.length) {
-                        onLog?.('success', `Claude found ${claudeResult.values.length} values (better than regex)`);
-                        parseResult = claudeResult;
-                    } else {
-                        onLog?.('info', 'Using regex result (better or equal)');
+                    // If neural analysis is available, log it
+                    if (parseResult.neuralAnalysis) {
+                        onLog?.('info', `🧠 Neural analysis: ${parseResult.neuralAnalysis.syndromes?.length || 0} syndromes detected`);
+                    }
+                } else {
+                    // Fallback to basic regex if LabParser not available
+                    onLog?.('warn', 'LabParser not available, falling back to basic regex');
+                    const regexResult = parseWithRegex(ocrResult.text);
+                    onLog?.('info', `Basic regex found ${regexResult.values.length} values`);
+                    parseResult = regexResult;
+
+                    // Only use Claude for complex cases where regex found < 5 values
+                    if (CONFIG.USE_CLAUDE_PARSING && regexResult.values.length < 5) {
+                        onLog?.('info', `Few values found (${regexResult.values.length}), trying Claude for better extraction...`);
+                        const claudeResult = await parseWithClaude(ocrResult.text, callbacks);
+
+                        // Use Claude result if it found more values
+                        if (claudeResult && claudeResult.values && claudeResult.values.length > regexResult.values.length) {
+                            onLog?.('success', `Claude found ${claudeResult.values.length} values (better than regex)`);
+                            parseResult = claudeResult;
+                        } else {
+                            onLog?.('info', 'Using regex result (better or equal)');
+                        }
                     }
                 }
             }
             
             onProgress?.(100);
             onStage?.('Complete');
-            
+
             return {
                 text: ocrResult.text,
                 values: parseResult.values || [],
@@ -480,7 +499,8 @@
                 impression: parseResult.impression || null,
                 technique: parseResult.technique || null,
                 indication: parseResult.indication || null,
-                documentType: docType || 'LABORATORY'
+                documentType: docType || 'LABORATORY',
+                neuralAnalysis: parseResult.neuralAnalysis || null  // Include neural analysis from LabParser
             };
             
         } catch (err) {
