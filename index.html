@@ -994,7 +994,21 @@
             background: linear-gradient(to bottom, #f8fafc 0%, #ffffff 100%);
             border-bottom: 2px solid #e2e8f0;
             overflow-x: auto;
+            overflow-y: visible;
             scrollbar-width: thin;
+            flex-wrap: nowrap;
+            position: relative;
+            z-index: 1;
+        }
+        .tabs::-webkit-scrollbar {
+            height: 4px;
+        }
+        .tabs::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        .tabs::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 2px;
         }
         .tab {
             padding: 10px 16px;
@@ -2844,12 +2858,12 @@ const GuidelinesModal = ({ patient, onClose }) => {
                                     <div style={{ background: '#f8fafc', borderRadius: '6px', padding: '10px' }}>
                                         <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Treatment Approach</div>
                                         <div style={{ fontSize: '13px', color: '#0f172a' }}>
-                                            {g.treatment.medications.length} medication recommendations, {g.treatment.nonpharm.length} non-pharmacologic interventions
+                                            {(g.treatment?.medications?.length || 0)} medication recommendations, {(g.treatment?.nonpharm?.length || 0)} non-pharmacologic interventions
                                         </div>
                                     </div>
                                     <div style={{ background: '#f8fafc', borderRadius: '6px', padding: '10px' }}>
                                         <div style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Monitoring</div>
-                                        <div style={{ fontSize: '13px', color: '#0f172a' }}>{g.monitoring.labs.join(', ')}</div>
+                                        <div style={{ fontSize: '13px', color: '#0f172a' }}>{(g.monitoring?.labs || []).join(', ')}</div>
                                     </div>
                                 </div>
                             </div>
@@ -2935,7 +2949,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
                                 <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Pharmacologic Treatment</h3>
                             </div>
                             <ul style={{ listStyle: 'none', padding: 0, marginBottom: '28px' }}>
-                                {g.treatment.medications.map((med, i) => (
+                                {(g.treatment?.medications || []).map((med, i) => (
                                     <li key={i} style={{
                                         background: 'linear-gradient(135deg, #ffffff 0%, #f8fafc 100%)',
                                         borderLeft: '4px solid #3b82f6',
@@ -2975,7 +2989,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
                                 <h3 style={{ fontSize: '16px', fontWeight: 700, color: '#0f172a', margin: 0 }}>Non-Pharmacologic Interventions</h3>
                             </div>
                             <ul style={{ listStyle: 'none', padding: 0 }}>
-                                {g.treatment.nonpharm.map((np, i) => (
+                                {(g.treatment?.nonpharm || []).map((np, i) => (
                                     <li key={i} style={{
                                         background: 'linear-gradient(135deg, #ffffff 0%, #f0fdf4 100%)',
                                         borderLeft: '4px solid #22c55e',
