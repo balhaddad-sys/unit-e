@@ -3454,19 +3454,19 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     addDebugLog('warn', 'Drive load timeout (5s) - using cached data if available');
                 } else {
                     addDebugLog('error', `Failed to load from Drive: ${err.message}`);
-                // Fall back to Firebase data if available
-                if (patient.labData && patient.labData.length > 0) {
-                    const labs = patient.labData.map(lab => ({
-                        id: lab.id,
-                        image: null,
-                        timestamp: lab.timestamp,
-                        note: lab.note || '',
-                        labType: lab.labType || 'AUTO',
-                        ocr: { text: '', values: lab.values || [], confidence: lab.confidence || 0, source: 'firebase' }
-                    }));
-                    setLabImages(labs);
-                    labsCache.current[patient.id] = labs; // Cache fallback data too
-                }
+                    // Fall back to Firebase data if available
+                    if (patient.labData && patient.labData.length > 0) {
+                        const labs = patient.labData.map(lab => ({
+                            id: lab.id,
+                            image: null,
+                            timestamp: lab.timestamp,
+                            note: lab.note || '',
+                            labType: lab.labType || 'AUTO',
+                            ocr: { text: '', values: lab.values || [], confidence: lab.confidence || 0, source: 'firebase' }
+                        }));
+                        setLabImages(labs);
+                        labsCache.current[patient.id] = labs; // Cache fallback data too
+                    }
                 }
             }
         };
