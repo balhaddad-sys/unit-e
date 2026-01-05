@@ -1573,15 +1573,16 @@
         .auth-footer a { color: #15803d; font-weight: 600; text-decoration: none; }
 
         /* ═══════════════════════════════════════════════════════════════
-           ELEGANT CLINICAL GUIDELINES STYLING - Enhanced Visual Design
+           MODERN CLINICAL GUIDELINES STYLING - Premium Medical Design
            ═══════════════════════════════════════════════════════════════ */
 
         .treatment-section {
-            background: linear-gradient(135deg, #f8fafc 0%, #ffffff 100%);
-            border-radius: 12px;
-            padding: 20px;
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-            margin-bottom: 16px;
+            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
+            border-radius: 16px;
+            padding: 24px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.08), 0 1px 3px rgba(0, 0, 0, 0.05);
+            margin-bottom: 20px;
+            border: 1px solid rgba(226, 232, 240, 0.6);
         }
 
         .treatment-category {
@@ -1603,15 +1604,23 @@
         .treatment-category-header {
             display: flex;
             align-items: center;
-            gap: 12px;
-            margin-bottom: 16px;
-            padding-bottom: 12px;
-            border-bottom: 2px solid #e2e8f0;
+            gap: 14px;
+            margin-bottom: 18px;
+            padding: 14px;
+            background: linear-gradient(135deg, #f1f5f9 0%, #e2e8f0 100%);
+            border-radius: 12px;
+            border-left: 5px solid #3b82f6;
         }
 
         .treatment-category-icon {
-            font-size: 28px;
-            filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.1));
+            font-size: 32px;
+            filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.15));
+            animation: iconPulse 2s ease-in-out infinite;
+        }
+
+        @keyframes iconPulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.05); }
         }
 
         .treatment-category-title {
@@ -1630,12 +1639,13 @@
         .medication-card {
             background: white;
             border: 2px solid #e2e8f0;
-            border-radius: 12px;
-            padding: 16px;
-            margin-bottom: 12px;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            border-radius: 14px;
+            padding: 18px;
+            margin-bottom: 14px;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
             position: relative;
             overflow: hidden;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
         }
 
         .medication-card::before {
@@ -1652,8 +1662,8 @@
 
         .medication-card:hover {
             border-color: #10b981;
-            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.15);
-            transform: translateX(4px);
+            box-shadow: 0 8px 24px rgba(16, 185, 129, 0.25);
+            transform: translateX(6px) translateY(-2px);
         }
 
         .medication-card:hover::before {
@@ -1684,13 +1694,15 @@
         }
 
         .medication-badge.second-line {
-            background: #fef3c7;
-            color: #92400e;
+            background: linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .medication-badge.adjunct {
-            background: #dbeafe;
-            color: #1e40af;
+            background: linear-gradient(135deg, #60a5fa 0%, #3b82f6 100%);
+            color: white;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
         }
 
         .medication-details {
@@ -1700,10 +1712,14 @@
         }
 
         .medication-dosage {
-            font-weight: 600;
+            font-weight: 700;
             color: #059669;
-            margin-top: 6px;
-            font-size: 12px;
+            margin-top: 8px;
+            font-size: 13px;
+            background: #f0fdf4;
+            padding: 6px 10px;
+            border-radius: 6px;
+            display: inline-block;
         }
 
         .monitoring-card {
@@ -4156,29 +4172,35 @@ const LabModal = ({ patient, onClose, onSave }) => {
             addDebugLog('info', `OCR returned ${result.text?.length || 0} chars, confidence: ${result.confidence}%`);
             console.log('[OCR RAW TEXT]:', result.text?.substring(0, 500));
 
-            let processedValues = [];
-            let labType = 'AUTO';
-            let parseResult = null;
-            
-            // Use Lab Parser module
-            if (window.LabParser && window.LabParser.isReady) {
-                addDebugLog('info', 'Processing with LabParser module...');
-                parseResult = window.LabParser.parse(result.text);
-                processedValues = parseResult.values || [];
-                labType = parseResult.labType || parseResult.reportType || 'AUTO';
-                setDetectedLabType(labType);
-                addDebugLog('success', `Detected: ${parseResult.reportType} (${labType}), ${processedValues.length} values`);
-                if (parseResult.findings?.length > 0) {
-                    addDebugLog('info', `Findings: ${parseResult.findings.slice(0, 3).join('; ')}`);
-                }
-                if (parseResult.impression) {
-                    addDebugLog('info', `Impression: ${parseResult.impression.substring(0, 100)}`);
-                }
-                console.log('[PARSER OUTPUT]:', parseResult);
-            } else {
-                addDebugLog('warn', 'LabParser not loaded. Using inline fallback.');
-                processedValues = parseLabsFromTextFallback(result.text);
+            // OCREngine now uses LabParser internally with cloud vision enhancement
+            const processedValues = result.values || [];
+            const labType = result.labType || result.reportType || 'AUTO';
+            const parseResult = result;
+
+            setDetectedLabType(labType);
+            addDebugLog('success', `🧠 Cloud Vision + Neural Parser: ${result.reportType} (${labType}), ${processedValues.length} values`);
+
+            if (result.source === 'cloud_vision_neural') {
+                addDebugLog('info', '✓ Enhanced with neural analysis engine');
             }
+
+            if (result.neuralAnalysis) {
+                const neural = result.neuralAnalysis;
+                if (neural.syndromes?.length > 0) {
+                    addDebugLog('info', `🧠 Syndromes: ${neural.syndromes.map(s => s.name).join(', ')}`);
+                }
+                if (neural.urgency) {
+                    addDebugLog('info', `⚡ Urgency: ${neural.urgency.level}`);
+                }
+            }
+
+            if (result.findings?.length > 0) {
+                addDebugLog('info', `Findings: ${result.findings.slice(0, 3).join('; ')}`);
+            }
+            if (result.impression) {
+                addDebugLog('info', `Impression: ${result.impression.substring(0, 100)}`);
+            }
+            console.log('[OCR + NEURAL PARSER OUTPUT]:', parseResult);
 
             const avgConfidence = processedValues.length > 0
                 ? processedValues.reduce((sum, v) => sum + (v.confidence || 0), 0) / processedValues.length
@@ -4295,12 +4317,33 @@ const LabModal = ({ patient, onClose, onSave }) => {
         }));
     }, [labImages]);
 
-    const handleSave = () => { 
+    const handleSave = async () => {
         console.log('[LabModal] Saving labs for patient:', patient.id, patient.name);
         console.log('[LabModal] Lab images:', labImages.length);
-        onSave(patient.id, labImages);
-        setHasUnsavedChanges(false);
-        onClose(); 
+
+        // Validate that we have data to save
+        if (labImages.length === 0) {
+            addDebugLog('warn', 'No lab images to save');
+            return;
+        }
+
+        // Check if any lab has values
+        const hasValues = labImages.some(img => img.ocr?.values?.length > 0);
+        if (!hasValues) {
+            addDebugLog('warn', 'No lab values extracted. Please process images first.');
+            return;
+        }
+
+        try {
+            addDebugLog('info', `Saving ${labImages.length} lab images...`);
+            await onSave(patient.id, labImages);
+            setHasUnsavedChanges(false);
+            addDebugLog('success', '✓ Labs saved successfully');
+            onClose();
+        } catch (error) {
+            console.error('[LabModal] Save failed:', error);
+            addDebugLog('error', `Save failed: ${error.message}`);
+        }
     };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
 
