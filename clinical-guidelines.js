@@ -780,9 +780,9 @@
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Search for guidelines online (placeholder for future implementation)
+     * Search for guidelines online
      */
-    async function searchOnlineGuidelines(condition) {
+    function searchOnlineGuidelines(condition) {
         const sources = [
             {
                 name: 'Guidelines.gov',
