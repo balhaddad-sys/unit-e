@@ -2541,17 +2541,48 @@ const GuidelinesModal = ({ patient, onClose }) => {
     }, [patient]);
 
     if (!window.ClinicalGuidelines || !window.ClinicalGuidelines.isReady) {
+        console.error('[GuidelinesModal] ClinicalGuidelines not loaded!', {
+            exists: !!window.ClinicalGuidelines,
+            isReady: window.ClinicalGuidelines?.isReady,
+            version: window.ClinicalGuidelines?.version
+        });
         return (
             <div className="modalOverlay" onClick={onClose}>
                 <div className="modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '600px' }}>
-                    <div className="modal-head" style={{ background: 'var(--blue)' }}>
-                        <span>📋 Clinical Guidelines</span>
+                    <div className="modal-head" style={{ background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)' }}>
+                        <span>⚠️ Guidelines Module Error</span>
                         <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
                     </div>
                     <div className="modal-body">
-                        <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
-                            <p>Guidelines module not loaded</p>
+                        <div style={{ padding: '20px' }}>
+                            <div style={{ background: '#fee2e2', border: '2px solid #fca5a5', borderRadius: '8px', padding: '16px', marginBottom: '16px' }}>
+                                <div style={{ fontWeight: 700, color: '#991b1b', marginBottom: '8px' }}>❌ Clinical Guidelines Module Not Loaded</div>
+                                <div style={{ fontSize: '14px', color: '#7f1d1d', lineHeight: '1.6' }}>
+                                    The guidelines system failed to initialize. This could be due to:
+                                    <ul style={{ marginTop: '8px', paddingLeft: '20px' }}>
+                                        <li>JavaScript file not loading</li>
+                                        <li>Browser compatibility issue</li>
+                                        <li>Network connectivity problem</li>
+                                    </ul>
+                                </div>
+                            </div>
+                            <div style={{ background: '#dbeafe', border: '2px solid #93c5fd', borderRadius: '8px', padding: '16px' }}>
+                                <div style={{ fontWeight: 700, color: '#1e40af', marginBottom: '8px' }}>💡 Try These Solutions:</div>
+                                <div style={{ fontSize: '14px', color: '#1e3a8a', lineHeight: '1.6' }}>
+                                    1. <strong>Refresh the page</strong> (Ctrl+R or Cmd+R)<br />
+                                    2. <strong>Clear cache</strong> and reload (Ctrl+Shift+R)<br />
+                                    3. <strong>Check browser console</strong> (F12) for errors<br />
+                                    4. Try a different browser if issue persists
+                                </div>
+                            </div>
+                            <div style={{ marginTop: '16px', fontSize: '12px', color: '#6b7280', textAlign: 'center' }}>
+                                Debug: ClinicalGuidelines {window.ClinicalGuidelines ? 'exists' : 'missing'} • isReady: {window.ClinicalGuidelines?.isReady ? 'true' : 'false'}
+                            </div>
                         </div>
+                    </div>
+                    <div className="modal-foot">
+                        <button className="btn btn-blue" onClick={() => window.location.reload()}>🔄 Reload Page</button>
+                        <button className="btn btn-white" onClick={onClose}>Close</button>
                     </div>
                 </div>
             </div>
@@ -3359,12 +3390,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log(`[DEBUG ${type}]`, msg);
     };
     
+    // OPTIMIZED: Cache labs to avoid repeated Drive fetches
+    const labsCache = useRef({});
+
     // Load labs from Google Drive on mount (non-blocking, filter deleted)
     useEffect(() => {
         const loadLabsFromDrive = async () => {
-            addDebugLog('info', `Loading labs for ${patient.name}...`);
-            
+            // Check cache first for faster loading
+            if (labsCache.current[patient.id]) {
+                addDebugLog('info', `Loading labs from cache for ${patient.name}...`);
+                setLabImages(labsCache.current[patient.id]);
+                return;
+            }
+
+            addDebugLog('info', `Loading labs from Google Drive for ${patient.name}...`);
+
             try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
+
                 const response = await fetch(VISION_API_PROXY_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -3372,11 +3416,13 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         action: 'loadLabs',
                         patientId: patient.id,
                         patientName: patient.name
-                    })
+                    }),
+                    signal: controller.signal
                 });
-                
+
+                clearTimeout(timeoutId);
                 const result = await response.json();
-                
+
                 if (result.error) {
                     addDebugLog('warn', `Drive load: ${result.error}`);
                 } else if (result.labData && result.labData.length > 0) {
@@ -3398,12 +3444,16 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         }
                     }));
                     setLabImages(labs);
-                    addDebugLog('success', `Loaded ${labs.length} labs from Drive (filtered ${result.labData.length - nonDeletedLabs.length} deleted)`);
+                    labsCache.current[patient.id] = labs; // Cache the labs
+                    addDebugLog('success', `Loaded ${labs.length} labs from Drive (filtered ${result.labData.length - nonDeletedLabs.length} deleted, cached)`);
                 } else {
                     addDebugLog('info', 'No labs found in Drive');
                 }
             } catch (err) {
-                addDebugLog('error', `Failed to load from Drive: ${err.message}`);
+                if (err.name === 'AbortError') {
+                    addDebugLog('warn', 'Drive load timeout (5s) - using cached data if available');
+                } else {
+                    addDebugLog('error', `Failed to load from Drive: ${err.message}`);
                 // Fall back to Firebase data if available
                 if (patient.labData && patient.labData.length > 0) {
                     const labs = patient.labData.map(lab => ({
@@ -3415,10 +3465,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         ocr: { text: '', values: lab.values || [], confidence: lab.confidence || 0, source: 'firebase' }
                     }));
                     setLabImages(labs);
+                    labsCache.current[patient.id] = labs; // Cache fallback data too
+                }
                 }
             }
         };
-        
+
         loadLabsFromDrive();
     }, [patient.id]);
     
@@ -3432,24 +3484,36 @@ const LabModal = ({ patient, onClose, onSave }) => {
     // CLINICAL DECISION SUPPORT - Generate interpretation for a single lab
     // ═══════════════════════════════════════════════════════════════════════
     const interpretLab = (labId, values) => {
+        console.log('[InterpretLab] Called with labId:', labId, 'values:', values);
+
         if (!window.CDSS) {
-            alert('Clinical Decision Support System not loaded');
+            addDebugLog('error', 'CDSS module not loaded');
+            alert('Clinical Decision Support System not loaded. Please refresh the page.');
             return;
         }
 
         if (!values || values.length === 0) {
+            addDebugLog('warn', 'No values to interpret');
             alert('No lab values to interpret');
             return;
         }
 
-        // Convert to CDSS input format
-        const labInput = values.map(v => ({
-            test: v.test,
-            value: v.value,
+        // Convert to CDSS input format with defensive checks
+        const labInput = values.filter(v => v && v.test && v.value != null).map(v => ({
+            test: v.test || 'Unknown',
+            value: parseFloat(v.value) || v.value,
             unit: v.unit || '',
-            refLow: v.refLow,
-            refHigh: v.refHigh
+            refLow: v.refLow != null ? parseFloat(v.refLow) : undefined,
+            refHigh: v.refHigh != null ? parseFloat(v.refHigh) : undefined
         }));
+
+        if (labInput.length === 0) {
+            addDebugLog('warn', 'No valid lab values after filtering');
+            alert('No valid lab values found to interpret');
+            return;
+        }
+
+        console.log('[InterpretLab] Processing', labInput.length, 'values:', labInput);
 
         try {
             const result = window.CDSS.generateReport(labInput, {
@@ -3457,15 +3521,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 mrn: patient.mrn || ''
             });
 
+            console.log('[InterpretLab] CDSS result:', result);
+
             setShowInterpretation(prev => ({
                 ...prev,
                 [labId]: prev[labId] ? null : result  // Toggle
             }));
-            
+
             addDebugLog('success', `Interpretation generated: ${result.summary.critical} critical, ${result.summary.abnormal} abnormal`);
         } catch (e) {
+            console.error('[InterpretLab] CDSS Error:', e);
             addDebugLog('error', `CDSS Error: ${e.message}`);
-            alert('Failed to generate interpretation: ' + e.message);
+            alert('Failed to generate interpretation: ' + e.message + '\n\nCheck console for details.');
         }
     };
 
