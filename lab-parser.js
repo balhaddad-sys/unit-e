@@ -290,7 +290,7 @@
 
         // ══════════════ COAGULATION ══════════════
         PT: {
-            range: [11, 13. 5],
+            range: [11, 13.5],
             unit: 'sec',
             critical:  { high: 50 },
             aliases: ['PT', 'PROTHROMBIN TIME', 'PROTIME', 'P.T.', 'P.T'],
@@ -425,7 +425,7 @@
             category: 'ABG'
         },
         Lactate: {
-            range: [0. 5, 2.0],
+            range: [0.5, 2.0],
             unit: 'mmol/L',
             critical: { high: 4 },
             aliases: ['LACTATE', 'LACTIC ACID', 'LAC', 'BLOOD LACTATE', 'SERUM LACTATE'],
@@ -503,7 +503,7 @@
 
         // ══════════════ INFLAMMATORY MARKERS ══════════════
         CRP: {
-            range: [0, 1. 0],
+            range: [0, 1.0],
             unit: 'mg/dL',
             critical: { high: 20 },
             aliases: ['CRP', 'C-REACTIVE PROTEIN', 'C REACTIVE PROTEIN', 'HS-CRP', 'HSCRP'],
@@ -555,7 +555,7 @@
             unit:  '%',
             aliases: ['HBA1C', 'GLYCATED HEMOGLOBIN', 'A1C', 'GLYCOHEMOGLOBIN', 'HEMOGLOBIN A1C', 'HB A1C', 'GLYCOSYLATED HB'],
             unitVariants: ['%', 'mmol/mol'],
-            convertFrom: { 'mmol/mol': (v) => (v / 10. 929) + 2. 15 },
+            convertFrom: { 'mmol/mol': (v) => (v / 10.929) + 2.15 },
             ocrErrors: ['HBA1 C', 'H8A1C', 'HBA IC'],
             category:  'METABOLIC'
         },
@@ -636,7 +636,7 @@
             category:  'ECHO'
         },
         IVSd: {
-            range: [0. 6, 1.1],
+            range: [0.6, 1.1],
             unit:  'cm',
             aliases: ['IVSD', 'IVS', 'INTERVENTRICULAR SEPTUM', 'SEPTAL THICKNESS'],
             unitVariants: ['cm', 'mm'],
@@ -682,7 +682,7 @@
 
         // ══════════════ URINE ══════════════
         UrinepH: {
-            range: [4. 5, 8.0],
+            range: [4.5, 8.0],
             unit:  '',
             aliases: ['URINE PH', 'U.  PH', 'PH (URINE)'],
             unitVariants: [''],
@@ -1002,7 +1002,7 @@
         },
         
         RBC: (v) => {
-            if (v < 2. 5) return { severity: 'critical', text: 'SEVERE ANEMIA - Transfusion likely needed', urgency: 'immediate', color:  'red' };
+            if (v < 2.5) return { severity: 'critical', text: 'SEVERE ANEMIA - Transfusion likely needed', urgency: 'immediate', color:  'red' };
             if (v < 4.0) return { severity: 'low', text: 'Low RBC - Correlate with Hgb/Hct', urgency: 'soon', color: 'orange' };
             if (v > 6.5) return { severity: 'high', text: 'Polycythemia - Consider PV, secondary causes, or dehydration', urgency: 'soon', color: 'orange' };
             return { severity: 'normal', text: 'Normal RBC', urgency: 'routine', color: 'green' };
