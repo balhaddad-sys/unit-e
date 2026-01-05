@@ -1,12 +1,13 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   CLINICAL GUIDELINES MODULE v3.0 - NEURAL AI POWERED
+   CLINICAL GUIDELINES MODULE v3.1 - ENHANCED NEURAL AI ENGINE
 
-   🧠 Neural AI Features:
-   - Neural semantic matching - understands medical context and relationships
-   - Medical knowledge graph - recognizes related conditions creatively
+   🧠 Neural AI Features (ENHANCED):
+   - Advanced neural semantic matching - multi-layered context understanding
+   - Expanded medical knowledge graph - stroke, cardiac arrest, and 40+ relationships
    - Proactive auto-generation - creates guidelines on-the-fly for unknown diagnoses
    - Self-learning system - automatically learns and improves from usage
    - Clinical pearls extraction from online medical resources
+   - Sophisticated pattern recognition for complex medical terminology
 
    Traditional Features:
    - Advanced fuzzy matching (handles variations, abbreviations, typos)
@@ -15,14 +16,16 @@
    - Lab-value-adjusted recommendations
    - Evidence-based clinical guidelines for common conditions
 
-   Built-in Guidelines (9 conditions):
+   Built-in Guidelines (11 conditions):
    - Heart Failure, Hypertension, Diabetes Mellitus
    - Chronic Kidney Disease, COPD, Atrial Fibrillation
    - Pneumonia, Urosepsis, Chest Infection
+   - CVA (Stroke), Post-Cardiac Arrest
 
    Guidelines Sources:
    - AHA/ACC, KDIGO, ADA, GOLD, ESC, NICE
-   - IDSA, Surviving Sepsis Campaign
+   - IDSA, Surviving Sepsis Campaign, AHA Stroke Guidelines
+   - AHA Post-Cardiac Arrest Care, ILCOR Resuscitation Guidelines
    - + Auto-generated from PubMed, medical resources
    - + Custom learned guidelines from your practice
    ═══════════════════════════════════════════════════════════════════════════ */
@@ -520,6 +523,173 @@
                 'Cochrane Review: Antibiotics for acute bronchitis (2017)'
             ],
             guidelineUrl: 'https://www.nice.org.uk/guidance/ng120'
+        },
+
+        'CVA (Stroke)': {
+            keywords: ['cva', 'stroke', 'cerebrovascular accident', 'brain attack', 'ischemic stroke', 'hemorrhagic stroke', 'tia', 'transient ischemic attack', 'cerebral infarction', 'cerebral hemorrhage', 'ich', 'intracerebral hemorrhage', 'subarachnoid hemorrhage'],
+            category: 'Neurology/Critical Care',
+            monitoring: {
+                labs: ['CBC', 'CMP', 'PT/INR', 'PTT', 'Lipid panel', 'HbA1c', 'Troponin (if concern for MI)', 'Blood glucose'],
+                frequency: 'Continuous neuro checks first 24-72h. Labs at presentation, then daily during acute phase. Lipid panel, HbA1c for secondary prevention.',
+                vitals: 'CRITICAL: BP monitoring q15min during tPA infusion, then hourly. Neuro checks q1h x24h, then q2h x24h. Continuous telemetry. Maintain normothermia.'
+            },
+            treatment: {
+                medications: [
+                    'HYPERACUTE ISCHEMIC STROKE (<4.5h from onset):',
+                    '  - IV tPA (alteplase) 0.9 mg/kg (max 90mg): 10% bolus, then 90% over 60 min',
+                    '  - Strict BP control during tPA: Keep <185/110 mmHg BEFORE tPA, <180/105 mmHg DURING and 24h after',
+                    '  - Mechanical thrombectomy if large vessel occlusion (within 6-24h in select cases)',
+                    'ACUTE ISCHEMIC STROKE (general):',
+                    '  - Aspirin 325mg within 24-48h (NOT with tPA - wait 24h)',
+                    '  - DVT prophylaxis: Heparin 5000U SQ q8-12h or enoxaparin 40mg SQ daily',
+                    '  - Statin: Atorvastatin 80mg or rosuvastatin 20-40mg daily (high-intensity)',
+                    'SECONDARY PREVENTION (after ischemic stroke):',
+                    '  - Antiplatelet: Aspirin 81mg + clopidogrel 75mg x21 days (DAPT), then aspirin or clopidogrel alone',
+                    '  - If atrial fibrillation: Anticoagulation with DOAC (apixaban preferred) or warfarin',
+                    '  - Blood pressure control: Target <130/80 mmHg (ACEi or ARB preferred)',
+                    'HEMORRHAGIC STROKE (ICH/SAH):',
+                    '  - REVERSE anticoagulation immediately: Vitamin K, PCC, FFP for warfarin; idarucizumab for dabigatran',
+                    '  - BP control: Target SBP 140-160 mmHg (avoid aggressive lowering in SAH)',
+                    '  - Nimodipine 60mg q4h x21 days for SAH (prevents vasospasm)',
+                    '  - Neurosurgery consult for possible evacuation or EVD placement'
+                ],
+                nonpharm: [
+                    'TIME IS BRAIN: "Last known well" time critical. Activate stroke protocol immediately.',
+                    'Urgent non-contrast head CT to differentiate ischemic vs hemorrhagic (MUST before tPA)',
+                    'CT angiography/perfusion or MRI/MRA for vessel imaging',
+                    'NIH Stroke Scale (NIHSS) at baseline, post-intervention, and serially',
+                    'NPO initially - swallow evaluation before PO intake (aspiration risk)',
+                    'Early mobilization (within 24h if stable) - proven to improve outcomes',
+                    'Neuro ICU if large stroke, decreased consciousness, or requiring tPA/thrombectomy',
+                    'Acute rehabilitation as soon as medically stable',
+                    'Secondary prevention: Smoking cessation, diabetes control, lipid management'
+                ]
+            },
+            labAdjustments: {
+                Glucose: {
+                    high: 'Glucose >180 mg/dL: Hyperglycemia worsens stroke outcomes. Start insulin drip if >180, target 140-180. Avoid hypoglycemia (<70).',
+                    low: 'Glucose <70 mg/dL: URGENT - hypoglycemia mimics stroke. Give D50 immediately. Recheck glucose and reassess neuro exam.',
+                    normal: 'Glucose 70-180: Optimal. Continue monitoring q4-6h acutely.'
+                },
+                INR: {
+                    high: 'INR >1.7: CONTRAINDICATION to tPA. If hemorrhagic stroke on warfarin, reverse urgently with Vitamin K 10mg IV + PCC 25-50 units/kg or FFP 2-4 units. Target INR <1.4.',
+                    therapeutic: 'INR 2-3 on warfarin: Hold anticoagulation acutely. Restart only after imaging confirms no hemorrhage and 7-14 days post-stroke (high-risk AF).',
+                    normal: 'INR <1.2: Safe for tPA if ischemic stroke.'
+                },
+                Platelets: {
+                    low: 'Platelets <100,000: Relative contraindication to tPA. If hemorrhagic stroke with platelets <50,000, transfuse to >50,000. If on antiplatelet agents and ICH, consider platelet transfusion.',
+                    normal: 'Platelets >150,000: Safe for procedures and tPA.'
+                },
+                BP: {
+                    high: 'SBP >185 or DBP >110: CONTRAINDICATION to tPA unless lowered. Use labetalol 10-20mg IV or nicardipine drip. For hemorrhagic stroke, target SBP 140-160.',
+                    managed: 'BP 140-180/80-105: Optimal during acute ischemic stroke WITHOUT tPA. Allow permissive hypertension (brain needs perfusion to penumbra).',
+                    low: 'SBP <120: Avoid - may worsen ischemia. Give fluids, head of bed flat. MAP goal >90 mmHg.'
+                },
+                Troponin: {
+                    elevated: 'Elevated troponin: Stroke can cause troponin leak (Takotsubo, demand ischemia). EKG, echo. Manage both stroke and cardiac issues. Aspirin still indicated.',
+                    normal: 'Normal troponin: Good. Continue stroke protocol.'
+                }
+            },
+            references: [
+                'AHA/ASA Stroke Guidelines 2024 (Stroke 2024)',
+                'Guidelines for tPA in Acute Ischemic Stroke (updated 2023)',
+                'Mechanical Thrombectomy: DAWN and DEFUSE-3 trials',
+                'POINT Trial: DAPT after minor stroke/TIA (NEJM 2018)'
+            ],
+            guidelineUrl: 'https://www.stroke.org/en/professionals/stroke-guidelines'
+        },
+
+        'Post-Cardiac Arrest': {
+            keywords: ['post cardiac arrest', 'post arrest', 'rosc', 'return of spontaneous circulation', 'post resuscitation', 'cardiac arrest survivor', 'post code', 'after cardiac arrest', 'resuscitated', 'post cpr'],
+            category: 'Critical Care/Cardiology',
+            monitoring: {
+                labs: ['ABG', 'Lactate', 'Troponin', 'BNP', 'CBC', 'CMP', 'Mg', 'Phos', 'PT/PTT', 'Blood cultures'],
+                frequency: 'Continuous: EEG for 24-72h, telemetry, arterial line. Labs: ABG/lactate q2-4h until stable, troponin q6h x3, daily CMP/CBC. Repeat neuro exam off sedation at 72h.',
+                vitals: 'Continuous ICU monitoring: Arterial BP (target MAP 65-100), continuous EEG, core temp (strict TTM protocol), SpO2 (target 94-98%), end-tidal CO2, urine output (>0.5 mL/kg/hr)'
+            },
+            treatment: {
+                medications: [
+                    'IMMEDIATE POST-ROSC (first hour):',
+                    '  - Avoid hyperoxia: Target SpO2 94-98% (too much O2 worsens neuro injury)',
+                    '  - Avoid hypotension: Norepinephrine for MAP goal 65-100 mmHg (cerebral perfusion critical)',
+                    '  - Avoid hyperventilation: Target pCO2 35-45 mmHg (hyperventilation worsens outcome)',
+                    '  - Immediate PCI if STEMI or high suspicion of ACS (don\'t wait for patient to wake up)',
+                    'TARGETED TEMPERATURE MANAGEMENT (TTM):',
+                    '  - Induce hypothermia 32-36°C for 24 hours (start within 6h of ROSC)',
+                    '  - Arctic Sun device or cold saline bolus (30 mL/kg cold NS)',
+                    '  - Maintain strict temperature - even 1°C matters for brain protection',
+                    '  - Sedation: Propofol 20-50 mcg/kg/min + fentanyl 25-100 mcg/hr',
+                    '  - Paralysis if shivering: Cisatracurium or vecuronium',
+                    '  - Controlled rewarming at 0.25-0.5°C per hour after 24h (avoid rebound hyperthermia)',
+                    'HEMODYNAMIC OPTIMIZATION:',
+                    '  - Vasopressors: Norepinephrine first-line (target MAP 65-100)',
+                    '  - Inotropes: Dobutamine or epinephrine if low cardiac output despite MAP goal',
+                    '  - Avoid excessive fluids (worsens cerebral edema)',
+                    'SEIZURE MANAGEMENT:',
+                    '  - Continuous EEG monitoring (detect subclinical seizures)',
+                    '  - If seizures: Levetiracetam 1000-1500mg IV, then 500-750mg BID (less sedating than phenytoin)',
+                    '  - Treat myoclonus: clonazepam, valproic acid',
+                    'NEUROPROGNOSTICATION (>72h post-arrest):',
+                    '  - Multimodal assessment: clinical exam, EEG, SSEP, MRI brain, NSE (neuron-specific enolase)',
+                    '  - AVOID early withdrawal of care (<72h) - many recover with good outcomes',
+                    '  - Bilaterally absent pupillary reflexes at 72h = poor prognosis',
+                    '  - Continuous EEG: burst suppression or status epilepticus = poor prognosis'
+                ],
+                nonpharm: [
+                    'ICU admission - ventilator, arterial line, central line, Foley, OG tube',
+                    'Coronary angiography/PCI within 2h if STEMI (even if comatose)',
+                    'Echocardiogram to assess cardiac function (LVEF often reduced post-arrest)',
+                    'Head CT if concern for intracranial bleeding or trauma',
+                    'Chest X-ray to assess for aspiration, rib fractures, PTX from CPR',
+                    'NPO initially - assess swallow function before PO intake',
+                    'DVT prophylaxis: Heparin SQ (safe during TTM)',
+                    'Stress ulcer prophylaxis: Pantoprazole 40mg IV daily',
+                    'Glucose control: Target 140-180 mg/dL (avoid hypoglycemia)',
+                    'Family counseling: Early discussions about prognosis, but avoid premature prognostication'
+                ]
+            },
+            labAdjustments: {
+                Lactate: {
+                    high: 'Lactate >4 mmol/L: Ongoing tissue hypoperfusion. Increase MAP goal, ensure adequate cardiac output. Recheck q2h. Lactate clearance >10%/hr is good prognostic sign.',
+                    trending: 'Rising lactate: Suggests inadequate resuscitation. Consider inotropes, rule out mesenteric ischemia, liver failure.',
+                    normal: 'Lactate <2 mmol/L: Good tissue perfusion. Continue current management.'
+                },
+                pH: {
+                    low: 'pH <7.2: Severe metabolic acidosis common post-arrest. Give sodium bicarbonate 50-100 mEq IV if pH <7.1. Improve perfusion (lactate clearance). Hyperventilate cautiously if mixed acidosis.',
+                    normal: 'pH 7.35-7.45: Adequate. Avoid aggressive correction (rebound alkalosis worsens neuro injury).'
+                },
+                pCO2: {
+                    high: 'pCO2 >45 mmHg: Respiratory acidosis or permissive hypercapnia. Increase minute ventilation if pH <7.30. Don\'t hyperventilate (worsens cerebral perfusion).',
+                    low: 'pCO2 <35 mmHg: AVOID - hyperventilation causes cerebral vasoconstriction and worsens brain injury. Decrease respiratory rate. Target 35-45.',
+                    normal: 'pCO2 35-45: Optimal. Normocapnia proven best for neuro outcomes.'
+                },
+                K: {
+                    high: 'K >5.5 mmol/L: Common post-arrest (cell lysis). Insulin/dextrose (10 units regular insulin + 1 amp D50), calcium gluconate 1-2g IV, kayexelate. Recheck q2-4h. Dialysis if refractory >6.5.',
+                    low: 'K <3.5 mmol/L: Increases arrhythmia risk. Replete to 4-5 mmol/L. Give 20-40 mEq KCl IV (max 10 mEq/hr peripheral, 20 mEq/hr central).',
+                    normal: 'K 4-5 mmol/L: Optimal. Prevents arrhythmias.'
+                },
+                Troponin: {
+                    elevated: 'Troponin elevated: Expected post-arrest (demand ischemia, ACS, or CPR trauma). If STEMI pattern → immediate cath lab. Serial troponins to trend. Echo to assess function.',
+                    normal: 'Normal troponin: Less likely ACS, but don\'t rule out. Still perform coronary angiography if arrest was witnessed and shockable rhythm.'
+                },
+                Glucose: {
+                    high: 'Glucose >180 mg/dL: Start insulin drip, target 140-180 (tight control <140 increases hypoglycemia risk, worsens neuro injury). Check q1h on drip.',
+                    low: 'Glucose <70 mg/dL: CRITICAL - worsens brain injury. Give D50 immediately. Recheck q15min until >100. Reduce insulin drip.',
+                    normal: 'Glucose 100-180: Optimal. Continue current management.'
+                },
+                NSE: {
+                    high: 'NSE (neuron-specific enolase) >90 ng/mL at 48-72h: Suggests severe hypoxic brain injury. Use as part of multimodal prognostication (NOT alone).',
+                    normal: 'NSE <33 ng/mL: Favorable. Continue TTM and supportive care.'
+                }
+            },
+            references: [
+                'AHA/ILCOR Post-Cardiac Arrest Care Guidelines 2020',
+                'Targeted Temperature Management Trial (TTM, NEJM 2013)',
+                'TTM2 Trial (normothermia vs hypothermia, NEJM 2021)',
+                'European Resuscitation Council Guidelines 2021',
+                'Neuroprognostication: ERC/ESICM 2021 (use multimodal approach)'
+            ],
+            guidelineUrl: 'https://www.ahajournals.org/cpr'
         }
     };
 
@@ -689,36 +859,63 @@
      */
     const MEDICAL_KNOWLEDGE_GRAPH = {
         // Infection patterns
-        'sepsis': ['urosepsis', 'septic shock', 'bacteremia', 'blood infection', 'systemic infection'],
-        'infection': ['sepsis', 'bacterial infection', 'viral infection', 'infected'],
+        'sepsis': ['urosepsis', 'septic shock', 'bacteremia', 'blood infection', 'systemic infection', 'severe infection'],
+        'infection': ['sepsis', 'bacterial infection', 'viral infection', 'infected', 'septic'],
         'uti': ['urinary tract infection', 'bladder infection', 'cystitis', 'pyelonephritis', 'urosepsis'],
+        'urine': ['uti', 'urinary', 'bladder', 'urosepsis', 'pyelonephritis'],
+        'urinary': ['uti', 'urine infection', 'bladder infection', 'urosepsis'],
         'respiratory': ['chest infection', 'lung infection', 'pneumonia', 'bronchitis', 'lrti'],
         'chest': ['chest infection', 'respiratory infection', 'pneumonia', 'bronchitis', 'lung problem'],
+        'pneumonia': ['chest infection', 'lung infection', 'respiratory infection', 'cap'],
 
-        // Cardiovascular patterns
-        'heart': ['heart failure', 'cardiac', 'chf', 'myocardial', 'coronary'],
-        'cardiac': ['heart failure', 'heart disease', 'coronary artery disease', 'myocardial infarction'],
+        // Cardiovascular/Cardiac patterns
+        'heart': ['heart failure', 'cardiac', 'chf', 'myocardial', 'coronary', 'cardiac arrest'],
+        'cardiac': ['heart failure', 'heart disease', 'coronary artery disease', 'myocardial infarction', 'heart attack', 'arrest', 'cardiac arrest'],
+        'arrest': ['cardiac arrest', 'heart arrest', 'code blue', 'rosc', 'post arrest', 'resuscitation', 'post cardiac arrest'],
+        'rosc': ['return of spontaneous circulation', 'post cardiac arrest', 'post arrest', 'resuscitated', 'post code'],
+        'code': ['cardiac arrest', 'code blue', 'arrest', 'rosc', 'resuscitation'],
+        'resuscitation': ['cpr', 'cardiac arrest', 'post arrest', 'rosc', 'resuscitated'],
+        'post': ['post cardiac arrest', 'post arrest', 'rosc', 'after arrest', 'post resuscitation'],
         'failure': ['heart failure', 'kidney failure', 'renal failure', 'respiratory failure'],
+
+        // Neurological/Stroke patterns
+        'stroke': ['cva', 'cerebrovascular accident', 'brain attack', 'cerebral infarction', 'ischemic stroke', 'hemorrhagic stroke', 'ich', 'tia'],
+        'cva': ['stroke', 'cerebrovascular accident', 'brain attack', 'cerebral', 'ischemic stroke', 'hemorrhagic stroke'],
+        'brain': ['stroke', 'cva', 'cerebral', 'cerebrovascular', 'tia', 'neuro', 'neurological', 'brain attack'],
+        'cerebral': ['stroke', 'cva', 'cerebrovascular', 'brain', 'ich', 'hemorrhage'],
+        'cerebrovascular': ['stroke', 'cva', 'brain attack', 'tia', 'cerebral'],
+        'tia': ['transient ischemic attack', 'mini stroke', 'stroke', 'cva'],
+        'hemorrhage': ['bleeding', 'ich', 'hemorrhagic stroke', 'brain bleed', 'cerebral hemorrhage'],
+        'ischemic': ['ischemic stroke', 'stroke', 'cva', 'infarction', 'cerebral infarction'],
 
         // Metabolic patterns
         'sugar': ['diabetes', 'hyperglycemia', 'glucose'],
         'glucose': ['diabetes', 'hyperglycemia', 'blood sugar'],
+        'diabetes': ['dm', 't2dm', 'diabetic', 'hyperglycemia', 'sugar'],
 
         // Renal patterns
-        'kidney': ['ckd', 'chronic kidney disease', 'renal failure', 'nephropathy'],
-        'renal': ['kidney disease', 'kidney failure', 'ckd'],
+        'kidney': ['ckd', 'chronic kidney disease', 'renal failure', 'nephropathy', 'renal'],
+        'renal': ['kidney disease', 'kidney failure', 'ckd', 'kidney', 'nephropathy'],
 
         // Respiratory patterns
-        'lung': ['copd', 'pneumonia', 'respiratory', 'pulmonary'],
-        'breathing': ['copd', 'asthma', 'respiratory', 'dyspnea'],
+        'lung': ['copd', 'pneumonia', 'respiratory', 'pulmonary', 'chest infection'],
+        'breathing': ['copd', 'asthma', 'respiratory', 'dyspnea', 'shortness of breath'],
+        'pulmonary': ['lung', 'respiratory', 'pneumonia', 'copd'],
+
+        // Blood pressure
+        'pressure': ['hypertension', 'htn', 'high blood pressure', 'bp'],
+        'hypertension': ['htn', 'high blood pressure', 'elevated bp'],
+        'bp': ['blood pressure', 'hypertension', 'htn'],
 
         // Severity modifiers
-        'severe': ['critical', 'acute', 'serious', 'emergency'],
-        'chronic': ['long-term', 'ongoing', 'persistent']
+        'severe': ['critical', 'acute', 'serious', 'emergency', 'life-threatening'],
+        'chronic': ['long-term', 'ongoing', 'persistent'],
+        'acute': ['sudden', 'severe', 'emergency', 'critical']
     };
 
     /**
-     * Neural semantic matching - understands medical context and relationships
+     * ENHANCED Neural semantic matching - multi-layered context understanding
+     * v3.1: Refined algorithm with sophisticated pattern recognition
      */
     function neuralSemanticMatch(diagnosis, keyword) {
         const diagLower = diagnosis.toLowerCase();
@@ -729,45 +926,157 @@
         const kwTerms = extractKeywords(kwLower);
 
         let semanticScore = 0;
+        const matchedPairs = new Set(); // Prevent double-counting same matches
 
-        // Check for semantic relationships in knowledge graph
+        // LAYER 1: Direct exact term matching (highest weight)
         for (const diagTerm of diagTerms) {
             for (const kwTerm of kwTerms) {
-                // Direct term match
+                const pairKey = `${diagTerm}-${kwTerm}`;
+                if (matchedPairs.has(pairKey)) continue;
+
+                // Exact match
                 if (diagTerm === kwTerm) {
-                    semanticScore += 30;
+                    semanticScore += 35;
+                    matchedPairs.add(pairKey);
                     continue;
                 }
 
-                // Check if terms are semantically related via knowledge graph
+                // LAYER 2: Knowledge graph - primary relationships
+                // Check direct relationships in graph
                 if (MEDICAL_KNOWLEDGE_GRAPH[diagTerm]) {
                     const relatedTerms = MEDICAL_KNOWLEDGE_GRAPH[diagTerm];
                     for (const related of relatedTerms) {
-                        if (related.includes(kwTerm) || kwTerm.includes(related)) {
+                        // Exact relation match
+                        if (related === kwTerm) {
+                            semanticScore += 30;
+                            matchedPairs.add(pairKey);
+                            break;
+                        }
+                        // Related term contains keyword
+                        if (related.includes(kwTerm) && kwTerm.length >= 4) {
                             semanticScore += 25;
+                            matchedPairs.add(pairKey);
+                            break;
+                        }
+                        // Keyword contains related term
+                        if (kwTerm.includes(related) && related.length >= 4) {
+                            semanticScore += 25;
+                            matchedPairs.add(pairKey);
+                            break;
                         }
                     }
                 }
 
-                // Reverse check
-                if (MEDICAL_KNOWLEDGE_GRAPH[kwTerm]) {
+                // LAYER 3: Reverse graph check
+                if (MEDICAL_KNOWLEDGE_GRAPH[kwTerm] && !matchedPairs.has(pairKey)) {
                     const relatedTerms = MEDICAL_KNOWLEDGE_GRAPH[kwTerm];
                     for (const related of relatedTerms) {
-                        if (related.includes(diagTerm) || diagTerm.includes(related)) {
+                        // Exact relation match
+                        if (related === diagTerm) {
+                            semanticScore += 30;
+                            matchedPairs.add(pairKey);
+                            break;
+                        }
+                        // Related term contains diagnosis term
+                        if (related.includes(diagTerm) && diagTerm.length >= 4) {
                             semanticScore += 25;
+                            matchedPairs.add(pairKey);
+                            break;
+                        }
+                        // Diagnosis term contains related term
+                        if (diagTerm.includes(related) && related.length >= 4) {
+                            semanticScore += 25;
+                            matchedPairs.add(pairKey);
+                            break;
                         }
                     }
                 }
 
-                // Partial term matching (e.g., "septic" matches "sepsis")
-                if (diagTerm.length >= 4 && kwTerm.length >= 4) {
-                    if (diagTerm.startsWith(kwTerm.substring(0, 4)) || kwTerm.startsWith(diagTerm.substring(0, 4))) {
-                        semanticScore += 15;
+                // LAYER 4: Partial prefix/suffix matching (medical morphology)
+                if (!matchedPairs.has(pairKey)) {
+                    // Match longer prefixes (more specific)
+                    if (diagTerm.length >= 6 && kwTerm.length >= 6) {
+                        // Check 6-char prefix
+                        if (diagTerm.startsWith(kwTerm.substring(0, 6)) || kwTerm.startsWith(diagTerm.substring(0, 6))) {
+                            semanticScore += 20;
+                            matchedPairs.add(pairKey);
+                            continue;
+                        }
+                    }
+
+                    // 5-char prefix
+                    if (diagTerm.length >= 5 && kwTerm.length >= 5) {
+                        if (diagTerm.startsWith(kwTerm.substring(0, 5)) || kwTerm.startsWith(diagTerm.substring(0, 5))) {
+                            semanticScore += 18;
+                            matchedPairs.add(pairKey);
+                            continue;
+                        }
+                    }
+
+                    // 4-char prefix (common medical roots)
+                    if (diagTerm.length >= 4 && kwTerm.length >= 4) {
+                        if (diagTerm.startsWith(kwTerm.substring(0, 4)) || kwTerm.startsWith(diagTerm.substring(0, 4))) {
+                            semanticScore += 15;
+                            matchedPairs.add(pairKey);
+                            continue;
+                        }
+                    }
+                }
+
+                // LAYER 5: Advanced substring matching for compound medical terms
+                if (!matchedPairs.has(pairKey)) {
+                    // Check if one contains the other (min length 5 to avoid false positives)
+                    if (diagTerm.length >= 5 && kwTerm.length >= 5) {
+                        if (diagTerm.includes(kwTerm)) {
+                            semanticScore += 22;
+                            matchedPairs.add(pairKey);
+                        } else if (kwTerm.includes(diagTerm)) {
+                            semanticScore += 22;
+                            matchedPairs.add(pairKey);
+                        }
                     }
                 }
             }
         }
 
+        // LAYER 6: Multi-word phrase bonus
+        // If diagnosis is multi-word and matches multiple keywords, boost score
+        if (diagTerms.length >= 2 && kwTerms.length >= 2) {
+            let multiWordMatches = 0;
+            for (const diagTerm of diagTerms) {
+                if (kwTerms.includes(diagTerm)) {
+                    multiWordMatches++;
+                }
+            }
+            if (multiWordMatches >= 2) {
+                semanticScore += 15 * multiWordMatches; // Reward multi-word precision
+            }
+        }
+
+        // LAYER 7: Bidirectional deep graph traversal (2-hop relationships)
+        // Check if terms are related through an intermediate concept
+        for (const diagTerm of diagTerms) {
+            for (const kwTerm of kwTerms) {
+                if (MEDICAL_KNOWLEDGE_GRAPH[diagTerm]) {
+                    const firstHop = MEDICAL_KNOWLEDGE_GRAPH[diagTerm];
+                    for (const intermediate of firstHop) {
+                        // Check if intermediate term relates to keyword
+                        const intermediateWords = extractKeywords(intermediate);
+                        for (const interWord of intermediateWords) {
+                            if (MEDICAL_KNOWLEDGE_GRAPH[interWord]) {
+                                const secondHop = MEDICAL_KNOWLEDGE_GRAPH[interWord];
+                                if (secondHop.some(term => term.includes(kwTerm) || kwTerm.includes(term))) {
+                                    semanticScore += 12; // Lower score for 2-hop match
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Cap score at 100
         return Math.min(semanticScore, 100);
     }
 
@@ -1360,7 +1669,7 @@
     // EXPOSE ENHANCED GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.ClinicalGuidelines = {
-        version: '3.0',
+        version: '3.1',
 
         // Core functions
         findGuidelines: findGuidelines,
@@ -1405,14 +1714,15 @@
             await loadLearnedGuidelines();
             await loadPearlsCache();
             console.log('╔════════════════════════════════════════════════════════════════╗');
-            console.log('║   CLINICAL GUIDELINES v3.0 - NEURAL AI POWERED 🧠             ║');
+            console.log('║   CLINICAL GUIDELINES v3.1 - ENHANCED NEURAL AI ENGINE 🧠     ║');
             console.log('╚════════════════════════════════════════════════════════════════╝');
-            console.log(`[v3.0] Built-in guidelines: ${Object.keys(GUIDELINES).length}`);
-            console.log(`[v3.0] Learned guidelines: ${Object.keys(learnedGuidelines).length}`);
-            console.log(`[v3.0] Cached pearls: ${Object.keys(pearlsCache).length}`);
-            console.log('[v3.0] 🧠 Neural Features: Semantic matching, Auto-generation, Medical knowledge graph');
-            console.log('[v3.0] 📚 Traditional Features: Fuzzy matching, Clinical pearls, Lab adjustments');
-            console.log('[v3.0] ✅ System ready - Proactive learning enabled');
+            console.log(`[v3.1] Built-in guidelines: ${Object.keys(GUIDELINES).length} (NEW: CVA, Post-Cardiac Arrest)`);
+            console.log(`[v3.1] Learned guidelines: ${Object.keys(learnedGuidelines).length}`);
+            console.log(`[v3.1] Cached pearls: ${Object.keys(pearlsCache).length}`);
+            console.log('[v3.1] 🧠 ENHANCED Neural Engine: 7-layer semantic matching, 40+ knowledge relationships');
+            console.log('[v3.1] 🎯 New Detection: CVA/Stroke & Post-Cardiac Arrest (ROSC)');
+            console.log('[v3.1] 📚 Traditional Features: Fuzzy matching, Clinical pearls, Lab adjustments');
+            console.log('[v3.1] ✅ System ready - Advanced proactive learning enabled');
         }, 1000);
     })();
 
