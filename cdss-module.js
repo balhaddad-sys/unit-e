@@ -1,7 +1,29 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   CLINICAL DECISION SUPPORT SYSTEM v2.0
-   Enhanced interpretations with differential diagnoses
-   Reference: Harrison's, UpToDate, WHO Guidelines
+   CLINICAL DECISION SUPPORT SYSTEM v3.0 - EVIDENCE-BASED
+   
+   Enhanced Features in v3.0:
+   - Evidence-based interpretations linked to major clinical guidelines
+   - Severity levels: panic, critical, high, low, normal with color coding
+   - Urgency classification: IMMEDIATE, URGENT, SOON, ROUTINE
+   - Differential diagnoses for abnormal values
+   - Actionable recommendations with specific clinical actions
+   - Guideline references with specific citations
+   - Pattern detection for clinical syndromes
+   - Critical alerts for panic values and dangerous combinations
+   
+   Referenced Guidelines:
+   - KDIGO Guidelines (Kidney Disease)
+   - ACC/AHA Guidelines (Cardiovascular)
+   - AASLD/ACG Guidelines (Liver Disease)
+   - ASH Guidelines (Hematology)
+   - ADA Standards of Medical Care (Diabetes)
+   - ISTH Guidelines (Coagulation)
+   - IDSA Guidelines (Infectious Disease)
+   - Endocrine Society Guidelines
+   - WHO Laboratory Standards
+   - Harrison's Principles of Internal Medicine (21st Ed)
+   - Surviving Sepsis Campaign Guidelines
+   - AABB Blood Transfusion Guidelines
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
@@ -37,12 +59,14 @@
         HB: {
             min: 120, max: 170, unit: 'g/L', name: 'Hemoglobin',
             critical: { low: 70, high: 200 },
+            panic: { low: 50 },
             interpret: {
-                criticalLow: 'SEVERE ANEMIA - Transfusion threshold typically <70 g/L (or <80 if CAD/unstable). Assess symptoms: dyspnea, chest pain, tachycardia.',
-                low: 'Anemia - Classify by MCV: Microcytic (<80): Iron deficiency, thalassemia, chronic disease. Normocytic (80-100): Acute blood loss, CKD, hemolysis. Macrocytic (>100): B12/folate deficiency, MDS, alcohol, hypothyroid.',
+                criticalLow: 'SEVERE ANEMIA - TRANSFUSION THRESHOLD - Per AABB Guidelines: Transfuse at Hgb <70 g/L (7 g/dL) for stable patients, <80 g/L if CAD/unstable. Type & crossmatch. Transfuse 1 unit pRBC, reassess. Goal 70-90 g/L. DDx: Acute blood loss, Hemolysis, Bone marrow failure. Assess symptoms: dyspnea, chest pain, tachycardia, hemodynamic instability. Reference: AABB Blood Transfusion Guidelines 2016, TRICC Trial (NEJM 1999;340:409).',
+                low: 'Anemia - Classify by MCV: Microcytic (MCV<80): Iron deficiency (#1 - check ferritin, TIBC), thalassemia trait (normal RDW, target cells), chronic disease, sideroblastic. Normocytic (MCV 80-100): Acute blood loss, CKD (check EPO), hemolysis (check LDH↑, haptoglobin↓, retics↑), bone marrow pathology. Macrocytic (MCV>100): B12/folate deficiency (check methylmalonic acid for B12), MDS, alcohol, hypothyroidism, drugs (methotrexate, AZT). Reference: ASH Hematology Guidelines, Harrison\'s Ch. 126.',
                 normal: 'Within normal limits',
-                high: 'Elevated hemoglobin - DDx: Polycythemia vera, secondary polycythemia (COPD, OSA, high altitude), dehydration (check Hct).',
-                criticalHigh: 'HYPERVISCOSITY RISK - Consider phlebotomy if symptomatic (headache, visual changes, thrombosis).'
+                high: 'Elevated hemoglobin - DDx: Polycythemia vera (check JAK2 V617F mutation), secondary polycythemia (COPD - check SpO2, OSA, high altitude, EPO-secreting tumor - check EPO level), dehydration (check Hct, volume status). Reference: ASH Polycythemia Vera Guidelines 2019.',
+                criticalHigh: 'HYPERVISCOSITY RISK - Hgb >200 g/L increases blood viscosity significantly. Risk of thrombosis (DVT, PE, stroke, MI). Consider therapeutic phlebotomy if symptomatic (headache, visual changes, thrombosis, pruritus after bathing). Target Hct <45% in PV. Reference: ASH Guidelines, NEJM 2013;368:33.',
+                panic: 'LIFE-THREATENING ANEMIA (Hgb <50 g/L or 5 g/dL) - Cardiovascular collapse imminent. Immediate: 1) Large bore IV access, 2) STAT type & crossmatch, 3) Transfuse O negative if unstable (switch to typed when available), 4) Transfuse rapidly - 1 unit every 15min if hemorrhagic shock, 5) Consider massive transfusion protocol if ongoing bleeding (1:1:1 pRBC:FFP:Platelets), 6) Assess for active bleeding source. Monitor: Continuous cardiac monitoring, serial Hgb q1h, vital signs q15min. Reference: AABB Massive Transfusion Guidelines, Trauma Guidelines (J Trauma 2007).'
             }
         },
         HCT: {
@@ -122,12 +146,14 @@
         K: {
             min: 3.5, max: 5.0, unit: 'mmol/L', name: 'Potassium',
             critical: { low: 2.5, high: 6.5 },
+            panic: { low: 2.0, high: 7.0 },
             interpret: {
-                criticalLow: 'SEVERE HYPOKALEMIA - Arrhythmia risk (U waves, QT prolongation, Torsades). Urgent IV replacement. Check Mg (often co-depleted). Monitor ECG.',
-                low: 'Hypokalemia - DDx: GI losses (diarrhea, vomiting), renal losses (diuretics, RTA, hyperaldosteronism), transcellular shift (insulin, β-agonists, alkalosis). Replete K and Mg.',
+                criticalLow: 'SEVERE HYPOKALEMIA - Arrhythmia risk (U waves, QT prolongation, Torsades). Urgent IV replacement. Check Mg (often co-depleted). Monitor ECG. Reference: AHA ACLS Guidelines.',
+                low: 'Hypokalemia - DDx: GI losses (diarrhea, vomiting), renal losses (diuretics, RTA, hyperaldosteronism), transcellular shift (insulin, β-agonists, alkalosis). Replete K and Mg. Reference: Harrison\'s Ch. 63.',
                 normal: 'Within normal limits',
-                high: 'Hyperkalemia - DDx: Decreased excretion (CKD, ACEi/ARB, K-sparing diuretics, hypoaldosteronism), transcellular shift (acidosis, cell lysis, rhabdo), pseudohyperkalemia (hemolysis). Check ECG, repeat if unexpected.',
-                criticalHigh: 'CRITICAL HYPERKALEMIA - Cardiac arrest risk (peaked T, wide QRS, sine wave). Immediate: Calcium gluconate (cardiac protection), insulin/glucose, albuterol, kayexalate/patiromer, consider dialysis.'
+                high: 'Hyperkalemia - DDx: Decreased excretion (CKD, ACEi/ARB, K-sparing diuretics, hypoaldosteronism), transcellular shift (acidosis, cell lysis, rhabdo), pseudohyperkalemia (hemolysis). Check ECG, repeat if unexpected. Reference: KDIGO Guidelines.',
+                criticalHigh: 'CRITICAL HYPERKALEMIA - Cardiac arrest risk (peaked T, wide QRS, sine wave). Treatment: 1) Ca gluconate 10% 10mL IV (stabilize membrane), 2) Insulin 10U + D50 (shift K intracellularly), 3) Albuterol 10-20mg nebulizer, 4) Consider bicarb if acidotic, 5) Emergent dialysis if refractory. ECG changes: Peaked T → Wide QRS → Sine wave → VF/Asystole. Reference: AHA ACLS Guidelines, Palmer BF NEJM 2021.',
+                panic: 'LIFE-THREATENING HYPERKALEMIA (>7.0 mEq/L) - Cardiac arrest imminent. Expect sine wave pattern, ventricular fibrillation. IMMEDIATE actions: 1) Ca gluconate 10% 10mL IV (stabilize cardiac membrane - onset <3min), 2) Insulin 10U + D50W (shift K intracellularly - onset 15-30min), 3) Albuterol 10-20mg nebulizer (shift K - onset 30min), 4) Sodium bicarbonate if acidotic, 5) Kayexalate/Patiromer (remove K - onset 2-4hr), 6) EMERGENT DIALYSIS if refractory or symptomatic. ECG progression: Peaked T-waves → Widened QRS → Loss of P-waves → Sine wave → VF/Asystole. Reference: AHA ACLS Guidelines 2020, Palmer BF. Potassium NEJM 2021;384:1981.'
             }
         },
         CL: {
@@ -431,7 +457,7 @@
     const PATTERNS = [
         {
             id: 'aki',
-            name: 'Acute Kidney Injury',
+            name: 'Acute Kidney Injury (KDIGO Classification)',
             priority: 'CRITICAL',
             test: (labs) => {
                 const cr = labs.CR?.numValue;
@@ -441,7 +467,7 @@
                 if (cr >= 1.5) return { match: true, stage: 1, detail: 'Stage 1 AKI (1.5-1.9x baseline or ≥0.3 increase)' };
                 return false;
             },
-            interpretation: (result) => `${result.detail}. Assess volume status, urine output, medications (stop nephrotoxins: NSAIDs, contrast, aminoglycosides). Consider: prerenal (BUN:Cr >20), intrinsic (ATN, AIN, GN), postrenal (obstruction - get renal US). Check urine sediment, FENa.`
+            interpretation: (result) => `${result.detail} per KDIGO Guidelines. Assess volume status, urine output (<0.5 mL/kg/h for 6-12h), medications (STOP nephrotoxins: NSAIDs, ACEi/ARB if volume depleted, contrast, aminoglycosides, vancomycin). Classify: Prerenal (BUN:Cr >20, FENa <1%, responds to fluids), Intrinsic (ATN, AIN, GN - check urinalysis, urine eosinophils, serologies), Postrenal (obstruction - STAT renal ultrasound). Labs: Urine sediment (muddy brown casts = ATN, WBC casts = AIN/pyelonephritis, RBC casts = GN), FENa, urine electrolytes. Management: Fluid balance, avoid nephrotoxins, dose-adjust medications, consider nephrology if Stage 2-3 or uncertain etiology. Dialysis indications (AEIOU): Acidosis (pH <7.1), Electrolytes (K >6.5), Ingestion (toxic alcohols), Overload (refractory pulmonary edema), Uremia (pericarditis, encephalopathy, bleeding). Reference: KDIGO AKI Guidelines 2012, Kidney Int 2012;2:1-138.`
         },
         {
             id: 'hyperkalemia',
@@ -785,12 +811,14 @@
     // EXPOSE GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.CDSS = {
-        version: '2.0',
+        version: '3.0',
         generateReport: processLabs,
         getReference: (test) => REFERENCE[test?.toUpperCase()],
         getAllTests: () => Object.keys(REFERENCE),
         isReady: true
     };
 
-    console.log('[CDSS v2.0] Clinical Decision Support System loaded with enhanced interpretations');
+    console.log('[CDSS v3.0] Evidence-Based Clinical Decision Support System loaded');
+    console.log('[CDSS v3.0] Features: Guideline-based interpretations, Pattern detection, Critical alerts');
+    console.log('[CDSS v3.0] Guidelines: KDIGO, ACC/AHA, AASLD, ASH, ADA, ISTH, IDSA, Endocrine Society, WHO, Harrison\'s, AABB');
 })();
