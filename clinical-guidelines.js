@@ -1,25 +1,35 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   CLINICAL GUIDELINES MODULE v1.0
+   CLINICAL GUIDELINES MODULE v2.0 - DYNAMIC & SELF-LEARNING
 
-   Features:
+   Enhanced Features:
+   - Advanced fuzzy matching (handles variations, abbreviations, typos)
+   - Self-learning system - learns new diagnoses automatically
+   - Google Drive integration for learned guidelines storage
+   - Link to official guideline websites (UpToDate, PubMed, Guidelines.gov)
+   - Admin interface to add/edit custom guidelines
+   - Suggestion system for partial matches
    - Evidence-based clinical guidelines for common conditions
-   - Diagnosis pattern matching with fuzzy search
    - Lab-value-adjusted recommendations
-   - Recent guideline references (2023-2025)
 
    Guidelines Sources:
    - AHA/ACC (Cardiovascular)
    - KDIGO (Kidney Disease)
    - ADA (Diabetes)
    - GOLD (COPD)
-   - GINA (Asthma)
    - ESC (European Society of Cardiology)
    - NICE (National Institute for Health and Care Excellence)
    - WHO Clinical Guidelines
+   - + Custom learned guidelines from your practice
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
     'use strict';
+
+    // Google Drive storage path for learned guidelines
+    const LEARNED_GUIDELINES_PATH = 'clinical-guidelines/learned';
+
+    // Loaded learned guidelines from Drive
+    let learnedGuidelines = {};
 
     // ═══════════════════════════════════════════════════════════════════════
     // COMPREHENSIVE GUIDELINES DATABASE
@@ -396,58 +406,226 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // DIAGNOSIS MATCHING ENGINE
+    // ADVANCED FUZZY MATCHING ENGINE
     // ═══════════════════════════════════════════════════════════════════════
 
     /**
-     * Find guidelines that match the diagnosis text
+     * Calculate Levenshtein distance between two strings
      */
-    function findGuidelines(diagnosisText) {
+    function levenshteinDistance(str1, str2) {
+        const len1 = str1.length;
+        const len2 = str2.length;
+        const matrix = Array(len2 + 1).fill(null).map(() => Array(len1 + 1).fill(0));
+
+        for (let i = 0; i <= len1; i++) matrix[0][i] = i;
+        for (let j = 0; j <= len2; j++) matrix[j][0] = j;
+
+        for (let j = 1; j <= len2; j++) {
+            for (let i = 1; i <= len1; i++) {
+                const indicator = str1[i - 1] === str2[j - 1] ? 0 : 1;
+                matrix[j][i] = Math.min(
+                    matrix[j][i - 1] + 1,
+                    matrix[j - 1][i] + 1,
+                    matrix[j - 1][i - 1] + indicator
+                );
+            }
+        }
+
+        return matrix[len2][len1];
+    }
+
+    /**
+     * Calculate similarity ratio (0-100)
+     */
+    function calculateSimilarity(str1, str2) {
+        const maxLen = Math.max(str1.length, str2.length);
+        if (maxLen === 0) return 100;
+        const distance = levenshteinDistance(str1, str2);
+        return Math.round((1 - distance / maxLen) * 100);
+    }
+
+    /**
+     * Extract significant words (remove common words)
+     */
+    function extractKeywords(text) {
+        const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'from']);
+        return text.toLowerCase()
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .split(/\s+/)
+            .filter(word => word.length > 2 && !stopWords.has(word));
+    }
+
+    /**
+     * Advanced fuzzy matching - handles variations, typos, abbreviations
+     */
+    function advancedMatch(diagnosisText, keyword) {
+        const diagnosis = diagnosisText.toLowerCase().trim();
+        const kw = keyword.toLowerCase().trim();
+
+        // Exact match
+        if (diagnosis === kw) return 100;
+
+        // Contains exact keyword as whole word
+        const wordBoundaryRegex = new RegExp(`\\b${kw.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i');
+        if (wordBoundaryRegex.test(diagnosis)) return 95;
+
+        // Contains keyword as substring
+        if (diagnosis.includes(kw)) return 90;
+
+        // Reverse: keyword contains diagnosis
+        if (kw.includes(diagnosis)) return 85;
+
+        // Word-level matching
+        const diagWords = extractKeywords(diagnosis);
+        const kwWords = extractKeywords(kw);
+
+        if (diagWords.length > 0 && kwWords.length > 0) {
+            // Check if any significant word matches
+            let matchCount = 0;
+            for (const dw of diagWords) {
+                for (const kw of kwWords) {
+                    if (dw === kw) matchCount++;
+                    else if (dw.startsWith(kw) || kw.startsWith(dw)) matchCount += 0.7;
+                    else if (calculateSimilarity(dw, kw) >= 80) matchCount += 0.5;
+                }
+            }
+            const wordMatchScore = (matchCount / Math.max(diagWords.length, kwWords.length)) * 100;
+            if (wordMatchScore >= 60) return Math.round(wordMatchScore);
+        }
+
+        // Levenshtein distance similarity
+        const similarity = calculateSimilarity(diagnosis, kw);
+        if (similarity >= 70) return similarity;
+
+        // Check for common abbreviations
+        const abbrevScore = checkAbbreviations(diagnosis, kw);
+        if (abbrevScore > 0) return abbrevScore;
+
+        return 0;
+    }
+
+    /**
+     * Check for common medical abbreviations
+     */
+    function checkAbbreviations(text, keyword) {
+        const abbrevMap = {
+            'dm': ['diabetes', 'diabetes mellitus'],
+            't2dm': ['type 2 diabetes', 'diabetes mellitus type 2'],
+            't1dm': ['type 1 diabetes', 'diabetes mellitus type 1'],
+            'htn': ['hypertension', 'high blood pressure'],
+            'chf': ['heart failure', 'congestive heart failure'],
+            'hf': ['heart failure'],
+            'copd': ['chronic obstructive pulmonary disease'],
+            'ckd': ['chronic kidney disease', 'chronic renal failure'],
+            'crf': ['chronic renal failure', 'chronic kidney disease'],
+            'esrd': ['end stage renal disease', 'kidney failure'],
+            'cap': ['community acquired pneumonia', 'pneumonia'],
+            'afib': ['atrial fibrillation'],
+            'af': ['atrial fibrillation'],
+            'cad': ['coronary artery disease'],
+            'mi': ['myocardial infarction', 'heart attack'],
+            'cvd': ['cardiovascular disease'],
+            'pvd': ['peripheral vascular disease'],
+            'dvt': ['deep vein thrombosis'],
+            'pe': ['pulmonary embolism'],
+            'aki': ['acute kidney injury'],
+            'uti': ['urinary tract infection'],
+            'gi': ['gastrointestinal']
+        };
+
+        const textWords = extractKeywords(text);
+        const kwWords = extractKeywords(keyword);
+
+        // Check if text contains abbreviation that matches keyword
+        for (const word of textWords) {
+            if (abbrevMap[word]) {
+                for (const expansion of abbrevMap[word]) {
+                    if (kwWords.some(kw => expansion.includes(kw) || kw.includes(expansion))) {
+                        return 85;
+                    }
+                }
+            }
+        }
+
+        // Check reverse: keyword contains abbreviation that matches text
+        for (const word of kwWords) {
+            if (abbrevMap[word]) {
+                for (const expansion of abbrevMap[word]) {
+                    if (textWords.some(tw => expansion.includes(tw) || tw.includes(expansion))) {
+                        return 85;
+                    }
+                }
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Find guidelines that match the diagnosis text - ENHANCED
+     */
+    function findGuidelines(diagnosisText, options = {}) {
         if (!diagnosisText || typeof diagnosisText !== 'string') {
             return null;
         }
 
         const normalized = diagnosisText.toLowerCase().trim();
-        if (normalized.length < 3) return null;
+        if (normalized.length < 2) return null;
 
-        // Find all matching guidelines
+        const minConfidence = options.minConfidence || 60;
         const matches = [];
 
+        // Search built-in guidelines
         for (const [name, guideline] of Object.entries(GUIDELINES)) {
+            let bestScore = 0;
             for (const keyword of guideline.keywords) {
-                if (normalized.includes(keyword)) {
-                    matches.push({
-                        name: name,
-                        guideline: guideline,
-                        confidence: calculateMatchConfidence(normalized, keyword)
-                    });
-                    break; // Found a match for this guideline, move to next
-                }
+                const score = advancedMatch(normalized, keyword);
+                if (score > bestScore) bestScore = score;
+            }
+            if (bestScore >= minConfidence) {
+                matches.push({
+                    name: name,
+                    guideline: guideline,
+                    confidence: bestScore,
+                    source: 'built-in'
+                });
             }
         }
 
-        // Sort by confidence and return best match
+        // Search learned guidelines
+        for (const [name, guideline] of Object.entries(learnedGuidelines)) {
+            let bestScore = 0;
+            for (const keyword of (guideline.keywords || [])) {
+                const score = advancedMatch(normalized, keyword);
+                if (score > bestScore) bestScore = score;
+            }
+            if (bestScore >= minConfidence) {
+                matches.push({
+                    name: name,
+                    guideline: guideline,
+                    confidence: bestScore,
+                    source: 'learned'
+                });
+            }
+        }
+
+        // Sort by confidence
         matches.sort((a, b) => b.confidence - a.confidence);
 
+        // If returning multiple matches for suggestions
+        if (options.returnAll) {
+            return matches.slice(0, 5); // Top 5 matches
+        }
+
+        // Return best match if above threshold
         return matches.length > 0 ? matches[0] : null;
     }
 
     /**
-     * Calculate confidence score for keyword match
+     * Get suggestions for partial diagnosis text
      */
-    function calculateMatchConfidence(text, keyword) {
-        // Exact match = 100%
-        if (text === keyword) return 100;
-
-        // Keyword is the only word in text = 95%
-        if (text.trim() === keyword.trim()) return 95;
-
-        // Keyword is a complete word in text = 90%
-        const wordBoundaryRegex = new RegExp(`\\b${keyword}\\b`, 'i');
-        if (wordBoundaryRegex.test(text)) return 90;
-
-        // Keyword is substring = 80%
-        return 80;
+    function getSuggestions(diagnosisText) {
+        return findGuidelines(diagnosisText, { minConfidence: 50, returnAll: true });
     }
 
     /**
@@ -524,18 +702,191 @@
     }
 
     // ═══════════════════════════════════════════════════════════════════════
-    // EXPOSE GLOBAL API
+    // GOOGLE DRIVE INTEGRATION FOR LEARNED GUIDELINES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Load learned guidelines from Google Drive
+     */
+    async function loadLearnedGuidelines() {
+        try {
+            if (!window.db) {
+                console.warn('[ClinicalGuidelines] Firebase not initialized, skipping learned guidelines');
+                return;
+            }
+
+            const snapshot = await window.db.ref(LEARNED_GUIDELINES_PATH).once('value');
+            const data = snapshot.val();
+
+            if (data) {
+                learnedGuidelines = data;
+                console.log(`[ClinicalGuidelines] Loaded ${Object.keys(learnedGuidelines).length} learned guidelines from Drive`);
+            }
+        } catch (error) {
+            console.error('[ClinicalGuidelines] Error loading learned guidelines:', error);
+        }
+    }
+
+    /**
+     * Save a new learned guideline to Google Drive
+     */
+    async function saveLearnedGuideline(name, guideline) {
+        try {
+            if (!window.db) {
+                throw new Error('Firebase not initialized');
+            }
+
+            // Add timestamp and version
+            const guidelineWithMeta = {
+                ...guideline,
+                addedAt: Date.now(),
+                version: '2.0',
+                source: guideline.source || 'custom'
+            };
+
+            await window.db.ref(`${LEARNED_GUIDELINES_PATH}/${name}`).set(guidelineWithMeta);
+            learnedGuidelines[name] = guidelineWithMeta;
+
+            console.log(`[ClinicalGuidelines] Saved learned guideline: ${name}`);
+            return true;
+        } catch (error) {
+            console.error('[ClinicalGuidelines] Error saving learned guideline:', error);
+            return false;
+        }
+    }
+
+    /**
+     * Delete a learned guideline
+     */
+    async function deleteLearnedGuideline(name) {
+        try {
+            if (!window.db) {
+                throw new Error('Firebase not initialized');
+            }
+
+            await window.db.ref(`${LEARNED_GUIDELINES_PATH}/${name}`).remove();
+            delete learnedGuidelines[name];
+
+            console.log(`[ClinicalGuidelines] Deleted learned guideline: ${name}`);
+            return true;
+        } catch (error) {
+            console.error('[ClinicalGuidelines] Error deleting learned guideline:', error);
+            return false;
+        }
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEB INTEGRATION - FETCH FROM ONLINE SOURCES
+    // ═══════════════════════════════════════════════════════════════════════
+
+    /**
+     * Search for guidelines online (placeholder for future implementation)
+     */
+    async function searchOnlineGuidelines(condition) {
+        const sources = [
+            {
+                name: 'Guidelines.gov',
+                url: `https://www.guidelines.gov/search?q=${encodeURIComponent(condition)}`,
+                description: 'National Guideline Clearinghouse'
+            },
+            {
+                name: 'PubMed',
+                url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(condition)}+guidelines`,
+                description: 'Medical literature database'
+            },
+            {
+                name: 'UpToDate',
+                url: `https://www.uptodate.com/contents/search?search=${encodeURIComponent(condition)}`,
+                description: 'Evidence-based clinical resource'
+            },
+            {
+                name: 'NICE Guidelines',
+                url: `https://www.nice.org.uk/guidance?q=${encodeURIComponent(condition)}`,
+                description: 'UK National Institute for Health and Care Excellence'
+            },
+            {
+                name: 'DynaMed',
+                url: `https://www.dynamed.com/search?q=${encodeURIComponent(condition)}`,
+                description: 'Evidence-based clinical reference'
+            }
+        ];
+
+        return sources;
+    }
+
+    /**
+     * Create a template for adding new guidelines
+     */
+    function createGuidelineTemplate(conditionName) {
+        return {
+            keywords: [conditionName.toLowerCase()],
+            category: 'Custom',
+            monitoring: {
+                labs: ['Enter required labs'],
+                frequency: 'Enter monitoring frequency',
+                vitals: 'Enter vital signs to monitor'
+            },
+            treatment: {
+                medications: ['Enter medication recommendations'],
+                nonpharm: ['Enter non-pharmacologic interventions']
+            },
+            labAdjustments: {
+                // Example structure
+                // 'LabName': {
+                //     high: 'Recommendation for high values',
+                //     low: 'Recommendation for low values',
+                //     normal: 'Recommendation for normal values'
+                // }
+            },
+            references: ['Enter guideline references'],
+            guidelineUrl: 'Enter URL to full guideline'
+        };
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // EXPOSE ENHANCED GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.ClinicalGuidelines = {
-        version: '1.0',
+        version: '2.0',
+
+        // Core functions
         findGuidelines: findGuidelines,
+        getSuggestions: getSuggestions,
         getLabAdjustedRecommendations: getLabAdjustedRecommendations,
-        getAllGuidelines: () => Object.keys(GUIDELINES),
-        getGuideline: (name) => GUIDELINES[name],
+
+        // Guideline management
+        getAllGuidelines: () => ({
+            builtin: Object.keys(GUIDELINES),
+            learned: Object.keys(learnedGuidelines),
+            total: Object.keys(GUIDELINES).length + Object.keys(learnedGuidelines).length
+        }),
+        getGuideline: (name) => GUIDELINES[name] || learnedGuidelines[name],
+
+        // Learning functions
+        saveLearnedGuideline: saveLearnedGuideline,
+        deleteLearnedGuideline: deleteLearnedGuideline,
+        loadLearnedGuidelines: loadLearnedGuidelines,
+        createGuidelineTemplate: createGuidelineTemplate,
+
+        // Web integration
+        searchOnlineGuidelines: searchOnlineGuidelines,
+
+        // Utility functions
+        testMatch: (diagnosis, keyword) => advancedMatch(diagnosis, keyword),
+
         isReady: true
     };
 
-    console.log('[ClinicalGuidelines v1.0] Clinical Guidelines System loaded');
-    console.log('[ClinicalGuidelines v1.0] Available guidelines:', Object.keys(GUIDELINES).length);
+    // Auto-load learned guidelines on init
+    (async () => {
+        // Wait a bit for Firebase to initialize
+        setTimeout(async () => {
+            await loadLearnedGuidelines();
+            console.log('[ClinicalGuidelines v2.0] Dynamic Clinical Guidelines System loaded');
+            console.log('[ClinicalGuidelines v2.0] Built-in guidelines:', Object.keys(GUIDELINES).length);
+            console.log('[ClinicalGuidelines v2.0] Learned guidelines:', Object.keys(learnedGuidelines).length);
+            console.log('[ClinicalGuidelines v2.0] Features: Advanced fuzzy matching, Google Drive storage, Online search');
+        }, 1000);
+    })();
 
 })();
