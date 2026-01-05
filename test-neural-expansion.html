@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Neural Expansion System - Quick Test</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .container {
+            background: rgba(255, 255, 255, 0.1);
+            backdrop-filter: blur(10px);
+            padding: 30px;
+            border-radius: 20px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        }
+        h1 {
+            margin-top: 0;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+        .status {
+            padding: 15px;
+            border-radius: 10px;
+            margin: 15px 0;
+            font-weight: bold;
+        }
+        .status.success {
+            background: rgba(16, 185, 129, 0.3);
+            border: 2px solid #10b981;
+        }
+        .status.error {
+            background: rgba(239, 68, 68, 0.3);
+            border: 2px solid #ef4444;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            border-radius: 10px;
+            cursor: pointer;
+            margin: 10px 5px;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.3);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        #output {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 20px;
+            border-radius: 10px;
+            margin-top: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.6;
+            max-height: 500px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+        }
+        .metric {
+            display: inline-block;
+            background: rgba(255, 255, 255, 0.2);
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 8px;
+            font-weight: bold;
+        }
+        .instructions {
+            background: rgba(255, 255, 255, 0.15);
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+            border-left: 4px solid #10b981;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧠 Neural Expansion System - Quick Test</h1>
+
+        <div id="systemStatus" class="status">
+            ⏳ Loading system...
+        </div>
+
+        <div class="instructions">
+            <h3>📋 Test Instructions:</h3>
+            <ol>
+                <li>Wait for system to load (check status above)</li>
+                <li>Click any button below to test functionality</li>
+                <li>Check console (F12) for detailed output</li>
+                <li>Results will appear in the output box below</li>
+            </ol>
+        </div>
+
+        <div style="margin: 20px 0;">
+            <button onclick="runFullDemo()">🎯 Run Full Demo (6 scenarios)</button>
+            <button onclick="testQuickGeneration()">⚡ Quick Test (1 condition)</button>
+            <button onclick="showMetrics()">📊 Show System Metrics</button>
+            <button onclick="testExistingGuideline()">📚 Test Existing Guideline</button>
+            <button onclick="clearOutput()">🗑️ Clear Output</button>
+        </div>
+
+        <div id="metrics" style="margin: 20px 0;"></div>
+
+        <div id="output"></div>
+    </div>
+
+    <!-- Load the system -->
+    <script src="adaptive-neural-expansion.js"></script>
+    <script src="neural-expansion-demo.js"></script>
+
+    <script>
+        // Check if system loaded
+        window.addEventListener('load', function() {
+            setTimeout(() => {
+                const statusDiv = document.getElementById('systemStatus');
+
+                if (window.AdaptiveNeuralExpansion && window.AdaptiveNeuralExpansion.isReady) {
+                    statusDiv.className = 'status success';
+                    statusDiv.innerHTML = '✅ System Loaded Successfully!<br>' +
+                                         'AdaptiveNeuralExpansion: ✓<br>' +
+                                         'NeuralExpansionDemo: ' + (window.NeuralExpansionDemo ? '✓' : '✗');
+
+                    // Show initial metrics
+                    showInitialMetrics();
+                } else {
+                    statusDiv.className = 'status error';
+                    statusDiv.innerHTML = '❌ System Failed to Load<br>' +
+                                         'Check browser console (F12) for errors';
+                }
+            }, 500);
+        });
+
+        function showInitialMetrics() {
+            const metrics = AdaptiveNeuralExpansion.getMetrics();
+            const metricsDiv = document.getElementById('metrics');
+            metricsDiv.innerHTML = `
+                <div class="metric">📚 Built-in: ${metrics.knowledgeBase.builtInGuidelines}</div>
+                <div class="metric">🆕 Expanded: ${metrics.knowledgeBase.expandedGuidelines}</div>
+                <div class="metric">📖 Total: ${metrics.knowledgeBase.totalGuidelines}</div>
+            `;
+        }
+
+        function log(message) {
+            const output = document.getElementById('output');
+            output.innerHTML += message + '\n';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        function clearOutput() {
+            document.getElementById('output').innerHTML = '';
+        }
+
+        async function runFullDemo() {
+            clearOutput();
+            log('🎯 Running Full Demo (6 scenarios)...\n');
+            log('This will take about 15-20 seconds...\n');
+            log('═══════════════════════════════════════════════\n');
+
+            try {
+                await NeuralExpansionDemo.runDemo();
+                log('\n✅ Full demo completed! Check console for detailed output.');
+                showInitialMetrics();
+            } catch (error) {
+                log('\n❌ Error: ' + error.message);
+            }
+        }
+
+        async function testQuickGeneration() {
+            clearOutput();
+            log('⚡ Quick Test: Generating guideline for "Takotsubo Cardiomyopathy"\n');
+            log('═══════════════════════════════════════════════\n');
+
+            try {
+                const start = Date.now();
+                const result = await AdaptiveNeuralExpansion.expandKnowledge("Takotsubo Cardiomyopathy");
+                const duration = Date.now() - start;
+
+                if (result.success) {
+                    if (result.generated) {
+                        log('✅ SUCCESS: New guideline generated!\n');
+                        log(`📊 Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+                        log(`📋 Name: ${result.guideline.name}`);
+                        log(`📚 Category: ${result.guideline.category}`);
+                        log(`🔬 Evidence Level: ${result.guideline.evidenceLevel}`);
+                        log(`👨‍⚕️  Expert Review: ${result.requiresExpertReview ? 'Required' : 'Not Required'}`);
+                        log(`⏱️  Duration: ${duration}ms`);
+
+                        if (result.guideline.treatment) {
+                            log(`\n💊 Medications: ${result.guideline.treatment.medications?.length || 0}`);
+                            log(`🏃 Non-pharm: ${result.guideline.treatment.nonpharm?.length || 0}`);
+                        }
+
+                        if (result.guideline.scores && result.guideline.scores.length > 0) {
+                            log(`\n📊 Scoring Systems:`);
+                            result.guideline.scores.forEach(score => {
+                                log(`   - ${score.name}`);
+                            });
+                        }
+                    } else {
+                        log('✅ Guideline already exists in knowledge base');
+                        log(`📋 Existing: ${result.existingGuideline}`);
+                    }
+                } else {
+                    log('⚠️  Generation failed: ' + result.reason);
+                }
+
+                showInitialMetrics();
+            } catch (error) {
+                log('\n❌ Error: ' + error.message);
+            }
+        }
+
+        function showMetrics() {
+            clearOutput();
+            log('📊 SYSTEM PERFORMANCE METRICS\n');
+            log('═══════════════════════════════════════════════\n');
+
+            try {
+                const metrics = AdaptiveNeuralExpansion.getMetrics();
+
+                log('KNOWLEDGE BASE STATUS:');
+                log(`  📚 Built-in Guidelines: ${metrics.knowledgeBase.builtInGuidelines}`);
+                log(`  🆕 Expanded Guidelines: ${metrics.knowledgeBase.expandedGuidelines}`);
+                log(`  📖 Total Guidelines: ${metrics.knowledgeBase.totalGuidelines}`);
+                log('');
+                log('GENERATION STATISTICS:');
+                log(`  📊 Total Generations: ${metrics.stats.totalGenerated}`);
+                log(`  ✅ Successful: ${metrics.stats.successfulGenerations}`);
+                log(`  📈 Average Confidence: ${(metrics.stats.averageConfidence * 100).toFixed(1)}%`);
+                if (metrics.stats.lastExpansion) {
+                    log(`  🕐 Last Expansion: ${new Date(metrics.stats.lastExpansion).toLocaleString()}`);
+                }
+                log('');
+                log('LEARNING SYSTEM:');
+                log(`  🎓 Expert Approvals: ${metrics.expertApprovals}`);
+                log(`  ❌ Expert Rejections: ${metrics.expertRejections}`);
+                log(`  📊 Approval Rate: ${(metrics.approvalRate * 100).toFixed(1)}%`);
+
+                // Show expanded guidelines
+                const expanded = AdaptiveNeuralExpansion.getExpandedGuidelines();
+                if (Object.keys(expanded).length > 0) {
+                    log('\n🆕 EXPANDED GUIDELINES:');
+                    Object.keys(expanded).forEach((name, i) => {
+                        log(`   ${i + 1}. ${name}`);
+                    });
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        async function testExistingGuideline() {
+            clearOutput();
+            log('📚 Testing Existing Guideline Retrieval\n');
+            log('Query: "Heart Failure"\n');
+            log('═══════════════════════════════════════════════\n');
+
+            try {
+                const result = await AdaptiveNeuralExpansion.getGuideline("Heart Failure");
+
+                if (result.found) {
+                    log('✅ Guideline Found!');
+                    log(`   Source: ${result.source}`);
+                    log(`   Name: ${result.guideline.name || 'Heart Failure'}`);
+                    if (result.confidence) {
+                        log(`   Confidence: ${(result.confidence * 100).toFixed(1)}%`);
+                    }
+                    log('\n✓ This proves the system can access existing guidelines');
+                } else {
+                    log('❌ Guideline Not Found');
+                    log(`   Reason: ${result.reason}`);
+                }
+            } catch (error) {
+                log('❌ Error: ' + error.message);
+            }
+        }
+
+        // Log to console too
+        console.log('%c🧠 Neural Expansion Test Page Loaded', 'color: #10b981; font-size: 20px; font-weight: bold');
+        console.log('%cClick the buttons to test the system!', 'color: #667eea; font-size: 14px');
+        console.log('%cOr run commands directly:', 'color: #667eea; font-size: 14px');
+        console.log('  await AdaptiveNeuralExpansion.expandKnowledge("condition")');
+        console.log('  await NeuralExpansionDemo.runDemo()');
+    </script>
+</body>
+</html>
