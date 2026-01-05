@@ -176,7 +176,7 @@ const API = {
             const response = await fetch(CONFIG.visionApiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'ocr', image: base64Image })
+                body: JSON.stringify({ action: 'runOCR', image: base64Image })  // Fixed: Changed to 'runOCR' to match server
             });
             return await response.json();
         } catch (error) {

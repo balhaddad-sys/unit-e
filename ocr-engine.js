@@ -79,7 +79,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({
-                    action: 'ocr',
+                    action: 'runOCR',  // Fixed: Changed from 'ocr' to 'runOCR' to match server
                     image: imageData,
                     mode: 'DOCUMENT_TEXT_DETECTION'
                 }),
