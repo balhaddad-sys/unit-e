@@ -274,6 +274,85 @@
                 font-size: 0.8125rem;
             }
         }
+
+        /* ═══════════════════════════════════════════════════════════════
+           NEURAL EXPANSION SYSTEM BADGE - Visual Indicator
+           ═══════════════════════════════════════════════════════════════ */
+        .neural-expansion-badge {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 12px 20px;
+            border-radius: 50px;
+            box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            font-weight: 700;
+            font-size: 14px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            z-index: 10000;
+            animation: slideInRight 0.5s ease-out, pulse 2s ease-in-out infinite;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .neural-expansion-badge:hover {
+            transform: scale(1.05);
+            box-shadow: 0 12px 35px rgba(102, 126, 234, 0.6);
+        }
+
+        .neural-expansion-badge .badge-icon {
+            font-size: 20px;
+            animation: spin 3s linear infinite;
+        }
+
+        .neural-expansion-badge .badge-close {
+            margin-left: 10px;
+            opacity: 0.7;
+            cursor: pointer;
+            font-size: 18px;
+        }
+
+        .neural-expansion-badge .badge-close:hover {
+            opacity: 1;
+        }
+
+        @keyframes slideInRight {
+            from {
+                transform: translateX(400px);
+                opacity: 0;
+            }
+            to {
+                transform: translateX(0);
+                opacity: 1;
+            }
+        }
+
+        @keyframes pulse {
+            0%, 100% {
+                box-shadow: 0 8px 25px rgba(102, 126, 234, 0.4);
+            }
+            50% {
+                box-shadow: 0 8px 35px rgba(102, 126, 234, 0.7);
+            }
+        }
+
+        @keyframes spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+        }
+
+        @media (max-width: 768px) {
+            .neural-expansion-badge {
+                top: 10px;
+                right: 10px;
+                font-size: 12px;
+                padding: 10px 16px;
+            }
+        }
+
         /* ═══════════════════════════════════════════════════════════════
            NOTICE BANNER - Elegant Alert Design
            ═══════════════════════════════════════════════════════════════ */
@@ -5119,6 +5198,87 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </ToastProvider>
     </ErrorBoundary>
 );
+</script>
+
+<!-- Neural Expansion System - Visual Indicator -->
+<script>
+(function() {
+    'use strict';
+
+    // Wait for AdaptiveNeuralExpansion to load
+    function checkAndShowBadge() {
+        if (window.AdaptiveNeuralExpansion && window.AdaptiveNeuralExpansion.isReady) {
+            console.log('✅ Neural Expansion System detected - showing badge');
+            showNeuralBadge();
+        } else {
+            console.log('⏳ Waiting for Neural Expansion System...');
+            setTimeout(checkAndShowBadge, 500);
+        }
+    }
+
+    function showNeuralBadge() {
+        // Check if badge already exists
+        if (document.getElementById('neural-badge')) return;
+
+        // Create badge element
+        const badge = document.createElement('div');
+        badge.id = 'neural-badge';
+        badge.className = 'neural-expansion-badge';
+        badge.innerHTML = `
+            <span class="badge-icon">🧠</span>
+            <span class="badge-text">Neural Expansion Active</span>
+            <span class="badge-close" onclick="this.parentElement.remove()">×</span>
+        `;
+
+        // Add click handler to show info
+        badge.addEventListener('click', function(e) {
+            if (e.target.classList.contains('badge-close')) return;
+
+            const metrics = window.AdaptiveNeuralExpansion.getMetrics();
+            const info = `
+🧠 ADAPTIVE NEURAL EXPANSION SYSTEM
+
+Status: ✅ ACTIVE
+Version: ${window.AdaptiveNeuralExpansion.version}
+
+Knowledge Base:
+  📚 Built-in Guidelines: ${metrics.knowledgeBase.builtInGuidelines}
+  🆕 Expanded Guidelines: ${metrics.knowledgeBase.expandedGuidelines}
+  📖 Total: ${metrics.knowledgeBase.totalGuidelines}
+
+Statistics:
+  📊 Total Generated: ${metrics.stats.totalGenerated}
+  ✅ Successful: ${metrics.stats.successfulGenerations}
+  📈 Avg Confidence: ${(metrics.stats.averageConfidence * 100).toFixed(1)}%
+
+Try in Console:
+  await AdaptiveNeuralExpansion.expandKnowledge("Fabry Disease")
+  await NeuralExpansionDemo.runDemo()
+            `;
+
+            alert(info);
+        });
+
+        // Add to page
+        document.body.appendChild(badge);
+
+        // Auto-hide after 15 seconds (optional)
+        setTimeout(() => {
+            if (badge && badge.parentElement) {
+                badge.style.transition = 'opacity 1s ease-out, transform 1s ease-out';
+                badge.style.opacity = '0.5';
+                badge.style.transform = 'scale(0.9)';
+            }
+        }, 15000);
+    }
+
+    // Start checking when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', checkAndShowBadge);
+    } else {
+        checkAndShowBadge();
+    }
+})();
 </script>
 </body>
 </html>
