@@ -3499,13 +3499,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
         }
 
         // Convert to CDSS input format with defensive checks
-        const labInput = values.filter(v => v && v.test && v.value != null).map(v => ({
-            test: v.test || 'Unknown',
-            value: parseFloat(v.value) || v.value,
-            unit: v.unit || '',
-            refLow: v.refLow != null ? parseFloat(v.refLow) : undefined,
-            refHigh: v.refHigh != null ? parseFloat(v.refHigh) : undefined
-        }));
+        const labInput = values.filter(v => v && v.test && v.value != null).map(v => {
+            // Handle both range array [low, high] and individual refLow/refHigh properties
+            let refLow, refHigh;
+            if (Array.isArray(v.range) && v.range.length === 2) {
+                refLow = v.range[0];
+                refHigh = v.range[1];
+            } else {
+                refLow = v.refLow;
+                refHigh = v.refHigh;
+            }
+
+            return {
+                test: v.test || 'Unknown',
+                value: parseFloat(v.value) || v.value,
+                unit: v.unit || '',
+                refLow: refLow != null ? parseFloat(refLow) : undefined,
+                refHigh: refHigh != null ? parseFloat(refHigh) : undefined
+            };
+        });
 
         if (labInput.length === 0) {
             addDebugLog('warn', 'No valid lab values after filtering');
