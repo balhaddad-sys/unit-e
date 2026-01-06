@@ -4516,6 +4516,17 @@ const AIConsultModal = ({ patient, onClose }) => {
         inputRef.current?.focus();
     }, []);
 
+    // Keyboard shortcut: Esc to close
+    useEffect(() => {
+        const handleEsc = (e) => {
+            if (e.key === 'Escape') {
+                onClose();
+            }
+        };
+        document.addEventListener('keydown', handleEsc);
+        return () => document.removeEventListener('keydown', handleEsc);
+    }, [onClose]);
+
     const handleSendMessage = async () => {
         if (!userInput.trim() || loading) return;
 
@@ -4629,42 +4640,82 @@ const AIConsultModal = ({ patient, onClose }) => {
     };
 
     return (
-        <div className="modalOverlay" onClick={onClose}>
-            <div className="modal" onClick={e => e.stopPropagation()} style={{
-                maxWidth: '900px',
-                maxHeight: '85vh',
-                height: '85vh',
-                borderRadius: 'var(--radius-xl)',
-                overflow: 'hidden',
+        <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: '#ffffff',
+            zIndex: 10000,
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden'
+        }}>
+            <div style={{
+                width: '100%',
+                height: '100%',
+                maxWidth: '1200px',
+                margin: '0 auto',
                 display: 'flex',
-                flexDirection: 'column'
+                flexDirection: 'column',
+                overflow: 'hidden'
             }}>
-                <div className="modal-head" style={{
-                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
-                    padding: '20px 24px',
-                    borderBottom: '3px solid #4338ca',
-                    flexShrink: 0
+                {/* Header - Claude/ChatGPT Style */}
+                <div style={{
+                    background: '#ffffff',
+                    padding: '16px 24px',
+                    borderBottom: '1px solid #e5e7eb',
+                    flexShrink: 0,
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between'
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                            width: '40px',
-                            height: '40px',
-                            borderRadius: '50%',
-                            background: 'rgba(255, 255, 255, 0.2)',
+                            width: '36px',
+                            height: '36px',
+                            borderRadius: '8px',
+                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '20px'
+                            fontSize: '18px',
+                            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)'
                         }}>
                             🤖
                         </div>
                         <div>
-                            <span style={{ fontSize: '18px', fontWeight: 700 }}>AI Medical Consultation</span>
-                            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
-                                {patient.name} • {patient.diagnosis || 'No diagnosis specified'}
+                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI Medical Consultant</div>
+                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
+                                Powered by Claude Opus 4.5 • {patient.name}
                             </div>
                         </div>
                     </div>
+                    <button
+                        onClick={onClose}
+                        style={{
+                            background: 'none',
+                            border: 'none',
+                            padding: '8px',
+                            cursor: 'pointer',
+                            fontSize: '24px',
+                            color: '#9ca3af',
+                            borderRadius: '6px',
+                            transition: 'all 0.2s'
+                        }}
+                        onMouseEnter={e => {
+                            e.target.style.background = '#f3f4f6';
+                            e.target.style.color = '#111827';
+                        }}
+                        onMouseLeave={e => {
+                            e.target.style.background = 'none';
+                            e.target.style.color = '#9ca3af';
+                        }}
+                        title="Close (Esc)"
+                    >
+                        ×
+                    </button>
                 </div>
 
                 {/* Patient Context Summary */}
@@ -4684,12 +4735,12 @@ const AIConsultModal = ({ patient, onClose }) => {
                     </div>
                 </div>
 
-                {/* Chat Container */}
+                {/* Chat Container - Claude/ChatGPT Style */}
                 <div style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '20px 24px',
-                    background: '#ffffff'
+                    padding: '24px',
+                    background: '#f9fafb'
                 }}>
                     {conversation.length === 0 ? (
                         <div style={{
@@ -4779,19 +4830,38 @@ const AIConsultModal = ({ patient, onClose }) => {
                         <>
                             {conversation.map((msg, idx) => (
                                 <div key={idx} style={{
-                                    marginBottom: '16px',
+                                    marginBottom: '20px',
                                     display: 'flex',
-                                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                                    gap: '12px',
+                                    alignItems: 'flex-start',
+                                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
                                 }}>
+                                    {/* Avatar */}
                                     <div style={{
-                                        maxWidth: '75%',
-                                        padding: '12px 16px',
+                                        width: '32px',
+                                        height: '32px',
+                                        borderRadius: '8px',
+                                        background: msg.role === 'user' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '16px',
+                                        flexShrink: 0,
+                                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
+                                    }}>
+                                        {msg.role === 'user' ? '👤' : '🤖'}
+                                    </div>
+                                    {/* Message Bubble */}
+                                    <div style={{
+                                        maxWidth: '70%',
+                                        padding: '14px 18px',
                                         borderRadius: '12px',
-                                        background: msg.role === 'user' ? '#6366f1' : '#f1f5f9',
-                                        color: msg.role === 'user' ? '#ffffff' : '#0f172a',
-                                        fontSize: '13px',
+                                        background: msg.role === 'user' ? '#ffffff' : '#ffffff',
+                                        color: '#111827',
+                                        fontSize: '14px',
                                         lineHeight: '1.6',
-                                        boxShadow: msg.role === 'user' ? '0 2px 8px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.05)'
+                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+                                        border: '1px solid #e5e7eb'
                                     }}>
                                         {msg.role === 'user' ? (
                                             <div>{msg.content}</div>
@@ -5099,11 +5169,21 @@ const LabModal = ({ patient, onClose, onSave }) => {
         setOcrStage("Starting...");
         setOcrError(null);
         addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
-        
+
         try {
-            // Check if OCR Engine is loaded
+            // Check if OCR Engine is loaded with retry logic
             if (!window.OCREngine || !window.OCREngine.isReady) {
-                throw new Error('OCR Engine not loaded. Please refresh the page.');
+                addDebugLog('warn', 'OCR Engine not ready, waiting...');
+                // Wait up to 5 seconds for OCR Engine to load
+                let retries = 0;
+                while ((!window.OCREngine || !window.OCREngine.isReady) && retries < 10) {
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                    retries++;
+                }
+                if (!window.OCREngine || !window.OCREngine.isReady) {
+                    throw new Error('OCR Engine not loaded after 5 seconds. Please refresh the page.');
+                }
+                addDebugLog('success', 'OCR Engine loaded successfully');
             }
             
             // Run OCR using the modular engine
