@@ -1420,7 +1420,10 @@ const AIMedicalConsultant = (function() {
     };
 })();
 
-// Export for use in other modules
+// Export to window for browser use
+window.AIMedicalConsultant = AIMedicalConsultant;
+
+// Export for use in other modules (Node.js compatibility)
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = AIMedicalConsultant;
 }

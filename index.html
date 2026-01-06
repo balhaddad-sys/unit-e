@@ -6026,17 +6026,21 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <div className="fab-menu" style={{ display: 'flex' }}>
                             <button
                                 className="fab-menu-item"
-                                onClick={() => {
+                                onClick={async () => {
                                     console.log('Camera button clicked');
                                     addDebugLog('info', 'Camera button clicked');
 
                                     // Try to use CameraModule first, fallback to ref
                                     if (window.CameraModule && window.CameraModule.openCamera) {
-                                        const success = window.CameraModule.openCamera();
-                                        if (success) {
-                                            addDebugLog('success', 'Camera opened via CameraModule');
-                                        } else {
-                                            addDebugLog('error', 'Failed to open camera via CameraModule');
+                                        try {
+                                            const success = await window.CameraModule.openCamera();
+                                            if (success) {
+                                                addDebugLog('success', 'Camera opened via CameraModule');
+                                            } else {
+                                                addDebugLog('error', 'Failed to open camera via CameraModule');
+                                            }
+                                        } catch (error) {
+                                            addDebugLog('error', `Camera error: ${error.message}`);
                                         }
                                     } else if (cameraRef.current) {
                                         cameraRef.current.click();
