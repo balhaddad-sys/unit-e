@@ -3423,19 +3423,33 @@ const GuidelinesModal = ({ patient, onClose }) => {
             (async () => {
                 setPearlsLoading(true);
                 try {
-                    // First try to get pearls from built-in guideline
-                    const builtInPearls = window.ClinicalGuidelines.generatePearlsFromBuiltIn(match.name);
-                    if (builtInPearls && builtInPearls.pearls.length > 0) {
-                        setClinicalPearls(builtInPearls);
+                    // ALWAYS try to fetch live guidelines from online sources first
+                    const result = await window.ClinicalGuidelines.fetchClinicalPearls(patient.diagnosis);
+
+                    if (result && result.pearls && result.source === 'online') {
+                        // Successfully fetched live guidelines - use them
+                        console.log('[GuidelinesModal] Using live online clinical pearls');
+                        setClinicalPearls(result.pearls);
                     } else {
-                        // If no built-in pearls, try fetching from online sources
-                        const result = await window.ClinicalGuidelines.fetchClinicalPearls(patient.diagnosis);
-                        if (result && result.pearls) {
-                            setClinicalPearls(result.pearls);
+                        // Online fetch failed or returned fallback - try built-in as backup
+                        console.log('[GuidelinesModal] Online fetch failed, trying built-in pearls');
+                        const builtInPearls = window.ClinicalGuidelines.generatePearlsFromBuiltIn(match.name);
+                        if (builtInPearls && builtInPearls.pearls.length > 0) {
+                            setClinicalPearls(builtInPearls);
+                        } else {
+                            // Use whatever fetchClinicalPearls returned (even if it's fallback)
+                            if (result && result.pearls) {
+                                setClinicalPearls(result.pearls);
+                            }
                         }
                     }
                 } catch (error) {
                     console.error('Error loading clinical pearls:', error);
+                    // On error, fall back to built-in
+                    const builtInPearls = window.ClinicalGuidelines.generatePearlsFromBuiltIn(match.name);
+                    if (builtInPearls && builtInPearls.pearls.length > 0) {
+                        setClinicalPearls(builtInPearls);
+                    }
                 }
                 setPearlsLoading(false);
             })();
@@ -5309,6 +5323,47 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 </div>
             </div>
             {viewerIndex !== null && labImages[viewerIndex]?.image && <ImageViewer images={labImages.filter(l => l.image)} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
+
+            {/* Floating Action Button (FAB) for Lab Upload - Only show when not on Debug tab */}
+            {tab !== "Debug" && (
+                <div className="fab-container">
+                    <button
+                        className={`fab-button ${uploading ? 'uploading' : ''}`}
+                        onClick={() => {
+                            if (!uploading) {
+                                // Show menu options
+                                const menu = document.getElementById('fab-menu');
+                                if (menu) {
+                                    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+                                }
+                            }
+                        }}
+                        disabled={uploading}
+                    >
+                        {uploading ? '⏳' : '📷'}
+                    </button>
+                    <div id="fab-menu" className="fab-menu" style={{ display: 'none' }}>
+                        <button
+                            className="fab-menu-item"
+                            onClick={() => {
+                                cameraRef.current?.click();
+                                document.getElementById('fab-menu').style.display = 'none';
+                            }}
+                        >
+                            📸 Camera
+                        </button>
+                        <button
+                            className="fab-menu-item"
+                            onClick={() => {
+                                fileRef.current?.click();
+                                document.getElementById('fab-menu').style.display = 'none';
+                            }}
+                        >
+                            📁 Gallery
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
@@ -5671,47 +5726,6 @@ const App = () => {
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
             {confirmDialog && <ConfirmDialog {...confirmDialog} />}
             {toast && <div className="toast">{toast}</div>}
-
-            {/* Floating Action Button (FAB) for Lab Upload - Only show when LabModal is open */}
-            {labModal && tab !== "Debug" && (
-                <div className="fab-container">
-                    <button
-                        className={`fab-button ${uploading ? 'uploading' : ''}`}
-                        onClick={() => {
-                            if (!uploading) {
-                                // Show menu options
-                                const menu = document.getElementById('fab-menu');
-                                if (menu) {
-                                    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
-                                }
-                            }
-                        }}
-                        disabled={uploading}
-                    >
-                        {uploading ? '⏳' : '📷'}
-                    </button>
-                    <div id="fab-menu" className="fab-menu" style={{ display: 'none' }}>
-                        <button
-                            className="fab-menu-item"
-                            onClick={() => {
-                                cameraRef.current?.click();
-                                document.getElementById('fab-menu').style.display = 'none';
-                            }}
-                        >
-                            📸 Camera
-                        </button>
-                        <button
-                            className="fab-menu-item"
-                            onClick={() => {
-                                fileRef.current?.click();
-                                document.getElementById('fab-menu').style.display = 'none';
-                            }}
-                        >
-                            📁 Gallery
-                        </button>
-                    </div>
-                </div>
-            )}
         </div>
     );
 };
