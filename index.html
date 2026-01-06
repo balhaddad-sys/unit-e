@@ -1198,6 +1198,12 @@
                 padding: 14px 24px;
             }
         }
+        .guidelines-modal-body {
+            max-height: calc(92vh - 180px);
+            flex: 1;
+            position: relative;
+        }
+
         .tabs {
             display: flex;
             gap: 6px;
@@ -2324,6 +2330,12 @@
                 font-size: 1rem;
             }
 
+            /* Guidelines modal body on mobile */
+            .guidelines-modal-body {
+                max-height: calc(80vh - 160px) !important; /* Adjust for 80vh modal */
+                -webkit-overflow-scrolling: touch;
+            }
+
             /* Improve lab modal on mobile */
             .tabs {
                 overflow-x: auto;
@@ -2333,9 +2345,10 @@
                 padding: 12px 12px 8px;
                 position: sticky;
                 top: 0;
-                z-index: 15; /* Higher than modal content */
+                z-index: 25 !important; /* Much higher to ensure it's above everything */
                 background: linear-gradient(to bottom, #f8fafc 0%, #ffffff 100%);
                 box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+                flex-shrink: 0; /* Prevent tabs from collapsing */
             }
 
             .tab {
@@ -3676,7 +3689,7 @@ const GuidelinesModal = ({ patient, onClose }) => {
                     <button className={`tab ${activeTab === 'references' ? 'active' : ''}`} onClick={() => setActiveTab('references')}>📚 References</button>
                 </div>
 
-                <div className="modal-body" style={{ maxHeight: 'calc(92vh - 180px)', overflowY: 'auto', overflowX: 'hidden', background: '#f8fafc', position: 'relative' }}>
+                <div className="modal-body guidelines-modal-body" style={{ overflowY: 'auto', overflowX: 'hidden', background: '#f8fafc' }}>
                     {activeTab === 'overview' && (
                         <div style={{ padding: '20px' }}>
                             <div style={{

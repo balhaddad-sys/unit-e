@@ -178,79 +178,41 @@
     // TEXT PREPROCESSING - FILTER UNNECESSARY CONTENT
     // ═══════════════════════════════════════════════════════════════════════
     const preprocessOCRText = (text) => {
-        // Remove common headers, footers, and non-data content
+        // Only remove obvious noise - keep most content for better parsing
         const linesToRemove = [
-            /^page\s*\d+/i,                          // Page numbers
-            /^hospital|clinic|medical center/i,       // Hospital names
-            /^patient\s*name/i,                      // Patient info headers
-            /^date\s*of\s*birth/i,
-            /^mrn|^medical\s*record/i,
-            /^collected|collection\s*date/i,
-            /^received|report\s*date/i,
-            /^provider|physician|doctor/i,
-            /^account\s*#|^accession/i,
-            /^laboratory|^lab\s*name/i,
-            /^confidential|^for\s*authorized/i,
-            /^end\s*of\s*report/i,
-            /^\s*-+\s*$/,                            // Separator lines
-            /^\s*=+\s*$/,
-            /^\s*\*+\s*$/,
+            /^page\s*\d+\s*$/i,                      // Standalone page numbers
+            /^page\s*\d+\s*of\s*\d+\s*$/i,          // "Page 1 of 2"
+            /^confidential|^for\s*authorized\s*use/i,
+            /^end\s*of\s*report\s*$/i,
+            /^\s*[-=*_]{5,}\s*$/,                    // Long separator lines only
             /^printed\s*on|^printed\s*at/i,
-            /^fax|^phone|^address/i,
-            /^copyright|^\(c\)/i
+            /^fax\s*to|^phone:|^address:/i,
+            /^copyright\s|^\(c\)\s*\d{4}/i
         ];
 
-        // Keep only lines that are likely to contain lab data
+        // Keep more content, only filter obvious non-medical text
         const lines = text.split('\n');
         const filteredLines = lines.filter(line => {
             const trimmed = line.trim();
 
-            // Skip empty lines
-            if (!trimmed) return false;
+            // Keep empty lines for structure
+            if (!trimmed) return true;
 
-            // Skip lines matching removal patterns
+            // Skip lines matching strict removal patterns only
             for (const pattern of linesToRemove) {
                 if (pattern.test(trimmed)) return false;
             }
 
-            // Keep lines with numbers (likely lab values)
-            if (/\d/.test(trimmed)) return true;
-
-            // Keep lines with lab test keywords
-            const labKeywords = [
-                'wbc', 'rbc', 'hemoglobin', 'hgb', 'hct', 'platelet', 'plt',
-                'sodium', 'potassium', 'chloride', 'glucose', 'creatinine',
-                'bun', 'calcium', 'magnesium', 'phosphorus',
-                'ast', 'alt', 'alkaline', 'bilirubin', 'albumin', 'protein',
-                'pt', 'inr', 'ptt', 'aptt',
-                'tsh', 'troponin', 'bnp', 'lactate',
-                'reference', 'range', 'normal', 'abnormal', 'flag'
-            ];
-
-            const lowerLine = trimmed.toLowerCase();
-            if (labKeywords.some(kw => lowerLine.includes(kw))) return true;
-
-            // Skip lines that are too short (likely headers)
-            if (trimmed.length < 3) return false;
-
-            // Skip lines that are all uppercase and no numbers (likely section headers)
-            if (trimmed === trimmed.toUpperCase() && !/\d/.test(trimmed)) {
-                // But keep important section headers
-                if (/test|result|value|lab|impression|finding|diagnosis/i.test(trimmed)) {
-                    return true;
-                }
-                return false;
-            }
-
+            // Keep everything else - let the parser handle it
             return true;
         });
 
         // Rejoin filtered lines
         let cleanedText = filteredLines.join('\n');
 
-        // Remove excessive whitespace
-        cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n');
-        cleanedText = cleanedText.replace(/[ \t]+/g, ' ');
+        // Only remove excessive whitespace, keep document structure
+        cleanedText = cleanedText.replace(/\n{4,}/g, '\n\n\n'); // Max 3 newlines
+        cleanedText = cleanedText.replace(/[ \t]+/g, ' ');      // Normalize spaces
 
         return cleanedText.trim();
     };
@@ -606,7 +568,7 @@
     // EXPOSE GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '4.1',
+        version: '4.2',
         runOCR,
         compressImage,
         callVisionAPI,
@@ -622,5 +584,5 @@
         disableClaudeParsing: () => { CONFIG.USE_CLAUDE_PARSING = false; }
     };
 
-    console.log('[OCREngine v4.1] Intelligent Clinical Report Parser with Text Filtering loaded');
+    console.log('[OCREngine v4.2] Intelligent Clinical Report Parser with Minimal Filtering loaded');
 })();
