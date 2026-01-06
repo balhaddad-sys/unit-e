@@ -37,13 +37,14 @@ const SCRIPT_VERSION = '1.0.0';
 const USE_SERVICE_ACCOUNT = false; // Set to true to use service account instead of API key
 
 // Get configuration from Script Properties
+// NOTE: For security, configure these in Apps Script > Project Settings > Script Properties
 const CONFIG = {
-  visionApiKey: PropertiesService.getScriptProperties().getProperty('AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y'),
+  visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
   anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
   serviceAccountEmail: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_EMAIL'),
   serviceAccountKey: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_KEY'),
-  spreadsheetId: PropertiesService.getScriptProperties().getProperty('1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4'),
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I') || 'root'
+  spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
+  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I'
 };
 
 // ═══════════════════════════════════════════════════════════════════════
