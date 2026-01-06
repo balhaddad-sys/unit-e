@@ -1,7 +1,7 @@
 /**
  * Camera Module for Unit E Ward Rounds
  * Handles camera input, file compression, and image capture functionality
- * Version: 2.0.0 - Enhanced with getUserMedia support and preview modal
+ * Version: 2.1.0 - Fixed race conditions and iOS compatibility
  */
 
 (function(window) {
@@ -30,6 +30,7 @@
         _videoElement: null,
         _previewModal: null,
         _currentFacingMode: 'environment',
+        _isCapturing: false, // Prevent double captures
 
         /**
          * Initialize the camera module
@@ -191,6 +192,21 @@
                 this._log('info', 'Camera permission granted');
                 return this._stream;
             } catch (error) {
+                // Try without facingMode constraint if it fails (some devices don't support it)
+                if (error.name === 'OverconstrainedError') {
+                    this._log('warning', 'FacingMode constraint failed, trying without it');
+                    try {
+                        this._stream = await navigator.mediaDevices.getUserMedia({
+                            video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
+                            audio: false
+                        });
+                        this._log('info', 'Camera permission granted (without facingMode)');
+                        return this._stream;
+                    } catch (fallbackError) {
+                        this._log('error', `Camera fallback also failed: ${fallbackError.message}`);
+                    }
+                }
+                
                 this._log('error', `Camera permission denied: ${error.message}`);
                 this._showErrorMessage('Camera access denied. Please grant camera permissions and try again.');
                 throw error;
@@ -202,9 +218,19 @@
          * @private
          */
         _showPreviewModal: async function() {
+            const self = this;
+            
             return new Promise((resolve, reject) => {
+                // Prevent multiple modals
+                if (this._previewModal) {
+                    this._log('warning', 'Preview modal already open');
+                    resolve(false);
+                    return;
+                }
+
                 // Create modal overlay
                 const overlay = document.createElement('div');
+                overlay.id = 'camera-preview-modal';
                 overlay.style.cssText = `
                     position: fixed;
                     top: 0;
@@ -222,12 +248,16 @@
                 // Create video element
                 const video = document.createElement('video');
                 video.autoplay = true;
-                video.playsInline = true;
+                video.playsInline = true; // Critical for iOS
+                video.muted = true; // Required for autoplay on iOS
+                video.setAttribute('playsinline', ''); // iOS Safari
+                video.setAttribute('webkit-playsinline', ''); // Older iOS
                 video.style.cssText = `
                     max-width: 90%;
                     max-height: 70vh;
                     border-radius: 12px;
                     box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+                    transform: ${self._currentFacingMode === 'user' ? 'scaleX(-1)' : 'none'};
                 `;
 
                 // Create controls container
@@ -251,6 +281,8 @@
                     cursor: pointer;
                     transition: all 0.3s;
                     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+                    touch-action: manipulation;
+                    -webkit-tap-highlight-color: transparent;
                 `;
 
                 const captureBtn = document.createElement('button');
@@ -287,40 +319,66 @@
                 });
 
                 // Attach stream to video
-                video.srcObject = this._stream;
-                this._videoElement = video;
+                video.srcObject = self._stream;
+                self._videoElement = video;
+
+                // Explicitly play video (required for iOS)
+                video.play().catch(err => {
+                    self._log('warning', `Video autoplay failed: ${err.message}`);
+                });
 
                 // Button handlers
                 captureBtn.onclick = async () => {
+                    if (self._isCapturing) return; // Prevent double capture
+                    self._isCapturing = true;
+                    captureBtn.disabled = true;
+                    captureBtn.innerHTML = '⏳ Processing...';
+                    
                     try {
-                        const imageData = await this._captureFromVideo(video);
-                        this._cleanup();
-                        document.body.removeChild(overlay);
-                        
-                        // Convert to file and trigger callback
-                        if (this._fileCallback && imageData) {
-                            const file = await this._dataURLtoFile(imageData, 'camera-capture.jpg');
-                            this._fileCallback(file);
+                        const imageData = await self._captureFromVideo(video);
+                        self._cleanup();
+                        if (overlay.parentNode) {
+                            document.body.removeChild(overlay);
                         }
                         
+                        // Convert to file and trigger callback
+                        if (self._fileCallback && imageData) {
+                            const file = await self._dataURLtoFile(imageData, `camera-capture-${Date.now()}.jpg`);
+                            self._fileCallback(file);
+                        }
+                        
+                        self._isCapturing = false;
                         resolve(true);
                     } catch (error) {
-                        this._log('error', `Capture failed: ${error.message}`);
-                        reject(error);
+                        self._log('error', `Capture failed: ${error.message}`);
+                        self._isCapturing = false;
+                        captureBtn.disabled = false;
+                        captureBtn.innerHTML = '📸 Capture';
+                        self._showErrorMessage('Failed to capture photo. Please try again.');
                     }
                 };
 
                 switchBtn.onclick = async () => {
                     try {
-                        await this._switchCamera(video);
+                        switchBtn.disabled = true;
+                        switchBtn.innerHTML = '⏳ Switching...';
+                        await self._switchCamera(video);
+                        // Update video mirror transform for front camera
+                        video.style.transform = self._currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
+                        switchBtn.disabled = false;
+                        switchBtn.innerHTML = '🔄 Switch Camera';
                     } catch (error) {
-                        this._log('error', `Switch camera failed: ${error.message}`);
+                        self._log('error', `Switch camera failed: ${error.message}`);
+                        switchBtn.disabled = false;
+                        switchBtn.innerHTML = '🔄 Switch Camera';
                     }
                 };
 
                 cancelBtn.onclick = () => {
-                    this._cleanup();
-                    document.body.removeChild(overlay);
+                    self._cleanup();
+                    if (overlay.parentNode) {
+                        document.body.removeChild(overlay);
+                    }
                     resolve(false);
                 };
 
@@ -332,7 +390,7 @@
                 overlay.appendChild(controls);
 
                 // Add status text for iOS
-                if (this._isIOS()) {
+                if (self._isIOS()) {
                     const statusText = document.createElement('div');
                     statusText.style.cssText = `
                         color: white;
@@ -346,7 +404,7 @@
                 }
 
                 document.body.appendChild(overlay);
-                this._previewModal = overlay;
+                self._previewModal = overlay;
             });
         },
 
@@ -355,14 +413,28 @@
          * @private
          */
         _captureFromVideo: async function(video) {
+            // Wait for video to be ready
+            if (video.readyState < 2) {
+                await new Promise(resolve => {
+                    video.onloadeddata = resolve;
+                    setTimeout(resolve, 1000); // Fallback timeout
+                });
+            }
+
             const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
+            canvas.width = video.videoWidth || 1920;
+            canvas.height = video.videoHeight || 1080;
 
             const ctx = canvas.getContext('2d');
-            ctx.drawImage(video, 0, 0);
+            
+            // If using front camera, flip the image
+            if (this._currentFacingMode === 'user') {
+                ctx.translate(canvas.width, 0);
+                ctx.scale(-1, 1);
+            }
+            
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-            // Handle orientation if needed
             return canvas.toDataURL('image/jpeg', this.config.quality);
         },
 
@@ -390,8 +462,16 @@
                     audio: false
                 };
 
-                this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+                try {
+                    this._stream = await navigator.mediaDevices.getUserMedia(constraints);
+                } catch (constraintError) {
+                    // Fallback without facingMode if not supported
+                    this._log('warning', 'FacingMode switch failed, trying without constraint');
+                    this._stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                }
+                
                 video.srcObject = this._stream;
+                await video.play();
 
                 this._log('info', `Switched to ${this._currentFacingMode} camera`);
             } catch (error) {
@@ -433,6 +513,7 @@
                 this._videoElement = null;
             }
             this._previewModal = null;
+            this._isCapturing = false;
             this._log('info', 'Camera resources cleaned up');
         },
 
@@ -666,7 +747,9 @@
                 initialized: !!this._cameraInput,
                 supported: this.isCameraSupported(),
                 inputElement: !!this._cameraInput,
-                captureMode: this.config.captureMode
+                captureMode: this.config.captureMode,
+                hasGetUserMedia: this._isGetUserMediaSupported(),
+                isIOS: this._isIOS()
             };
         },
 
