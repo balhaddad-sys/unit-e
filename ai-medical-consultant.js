@@ -1,606 +1,440 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════╗
- * ║  AI MEDICAL CONSULTANT v4.0 - ASCLEPIUS PRO                                  ║
- * ║  Advanced Clinical Intelligence with Comprehensive Knowledge                  ║
+ * ║  AI MEDICAL CONSULTANT v5.0 - HIPPOCRATES                                    ║
+ * ║  Human-Like Clinical Intelligence                                             ║
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 const AIMedicalConsultant = (function() {
     'use strict';
 
-    const VERSION = '4.0.0';
-    const CODENAME = 'ASCLEPIUS-PRO';
+    const VERSION = '5.0.0';
+    const CODENAME = 'HIPPOCRATES';
 
     // ═══════════════════════════════════════════════════════════════════════════
     // COMPREHENSIVE MEDICAL KNOWLEDGE BASE
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const KNOWLEDGE_BASE = {
+    const KNOWLEDGE = {
         
-        // ───────────────────────────────────────────────────────────────────────
-        // CRITICAL CARE / EMERGENCY
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
+        // RHEUMATOLOGY / JOINT
+        // ─────────────────────────────────────────────────────────────────────────
         
-        'post arrest': {
-            title: 'Post-Cardiac Arrest Care',
-            aka: ['post cardiac arrest', 'post resuscitation', 'ROSC care', 'return of spontaneous circulation'],
-            definition: 'Comprehensive care following successful resuscitation from cardiac arrest (ROSC - Return of Spontaneous Circulation)',
+        'gout': {
+            title: 'Gout',
+            keywords: ['gout', 'gouty', 'uric acid', 'urate', 'podagra', 'tophi'],
             
-            diagnosticCriteria: {
-                ROSC_confirmed: [
-                    'Palpable pulse',
-                    'Measurable blood pressure',
-                    'Arterial waveform on monitoring',
-                    'ETCO2 >40 mmHg (suggests adequate circulation)'
-                ]
-            },
+            overview: `Gout is a crystal arthropathy caused by monosodium urate (MSU) crystal deposition. It's one of the most painful forms of arthritis and classically affects the first MTP joint (podagra).`,
             
-            immediateManagement: {
-                airway: [
-                    'Secure airway if not already done (ETT preferred)',
-                    'Verify ETT placement with waveform capnography',
-                    'Target SpO2 92-98% (avoid hyperoxia)',
-                    'Target PaCO2 35-45 mmHg (avoid hyper/hypoventilation)'
+            presentation: {
+                classic: [
+                    'Acute monoarticular arthritis (usually)',
+                    'First MTP joint most common (podagra) - 50% of first attacks',
+                    'Rapid onset - peaks within 12-24 hours',
+                    'Severe pain, swelling, erythema, warmth',
+                    'May have low-grade fever'
                 ],
-                circulation: [
-                    'Target MAP ≥65 mmHg (some suggest ≥80)',
-                    'Target SBP >90 mmHg',
-                    'Vasopressors: Norepinephrine first-line',
-                    '12-lead ECG immediately - look for STEMI',
-                    'If STEMI → emergent cath lab (PCI)',
-                    'Consider echo for cardiac function'
+                otherJoints: ['Ankle', 'Knee', 'Wrist', 'Fingers', 'Elbow'],
+                chronicFeatures: ['Tophi (painless nodules)', 'Chronic gouty arthritis', 'Joint destruction']
+            },
+            
+            diagnosis: {
+                goldStandard: 'MSU crystals on joint aspiration - negatively birefringent, needle-shaped under polarized light',
+                supportive: [
+                    'Elevated serum uric acid (but can be normal during acute attack!)',
+                    'Classic clinical presentation',
+                    'Response to colchicine within 24-48h',
+                    'Dual-energy CT showing urate deposits'
                 ],
-                neuro: [
-                    'Assess GCS/neurological status',
-                    'Targeted Temperature Management (TTM)',
-                    'Target 32-36°C for 24 hours (TTM2 trial suggests 36°C acceptable)',
-                    'Avoid fever aggressively (temp >37.7°C worsens outcomes)',
-                    'Avoid hyperglycemia (target glucose 144-180 mg/dL)',
-                    'Seizure prophylaxis if clinical seizures'
-                ]
+                labs: ['Serum uric acid', 'BMP (renal function)', 'CBC', 'Joint fluid analysis']
             },
             
-            TTM_protocol: {
-                indication: 'Comatose patients (not following commands) after ROSC',
-                target: '32-36°C for at least 24 hours',
-                methods: ['Surface cooling', 'Intravascular cooling', 'Cold saline (not as sole method)'],
-                rewarming: '0.25-0.5°C per hour',
-                avoid: 'Fever for 72 hours after rewarming'
-            },
-            
-            prognostication: {
-                timing: 'Wait at least 72 hours after ROSC (longer if TTM or sedation)',
-                poorPrognosticSigns: [
-                    'Bilateral absent pupillary light reflex at 72h',
-                    'Bilateral absent corneal reflex at 72h', 
-                    'Absent N20 on SSEP at 24-72h',
-                    'Highly malignant EEG patterns',
-                    'NSE >60 μg/L at 48-72h',
-                    'Status myoclonus within 72h',
-                    'Diffuse anoxic injury on CT/MRI'
+            vsSepticArthritis: {
+                title: '🔴 Gout vs Septic Arthritis - Critical Distinction!',
+                importance: 'MUST rule out septic arthritis - both can look similar!',
+                needsArthrocentesis: 'YES - tap the joint if any doubt!',
+                comparison: {
+                    gout: {
+                        crystals: 'MSU crystals present',
+                        gramStain: 'Negative',
+                        WBC: 'Usually 10,000-50,000',
+                        culture: 'Negative'
+                    },
+                    septic: {
+                        crystals: 'Usually absent (can coexist!)',
+                        gramStain: 'May be positive',
+                        WBC: 'Usually >50,000 (often >100,000)',
+                        culture: 'Positive (may take days)'
+                    }
+                },
+                redFlags: [
+                    'High fever (>38.5°C)',
+                    'Recent joint surgery or injection',
+                    'Immunocompromised patient',
+                    'Very high synovial WBC (>100,000)',
+                    'Bacteremia risk factors'
                 ],
-                note: 'No single test is 100% - use multimodal approach'
+                rule: 'When in doubt, treat for BOTH until cultures finalize!'
             },
             
-            workup: [
-                'ECG (STEMI?)',
-                'Labs: CBC, CMP, lactate, troponin, ABG, toxicology',
-                'Chest X-ray',
-                'Echo (EF, wall motion)',
-                'CT head (if no obvious cardiac cause)',
-                'EEG (seizures, prognostication)',
-                'Consider coronary angiography'
-            ],
+            treatment: {
+                acute: {
+                    firstLine: [
+                        'NSAIDs (indomethacin 50mg TID, naproxen 500mg BID) - if no contraindications',
+                        'Colchicine - 1.2mg then 0.6mg 1 hour later (low-dose regimen)',
+                        'Steroids - if NSAIDs/colchicine contraindicated (prednisone 30-40mg/day x 5 days)'
+                    ],
+                    adjuncts: ['Ice', 'Rest joint', 'Hydration'],
+                    avoid: 'Do NOT start or change urate-lowering therapy during acute attack'
+                },
+                chronic: {
+                    indication: '≥2 attacks/year, tophi, CKD stage 2+, urolithiasis',
+                    medications: [
+                        'Allopurinol - start low (100mg), titrate to target uric acid <6 mg/dL',
+                        'Febuxostat - alternative if allopurinol intolerant',
+                        'Prophylaxis with colchicine 0.6mg daily for 3-6 months when starting ULT'
+                    ],
+                    target: 'Serum uric acid <6 mg/dL (or <5 if tophi)'
+                }
+            },
             
             sources: [
-                { ref: 'AHA Post-Cardiac Arrest Care Guidelines 2020', evidence: '1a' },
-                { ref: 'TTM2 Trial - NEJM 2021', pmid: '34133859', evidence: '1b' },
-                { ref: 'ERC-ESICM Guidelines 2021', evidence: '1a' }
+                { ref: 'ACR Gout Guidelines 2020', evidence: '1a' },
+                { ref: 'EULAR Gout Recommendations 2016', evidence: '1a' }
             ]
         },
 
-        'cardiac arrest': {
-            title: 'Cardiac Arrest Management (ACLS)',
-            aka: ['code blue', 'ACLS', 'resuscitation', 'CPR'],
-            definition: 'Absence of effective cardiac mechanical activity with no pulse',
+        'septic arthritis': {
+            title: 'Septic Arthritis',
+            keywords: ['septic arthritis', 'septic joint', 'infectious arthritis', 'bacterial arthritis', 'joint infection'],
             
-            shockableRhythms: {
-                VF_pVT: {
-                    name: 'Ventricular Fibrillation / Pulseless VT',
-                    treatment: [
-                        'Defibrillation 200J biphasic (or max if unknown)',
-                        'CPR 2 minutes immediately after shock',
-                        'Epinephrine 1mg IV q3-5min (after 2nd shock)',
-                        'Amiodarone 300mg IV first dose, 150mg second dose',
-                        'Or Lidocaine 1-1.5 mg/kg',
-                        'Continue CPR-shock cycles'
-                    ]
+            overview: `Septic arthritis is a medical emergency! Bacterial infection of a joint that can rapidly destroy cartilage. Most commonly caused by S. aureus. Requires urgent diagnosis and treatment.`,
+            
+            presentation: {
+                classic: [
+                    'Acute monoarticular arthritis (90%)',
+                    'Hot, swollen, extremely painful joint',
+                    'Severe pain with ANY movement (passive or active)',
+                    'Fever (present in ~60%)',
+                    'Patient often looks more "sick" than gout'
+                ],
+                commonJoints: ['Knee (most common - 50%)', 'Hip', 'Ankle', 'Wrist', 'Shoulder'],
+                riskFactors: ['Prior joint disease (RA, OA)', 'Joint prosthesis', 'Recent joint injection/surgery', 'Diabetes', 'Immunosuppression', 'IV drug use', 'Skin infection']
+            },
+            
+            diagnosis: {
+                goldStandard: 'Joint aspiration with synovial fluid analysis + culture',
+                findings: {
+                    appearance: 'Purulent, cloudy',
+                    WBC: '>50,000/μL (often >100,000) - predominantly PMNs',
+                    gramStain: 'Positive in 50-75%',
+                    culture: 'Positive in 70-90%'
+                },
+                organisms: {
+                    mostCommon: 'Staphylococcus aureus (40-50%)',
+                    others: ['Streptococci', 'Gram-negative bacilli (elderly, immunocompromised)', 'N. gonorrhoeae (young, sexually active)', 'Pseudomonas (IV drug users)']
+                },
+                workup: ['Blood cultures (positive in 50%)', 'CBC, CRP, ESR', 'X-ray (baseline, may be normal early)', 'Consider MRI if deep joint (hip)']
+            },
+            
+            treatment: {
+                antibiotics: {
+                    empiric: 'Vancomycin (MRSA coverage) ± Ceftriaxone (gram-negatives)',
+                    duration: '2-4 weeks IV (may transition to oral)',
+                    gonococcal: 'Ceftriaxone 1g daily x 7-14 days'
+                },
+                surgical: {
+                    indication: 'Joint drainage is ESSENTIAL',
+                    options: ['Serial arthrocentesis', 'Arthroscopic drainage', 'Open surgical drainage'],
+                    prostheticJoint: 'Urgent ortho consult - may need prosthesis removal'
                 }
             },
             
-            nonShockableRhythms: {
-                asystole_PEA: {
-                    name: 'Asystole / PEA',
-                    treatment: [
-                        'CPR immediately',
-                        'Epinephrine 1mg IV q3-5min',
-                        'Identify and treat reversible causes (Hs and Ts)',
-                        'NO defibrillation'
-                    ],
-                    Hs_and_Ts: {
-                        Hs: ['Hypovolemia', 'Hypoxia', 'Hydrogen ion (acidosis)', 'Hypo/Hyperkalemia', 'Hypothermia'],
-                        Ts: ['Tension pneumothorax', 'Tamponade (cardiac)', 'Toxins', 'Thrombosis (coronary)', 'Thrombosis (pulmonary)']
-                    }
-                }
+            prognosis: {
+                good: 'Early treatment → good outcomes',
+                poor: 'Delayed treatment → joint destruction, sepsis, mortality (10-15%)',
+                message: 'Time is cartilage! Treat urgently.'
             },
-            
-            highQualityCPR: [
-                'Rate: 100-120 compressions/min',
-                'Depth: At least 2 inches (5 cm)',
-                'Allow full chest recoil',
-                'Minimize interruptions (<10 sec)',
-                'Rotate compressors every 2 min',
-                'Avoid excessive ventilation'
-            ],
             
             sources: [
-                { ref: 'AHA ACLS Guidelines 2020', evidence: '1a' }
+                { ref: 'IDSA Guidelines', evidence: '1a' },
+                { ref: 'ACR/AF Septic Arthritis Recommendations', evidence: '2a' }
+            ]
+        },
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // CRITICAL CARE
+        // ─────────────────────────────────────────────────────────────────────────
+
+        'post arrest': {
+            title: 'Post-Cardiac Arrest Care',
+            keywords: ['post arrest', 'post cardiac arrest', 'rosc', 'post resuscitation', 'after cpr'],
+            
+            overview: `Post-cardiac arrest syndrome is a complex state following ROSC (Return of Spontaneous Circulation). The focus is on preventing secondary brain injury, optimizing hemodynamics, and identifying/treating the underlying cause.`,
+            
+            priorities: [
+                '1. Airway & Oxygenation - SpO2 92-98%, avoid hyperoxia',
+                '2. Hemodynamics - MAP ≥65-80 mmHg, treat shock',
+                '3. Temperature - Targeted Temperature Management',
+                '4. Identify cause - ECG for STEMI → cath lab',
+                '5. Prevent seizures and treat if occur',
+                '6. Glucose control - target 144-180 mg/dL'
+            ],
+            
+            TTM: {
+                indication: 'Comatose patients (not following commands) after ROSC',
+                target: '32-36°C for at least 24 hours',
+                note: 'TTM2 trial showed 36°C as effective as 33°C',
+                rewarming: 'Slow - 0.25-0.5°C per hour',
+                avoidFever: 'Aggressive fever control for 72 hours'
+            },
+            
+            coronary: {
+                STEMI: 'Immediate coronary angiography (within 2 hours)',
+                noSTEMI: 'Consider early angiography (within 24h) if no obvious non-cardiac cause'
+            },
+            
+            prognostication: {
+                timing: 'Wait ≥72 hours (longer if TTM/sedation)',
+                poorSigns: [
+                    'Bilateral absent pupillary reflex at 72h',
+                    'Bilateral absent corneal reflex at 72h',
+                    'Myoclonus status within 72h',
+                    'Absent N20 on SSEP',
+                    'Highly malignant EEG',
+                    'NSE >60 μg/L'
+                ],
+                approach: 'Multimodal - no single test is definitive'
+            },
+            
+            sources: [
+                { ref: 'AHA Post-Arrest Guidelines 2020', evidence: '1a' },
+                { ref: 'TTM2 Trial - NEJM 2021', evidence: '1b' }
             ]
         },
 
         'sepsis': {
             title: 'Sepsis & Septic Shock',
-            aka: ['septicemia', 'severe sepsis', 'septic shock', 'systemic infection'],
-            definition: 'Life-threatening organ dysfunction caused by dysregulated host response to infection',
+            keywords: ['sepsis', 'septic shock', 'septicemia', 'severe sepsis', 'systemic infection'],
             
-            diagnosticCriteria: {
-                sepsis: 'Suspected/documented infection + SOFA score ≥2',
-                septicShock: 'Sepsis + vasopressors needed to maintain MAP ≥65 + lactate >2 mmol/L despite adequate fluid resuscitation',
-                qSOFA: {
-                    criteria: ['RR ≥22/min', 'Altered mentation (GCS <15)', 'SBP ≤100 mmHg'],
-                    interpretation: '≥2 = high risk, consider ICU'
-                },
-                SOFA: {
-                    components: ['Respiration (PaO2/FiO2)', 'Coagulation (Platelets)', 'Liver (Bilirubin)', 'Cardiovascular (MAP/vasopressors)', 'CNS (GCS)', 'Renal (Creatinine/UOP)'],
-                    scoring: '0-4 points each, total 0-24'
-                }
+            overview: `Sepsis is life-threatening organ dysfunction caused by a dysregulated host response to infection. Early recognition and rapid treatment are critical - "Time is life!"`,
+            
+            definition: {
+                sepsis: 'Infection + SOFA ≥2',
+                septicShock: 'Sepsis + vasopressors to maintain MAP ≥65 + lactate >2 despite adequate fluids',
+                qSOFA: 'Screening tool: RR ≥22, GCS <15, SBP ≤100 (≥2 points = high risk)'
             },
             
             hourOneBunde: [
-                '🔬 Measure lactate (remeasure if >2)',
+                '🔬 Measure lactate (repeat if >2)',
                 '🧫 Blood cultures BEFORE antibiotics',
-                '💊 Broad-spectrum antibiotics',
-                '💧 30 mL/kg crystalloid for hypotension or lactate ≥4',
-                '💉 Vasopressors if hypotensive after fluids (target MAP ≥65)'
+                '💊 Broad-spectrum antibiotics ASAP',
+                '💧 30 mL/kg crystalloid if hypotensive or lactate ≥4',
+                '💉 Vasopressors if still hypotensive (target MAP ≥65)'
             ],
             
             antibiotics: {
-                timing: 'Within 1 hour of recognition',
-                empiric: {
-                    community: 'Ceftriaxone + Azithromycin (or Fluoroquinolone)',
-                    hospital: 'Piperacillin-tazobactam or Meropenem',
-                    pseudomonas: 'Double cover if risk factors',
-                    MRSA: 'Add Vancomycin if risk factors'
+                principle: 'Broad and early - narrow later',
+                examples: {
+                    community: 'Ceftriaxone + Azithromycin (or Levofloxacin)',
+                    nosocomial: 'Pip-tazo or Meropenem ± Vancomycin',
+                    abdominal: 'Pip-tazo or Meropenem (anaerobic coverage)'
                 }
             },
             
-            fluids: {
-                initial: '30 mL/kg crystalloid (Lactated Ringers preferred)',
-                reassess: 'After each bolus - clinical exam, lactate, UOP',
-                caution: 'Avoid over-resuscitation (lung edema)'
-            },
+            fluids: 'Lactated Ringers preferred, 30 mL/kg initial bolus, then reassess',
             
             vasopressors: {
-                firstLine: 'Norepinephrine (target MAP ≥65)',
-                secondLine: 'Vasopressin 0.03 units/min (add to NE)',
-                thirdLine: 'Epinephrine',
-                cardiac: 'Dobutamine if low cardiac output despite fluids'
-            },
-            
-            steroids: {
-                indication: 'Septic shock refractory to fluids + vasopressors',
-                dose: 'Hydrocortisone 200mg/day (50mg q6h or 200mg continuous)',
-                duration: 'Until shock resolved, then taper'
+                first: 'Norepinephrine',
+                second: 'Add Vasopressin (0.03 U/min)',
+                third: 'Epinephrine',
+                cardiac: 'Dobutamine if low cardiac output'
             },
             
             sources: [
-                { ref: 'Surviving Sepsis Campaign 2021', evidence: '1a' },
-                { ref: 'Sepsis-3 Definitions - JAMA 2016', pmid: '26903338', evidence: '1a' }
+                { ref: 'Surviving Sepsis Campaign 2021', evidence: '1a' }
             ]
         },
 
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
         // NEUROLOGY
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
 
         'stroke': {
-            title: 'Stroke / Cerebrovascular Accident (CVA)',
-            aka: ['cva', 'cerebrovascular accident', 'brain attack', 'ischemic stroke', 'hemorrhagic stroke'],
-            definition: 'Acute neurological deficit due to vascular injury to the brain',
+            title: 'Stroke / CVA',
+            keywords: ['stroke', 'cva', 'cerebrovascular', 'brain attack', 'ischemic stroke', 'hemorrhagic stroke', 'tpa', 'thrombolysis'],
+            
+            overview: `Stroke is a medical emergency - "Time is brain!" Every minute without treatment, ~1.9 million neurons are lost. Rapid assessment and treatment are critical.`,
             
             types: {
-                ischemic: {
-                    percentage: '87%',
-                    subtypes: ['Large vessel atherosclerosis', 'Cardioembolic', 'Small vessel (lacunar)', 'Cryptogenic', 'Other']
+                ischemic: '87% - blocked vessel',
+                hemorrhagic: '13% - bleeding (ICH or SAH)'
+            },
+            
+            assessment: {
+                FAST: 'Face drooping, Arm weakness, Speech difficulty, Time to call 911',
+                NIHSS: 'Standardized stroke severity scale (0-42)'
+            },
+            
+            acuteManagement: {
+                imaging: 'CT head STAT (rule out hemorrhage)',
+                tPA: {
+                    window: '≤4.5 hours from symptom onset',
+                    dose: '0.9 mg/kg (max 90mg), 10% bolus',
+                    BP: 'Must be <185/110 before, <180/105 after'
                 },
-                hemorrhagic: {
-                    percentage: '13%',
-                    subtypes: ['Intracerebral hemorrhage (ICH)', 'Subarachnoid hemorrhage (SAH)']
+                thrombectomy: {
+                    window: 'Up to 24 hours with favorable imaging',
+                    indication: 'Large vessel occlusion (ICA, M1, basilar)'
                 }
             },
             
-            diagnosticCriteria: {
-                clinical: {
-                    FAST: ['Face drooping', 'Arm weakness', 'Speech difficulty', 'Time to call 911'],
-                    BEFAST: ['Balance', 'Eyes (vision)', 'Face', 'Arm', 'Speech', 'Time'],
-                    NIHSS: {
-                        range: '0-42',
-                        interpretation: {
-                            '0': 'No stroke',
-                            '1-4': 'Minor',
-                            '5-15': 'Moderate',
-                            '16-20': 'Moderate-severe',
-                            '21-42': 'Severe'
-                        }
-                    }
-                },
-                imaging: {
-                    CT: 'Rule out hemorrhage (within 20 min)',
-                    CTA: 'Identify large vessel occlusion',
-                    MRI_DWI: 'Most sensitive for acute ischemia',
-                    perfusion: 'Core vs penumbra for late intervention'
-                }
-            },
-            
-            management: {
-                acute_ischemic: {
-                    BP: 'Allow up to 220/120 (unless tPA, then <185/110)',
-                    tPA: {
-                        window: '≤4.5 hours (or wake-up stroke with DWI-FLAIR mismatch)',
-                        dose: '0.9 mg/kg (max 90mg), 10% bolus, 90% over 1 hour',
-                        contraindications: ['Active bleeding', 'Recent surgery', 'INR >1.7', 'Platelets <100k', 'BP >185/110']
-                    },
-                    thrombectomy: {
-                        window: '≤24 hours with favorable imaging',
-                        indication: 'Large vessel occlusion (ICA, M1, basilar)',
-                        NNT: '2.6'
-                    }
-                },
-                hemorrhagic: {
-                    BP: 'SBP <140 (if presenting 150-220)',
-                    reversal: 'Anticoagulant reversal if applicable',
-                    surgery: 'Consider if cerebellar >3cm or deteriorating'
-                },
-                secondary_prevention: ['Antiplatelet (ASA, clopidogrel)', 'Statin', 'BP control <130/80', 'Anticoagulation if cardioembolic']
-            },
+            secondaryPrevention: ['Antiplatelet or anticoagulation', 'Statin', 'BP control <130/80', 'Lifestyle modification'],
             
             sources: [
-                { ref: 'AHA/ASA Stroke Guidelines 2019', evidence: '1a' },
-                { ref: 'DAWN Trial - NEJM 2018', pmid: '29129157', evidence: '1b' }
+                { ref: 'AHA/ASA Stroke Guidelines 2019', evidence: '1a' }
             ]
         },
 
-        'tia': {
-            title: 'Transient Ischemic Attack',
-            aka: ['mini stroke', 'transient ischemic attack'],
-            definition: 'Transient neurological dysfunction caused by focal ischemia WITHOUT infarction',
-            
-            diagnosticCriteria: {
-                clinical: 'Sudden focal neurological deficit resolving completely (typically <1 hour)',
-                imaging: 'No evidence of acute infarction on MRI DWI'
-            },
-            
-            riskStratification: {
-                ABCD2: {
-                    components: [
-                        'Age ≥60 (1 point)',
-                        'BP ≥140/90 (1 point)', 
-                        'Clinical: weakness (2) or speech only (1)',
-                        'Duration: ≥60min (2) or 10-59min (1)',
-                        'Diabetes (1 point)'
-                    ],
-                    risk: {
-                        '0-3': 'Low (1% 2-day stroke risk)',
-                        '4-5': 'Moderate (4%)',
-                        '6-7': 'High (8%)'
-                    }
-                }
-            },
-            
-            workup: ['MRI with DWI', 'CTA/MRA head and neck', 'ECG', 'Echo', 'Lipids', 'HbA1c', 'Telemetry'],
-            
-            management: [
-                'Dual antiplatelet x 21 days (ASA + clopidogrel), then single agent',
-                'High-intensity statin',
-                'BP control',
-                'Lifestyle modification',
-                'Carotid intervention if >70% symptomatic stenosis'
-            ],
-            
-            sources: [
-                { ref: 'AHA/ASA TIA Guidelines 2009', evidence: '1a' },
-                { ref: 'CHANCE Trial', evidence: '1b' }
-            ]
-        },
-
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
         // CARDIOLOGY
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
 
         'acs': {
             title: 'Acute Coronary Syndrome',
-            aka: ['heart attack', 'mi', 'myocardial infarction', 'stemi', 'nstemi', 'unstable angina'],
-            definition: 'Spectrum of acute myocardial ischemia from unstable angina to STEMI',
+            keywords: ['acs', 'mi', 'myocardial infarction', 'heart attack', 'stemi', 'nstemi', 'unstable angina', 'chest pain cardiac'],
+            
+            overview: `ACS represents a spectrum from unstable angina to STEMI. Key is rapid identification - get an ECG within 10 minutes of arrival!`,
             
             types: {
-                STEMI: {
-                    criteria: 'ST elevation ≥1mm in ≥2 contiguous leads (≥2mm in V1-V3)',
-                    treatment: 'Primary PCI within 90 minutes (door-to-balloon)'
-                },
-                NSTEMI: {
-                    criteria: 'Elevated troponin + ischemic symptoms/ECG changes WITHOUT ST elevation',
-                    treatment: 'Early invasive strategy within 24-72h if high risk'
-                },
-                unstableAngina: {
-                    criteria: 'Ischemic symptoms WITHOUT troponin elevation',
-                    treatment: 'Risk stratify, medical management vs invasive'
-                }
+                STEMI: 'ST elevation - needs immediate reperfusion',
+                NSTEMI: 'Troponin positive, no ST elevation',
+                unstableAngina: 'Ischemic symptoms, troponin negative'
             },
             
-            management: {
+            treatment: {
                 immediate: [
-                    'Aspirin 325mg',
-                    'P2Y12 inhibitor (ticagrelor, clopidogrel, prasugrel)',
+                    'Aspirin 325mg (chew)',
+                    'P2Y12 inhibitor (ticagrelor or clopidogrel)',
                     'Anticoagulation (heparin)',
-                    'Beta-blocker (if no contraindication)',
-                    'Nitrates for chest pain',
-                    'Oxygen only if SpO2 <90%'
+                    'Beta-blocker if no contraindication',
+                    'Nitrates for ongoing pain'
                 ],
-                reperfusion: {
-                    STEMI: 'PCI preferred; fibrinolysis if PCI not available within 120 min',
-                    NSTEMI: 'Early invasive (24-72h) vs conservative based on risk'
-                },
-                postMI: ['Aspirin lifelong', 'P2Y12 x 12 months', 'Statin', 'ACEi/ARB', 'Beta-blocker', 'Cardiac rehab']
+                STEMI: 'Primary PCI within 90 minutes (door-to-balloon)',
+                NSTEMI: 'Risk stratify → early invasive vs conservative'
             },
             
             sources: [
-                { ref: 'ACC/AHA STEMI Guidelines 2013', evidence: '1a' },
-                { ref: 'ESC NSTE-ACS Guidelines 2020', evidence: '1a' }
+                { ref: 'ACC/AHA STEMI/NSTEMI Guidelines', evidence: '1a' }
             ]
         },
 
         'heart failure': {
             title: 'Heart Failure',
-            aka: ['chf', 'congestive heart failure', 'hf', 'hfref', 'hfpef'],
-            definition: 'Clinical syndrome from structural or functional cardiac abnormality resulting in reduced CO or elevated filling pressures',
+            keywords: ['heart failure', 'chf', 'hf', 'congestive', 'hfref', 'hfpef', 'ef reduced'],
+            
+            overview: `Heart failure is a clinical syndrome of reduced cardiac output or elevated filling pressures. Treatment has revolutionized with the "four pillars" of GDMT for HFrEF.`,
             
             classification: {
-                byEF: {
-                    HFrEF: 'EF ≤40%',
-                    HFmrEF: 'EF 41-49%',
-                    HFpEF: 'EF ≥50%'
-                },
-                NYHA: {
-                    I: 'No symptoms with ordinary activity',
-                    II: 'Symptoms with ordinary activity',
-                    III: 'Symptoms with less than ordinary activity',
-                    IV: 'Symptoms at rest'
-                }
+                HFrEF: 'EF ≤40%',
+                HFmrEF: 'EF 41-49%',
+                HFpEF: 'EF ≥50%'
             },
             
-            diagnosticCriteria: {
-                symptoms: ['Dyspnea', 'Orthopnea', 'PND', 'Fatigue', 'Edema'],
-                signs: ['JVD', 'S3 gallop', 'Pulmonary crackles', 'Peripheral edema'],
-                tests: ['BNP >100 or NT-proBNP >300', 'Echo showing reduced EF or diastolic dysfunction', 'CXR: cardiomegaly, pulmonary edema']
+            GDMT: {
+                fourPillars: [
+                    '1. ACEi/ARB/ARNI',
+                    '2. Beta-blocker (carvedilol, metoprolol succinate, bisoprolol)',
+                    '3. MRA (spironolactone, eplerenone)',
+                    '4. SGLT2i (dapagliflozin, empagliflozin)'
+                ],
+                goal: 'Get patients on all 4 at target doses!'
             },
             
-            management: {
-                GDMT_HFrEF: {
-                    fourPillars: [
-                        '1. ACEi/ARB/ARNI (sacubitril-valsartan)',
-                        '2. Beta-blocker (carvedilol, metoprolol succinate, bisoprolol)',
-                        '3. MRA (spironolactone, eplerenone)',
-                        '4. SGLT2i (dapagliflozin, empagliflozin)'
-                    ],
-                    additional: ['Diuretics for congestion', 'Hydralazine-nitrate (especially AA patients)', 'Ivabradine if HR >70', 'Digoxin']
-                },
-                devices: {
-                    ICD: 'EF ≤35% despite 3 months GDMT',
-                    CRT: 'EF ≤35% + LBBB + QRS ≥150ms'
-                },
-                acute: ['Diuretics IV', 'Vasodilators', 'Inotropes if cardiogenic shock', 'Consider mechanical support']
-            },
+            acuteDecompensated: ['IV diuretics', 'Oxygen if hypoxic', 'Vasodilators', 'Inotropes if cardiogenic shock'],
             
             sources: [
-                { ref: 'ACC/AHA HF Guidelines 2022', evidence: '1a' },
-                { ref: 'ESC HF Guidelines 2021', evidence: '1a' }
+                { ref: 'ACC/AHA HF Guidelines 2022', evidence: '1a' }
             ]
         },
 
         'atrial fibrillation': {
             title: 'Atrial Fibrillation',
-            aka: ['afib', 'af', 'a-fib', 'atrial fib'],
-            definition: 'Supraventricular tachyarrhythmia with uncoordinated atrial activation',
+            keywords: ['afib', 'atrial fibrillation', 'af', 'a-fib', 'irregular heartbeat'],
             
-            diagnosticCriteria: {
-                ECG: ['Irregularly irregular R-R intervals', 'No distinct P waves', 'Fibrillatory waves']
+            overview: `AF is the most common sustained arrhythmia. Key decisions: Rate vs rhythm control, and anticoagulation for stroke prevention.`,
+            
+            strokeRisk: {
+                score: 'CHA₂DS₂-VASc',
+                anticoag: 'Score ≥2 (men) or ≥3 (women) → anticoagulation'
             },
             
-            riskScores: {
-                CHA2DS2VASc: {
-                    components: ['CHF (1)', 'HTN (1)', 'Age ≥75 (2)', 'DM (1)', 'Stroke/TIA (2)', 'Vascular disease (1)', 'Age 65-74 (1)', 'Female (1)'],
-                    interpretation: {
-                        male: '0 = no anticoag, 1 = consider, ≥2 = anticoag',
-                        female: '1 = no anticoag (sex alone), ≥2 = consider/anticoag'
-                    }
-                },
-                HASBLED: {
-                    components: ['HTN', 'Abnormal renal/liver', 'Stroke', 'Bleeding', 'Labile INR', 'Elderly', 'Drugs/alcohol'],
-                    interpretation: '≥3 = high bleeding risk (does NOT preclude anticoagulation)'
-                }
+            rateControl: {
+                target: '<110 bpm at rest',
+                agents: ['Beta-blocker', 'Diltiazem/Verapamil', 'Digoxin']
             },
             
-            management: {
-                anticoagulation: {
-                    indication: 'CHA2DS2-VASc ≥2 (men) or ≥3 (women)',
-                    preferred: 'DOACs over warfarin for non-valvular AF'
-                },
-                rateControl: {
-                    target: '<110 bpm at rest (lenient) or <80 (strict)',
-                    agents: ['Beta-blockers', 'Diltiazem/Verapamil', 'Digoxin']
-                },
-                rhythmControl: {
-                    agents: ['Amiodarone', 'Flecainide', 'Propafenone', 'Sotalol'],
-                    ablation: 'Consider if symptomatic despite meds'
-                }
+            rhythmControl: {
+                agents: ['Amiodarone', 'Flecainide', 'Propafenone', 'Sotalol'],
+                ablation: 'Consider if symptomatic despite meds'
             },
             
             sources: [
-                { ref: 'ACC/AHA AF Guidelines 2023', evidence: '1a' },
-                { ref: 'ESC AF Guidelines 2020', evidence: '1a' }
+                { ref: 'ACC/AHA AF Guidelines 2023', evidence: '1a' }
             ]
         },
 
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
         // NEPHROLOGY
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
 
         'aki': {
             title: 'Acute Kidney Injury',
-            aka: ['acute renal failure', 'arf', 'acute kidney injury'],
-            definition: 'Abrupt decrease in kidney function over hours to days',
+            keywords: ['aki', 'acute kidney injury', 'acute renal failure', 'arf', 'creatinine elevated'],
             
-            diagnosticCriteria: {
+            overview: `AKI is an abrupt decline in kidney function. Identify the cause (prerenal, intrinsic, postrenal), treat reversible factors, and protect from further injury.`,
+            
+            diagnosis: {
                 KDIGO: [
-                    'Increase in SCr ≥0.3 mg/dL within 48 hours, OR',
-                    'Increase in SCr ≥1.5x baseline within 7 days, OR',
-                    'Urine output <0.5 mL/kg/h for 6 hours'
-                ],
-                staging: {
-                    stage1: 'SCr 1.5-1.9x baseline OR ≥0.3 increase OR UOP <0.5 mL/kg/h x 6-12h',
-                    stage2: 'SCr 2.0-2.9x baseline OR UOP <0.5 mL/kg/h x ≥12h',
-                    stage3: 'SCr ≥3.0x baseline OR ≥4.0 mg/dL OR RRT OR UOP <0.3 mL/kg/h x ≥24h'
-                }
+                    'Cr ≥0.3 increase in 48h, OR',
+                    'Cr ≥1.5x baseline in 7 days, OR',
+                    'UOP <0.5 mL/kg/h for 6 hours'
+                ]
             },
             
-            etiologies: {
-                prerenal: {
-                    causes: ['Hypovolemia', 'Heart failure', 'Sepsis', 'Hepatorenal'],
-                    FENa: '<1%',
-                    BUN_Cr: '>20:1'
-                },
-                intrinsic: {
-                    causes: ['ATN', 'AIN', 'Glomerulonephritis', 'Vascular'],
-                    FENa: '>2%',
-                    BUN_Cr: '<20:1'
-                },
-                postrenal: {
-                    causes: ['BPH', 'Stones', 'Malignancy', 'Stricture'],
-                    diagnosis: 'Ultrasound showing hydronephrosis'
-                }
+            causes: {
+                prerenal: 'Hypovolemia, CHF, sepsis (FENa <1%)',
+                intrinsic: 'ATN, AIN, GN (FENa >2%)',
+                postrenal: 'Obstruction → get ultrasound'
             },
-            
-            workup: ['Urinalysis + microscopy', 'Urine electrolytes (FENa, FeUrea)', 'Renal ultrasound', 'Consider biopsy if unclear'],
             
             management: [
                 'Treat underlying cause',
                 'Optimize volume status',
-                'Avoid nephrotoxins (NSAIDs, contrast, aminoglycosides)',
-                'Adjust medications for renal function',
-                'Monitor electrolytes closely'
+                'Stop nephrotoxins',
+                'Adjust drug dosing'
             ],
             
-            RRT_indications: 'AEIOU: Acidosis (pH <7.1), Electrolytes (K >6.5 refractory), Intoxication, Overload (pulmonary edema refractory), Uremia (encephalopathy, pericarditis)',
+            dialysisIndications: 'AEIOU: Acidosis, Electrolytes (K+), Intoxication, Overload, Uremia',
             
             sources: [
-                { ref: 'KDIGO AKI Guidelines 2012', evidence: '1a' }
-            ]
-        },
-
-        'hyponatremia': {
-            title: 'Hyponatremia',
-            aka: ['low sodium', 'hyponatremia'],
-            definition: 'Serum sodium <135 mEq/L',
-            
-            classification: {
-                bySeverity: {
-                    mild: '130-134 mEq/L',
-                    moderate: '125-129 mEq/L',
-                    severe: '<125 mEq/L'
-                },
-                byVolume: {
-                    hypovolemic: {
-                        causes: ['GI losses', 'Diuretics', 'Adrenal insufficiency', 'Cerebral salt wasting'],
-                        urineNa: '<20 (extrarenal) or >20 (renal losses)'
-                    },
-                    euvolemic: {
-                        causes: ['SIADH', 'Hypothyroidism', 'Adrenal insufficiency', 'Psychogenic polydipsia'],
-                        SIADH_criteria: ['Serum osm <275', 'Urine osm >100', 'Urine Na >40', 'Euvolemic', 'Normal renal/thyroid/adrenal']
-                    },
-                    hypervolemic: {
-                        causes: ['CHF', 'Cirrhosis', 'Nephrotic syndrome'],
-                        urineNa: '<20 mEq/L'
-                    }
-                }
-            },
-            
-            management: {
-                acute_symptomatic: {
-                    symptoms: ['Seizures', 'Severe confusion', 'Coma'],
-                    treatment: '3% saline 100-150mL bolus, repeat up to 3x if needed',
-                    target: 'Increase Na by 4-6 mEq/L in first 1-2 hours'
-                },
-                chronic: {
-                    maxCorrection: '8-10 mEq/L per 24 hours (some say 6-8)',
-                    hypovolemic: 'Normal saline',
-                    SIADH: 'Fluid restriction, salt tabs, tolvaptan, urea',
-                    hypervolemic: 'Fluid + salt restriction, diuretics'
-                },
-                ODS_risk: {
-                    name: 'Osmotic Demyelination Syndrome',
-                    riskFactors: ['Chronic hyponatremia', 'Na <105', 'Hypokalemia', 'Alcoholism', 'Malnutrition'],
-                    prevention: 'Correct slowly, q2-4h Na monitoring'
-                }
-            },
-            
-            sources: [
-                { ref: 'European Hyponatremia Guidelines 2014', evidence: '1a' }
+                { ref: 'KDIGO AKI Guidelines', evidence: '1a' }
             ]
         },
 
         'hyperkalemia': {
             title: 'Hyperkalemia',
-            aka: ['high potassium', 'hyperkalemia', 'elevated potassium'],
-            definition: 'Serum potassium >5.5 mEq/L',
+            keywords: ['hyperkalemia', 'high potassium', 'elevated potassium', 'k high'],
             
-            diagnosticCriteria: {
-                severity: {
-                    mild: '5.5-6.0 mEq/L',
-                    moderate: '6.1-6.9 mEq/L',
-                    severe: '≥7.0 mEq/L'
-                },
-                ECG_changes: ['Peaked T waves (earliest)', 'Prolonged PR', 'Wide QRS', 'Loss of P waves', 'Sine wave (pre-arrest)']
-            },
+            overview: `Hyperkalemia can be life-threatening due to cardiac arrhythmias. Check the ECG immediately and treat based on severity and ECG changes.`,
             
-            causes: ['Renal failure', 'ACEi/ARB', 'K-sparing diuretics', 'Acidosis', 'Rhabdomyolysis', 'Tumor lysis', 'Adrenal insufficiency', 'Pseudohyperkalemia'],
+            ECGchanges: ['Peaked T waves (early)', 'Prolonged PR', 'Wide QRS', 'Sine wave (imminent arrest)'],
             
-            management: {
-                membrane_stabilization: {
-                    indication: 'ECG changes or K >6.5',
-                    calcium: 'Calcium gluconate 1-2g IV over 5-10 min (or CaCl if central line)',
-                    onset: '1-3 minutes',
-                    duration: '30-60 minutes'
-                },
-                shift_intracellular: [
-                    'Insulin 10 units + D50 (check glucose)',
-                    'Beta-agonist (albuterol nebulizer)',
-                    'Sodium bicarbonate (if acidotic)'
-                ],
-                elimination: [
-                    'Diuretics (furosemide)',
-                    'Kayexalate/Patiromer/Lokelma (GI binders)',
-                    'Hemodialysis (definitive)'
-                ]
+            treatment: {
+                stabilize: 'Calcium gluconate 1-2g IV (if ECG changes)',
+                shift: ['Insulin 10U + D50', 'Albuterol nebulizer', 'Bicarb (if acidotic)'],
+                eliminate: ['Diuretics', 'Kayexalate/Lokelma', 'Dialysis']
             },
             
             sources: [
@@ -608,184 +442,107 @@ const AIMedicalConsultant = (function() {
             ]
         },
 
-        // ───────────────────────────────────────────────────────────────────────
-        // PULMONOLOGY
-        // ───────────────────────────────────────────────────────────────────────
-
-        'pe': {
-            title: 'Pulmonary Embolism',
-            aka: ['pulmonary embolism', 'pulmonary embolus', 'pe', 'dvt'],
-            definition: 'Obstruction of pulmonary artery by thrombus (usually from DVT)',
+        'hyponatremia': {
+            title: 'Hyponatremia',
+            keywords: ['hyponatremia', 'low sodium', 'sodium low', 'na low'],
             
-            diagnosticCriteria: {
-                Wells: {
-                    components: [
-                        'DVT symptoms (3)',
-                        'PE most likely (3)',
-                        'HR >100 (1.5)',
-                        'Immobilization/surgery (1.5)',
-                        'Prior DVT/PE (1.5)',
-                        'Hemoptysis (1)',
-                        'Malignancy (1)'
-                    ],
-                    interpretation: {
-                        unlikely: '≤4 → D-dimer',
-                        likely: '>4 → CT angiography'
-                    }
-                },
-                PERC: {
-                    criteria: ['Age <50', 'HR <100', 'SpO2 ≥95%', 'No hemoptysis', 'No estrogen', 'No prior DVT/PE', 'No unilateral leg swelling', 'No surgery/trauma in 4 wks'],
-                    use: 'If ALL negative + low clinical suspicion → no further testing'
-                }
-            },
+            overview: `Hyponatremia is the most common electrolyte disorder. Approach by volume status: hypovolemic, euvolemic (SIADH), or hypervolemic.`,
             
-            severity: {
-                massive: 'Hypotension (SBP <90) or requiring pressors',
-                submassive: 'Normotensive with RV dysfunction (echo) or elevated troponin',
-                lowRisk: 'Normotensive, no RV dysfunction'
-            },
-            
-            management: {
-                anticoagulation: {
-                    preferred: 'DOACs (rivaroxaban, apixaban) for most patients',
-                    LMWH: 'Preferred for cancer-associated PE',
-                    duration: '3 months minimum; longer if unprovoked or ongoing risk'
-                },
-                thrombolysis: {
-                    indication: 'Massive PE with hemodynamic instability',
-                    agent: 'Alteplase 100mg over 2 hours'
-                },
-                catheterDirected: 'Consider for submassive with RV dysfunction',
-                IVCfilter: 'Only if anticoagulation contraindicated'
+            correction: {
+                chronic: 'Slow! Max 8-10 mEq/L per 24h to avoid ODS',
+                acuteSymptomatic: '3% saline 100-150mL boluses for seizures/severe symptoms'
             },
             
             sources: [
-                { ref: 'ESC PE Guidelines 2019', evidence: '1a' },
-                { ref: 'CHEST Antithrombotic Guidelines 2021', evidence: '1a' }
+                { ref: 'European Hyponatremia Guidelines', evidence: '1a' }
+            ]
+        },
+
+        // ─────────────────────────────────────────────────────────────────────────
+        // PULMONOLOGY
+        // ─────────────────────────────────────────────────────────────────────────
+
+        'pe': {
+            title: 'Pulmonary Embolism',
+            keywords: ['pe', 'pulmonary embolism', 'pulmonary embolus', 'dvt', 'vte'],
+            
+            overview: `PE can be life-threatening. Use Wells score to risk stratify, then D-dimer or CT angiography accordingly.`,
+            
+            diagnosis: {
+                Wells: '≤4 = unlikely (D-dimer), >4 = likely (CTPA)',
+                PERC: 'If ALL 8 negative + low suspicion → stop workup'
+            },
+            
+            treatment: {
+                anticoagulation: 'DOACs preferred (rivaroxaban, apixaban)',
+                thrombolysis: 'Massive PE with hemodynamic instability',
+                duration: '3 months minimum; longer if unprovoked'
+            },
+            
+            sources: [
+                { ref: 'ESC PE Guidelines 2019', evidence: '1a' }
             ]
         },
 
         'pneumonia': {
             title: 'Pneumonia',
-            aka: ['pna', 'pneumonia', 'cap', 'hap', 'vap', 'lung infection'],
-            definition: 'Infection of the lung parenchyma',
+            keywords: ['pneumonia', 'pna', 'cap', 'lung infection', 'community acquired pneumonia'],
             
-            types: {
-                CAP: 'Community-Acquired Pneumonia',
-                HAP: 'Hospital-Acquired (≥48h after admission)',
-                VAP: 'Ventilator-Associated (≥48h after intubation)',
-                aspiration: 'Aspiration pneumonia/pneumonitis'
-            },
+            overview: `Pneumonia is infection of the lung parenchyma. Severity assessment guides disposition and antibiotic choice.`,
             
-            diagnosticCriteria: {
-                clinical: ['Cough', 'Fever', 'Dyspnea', 'Pleuritic chest pain', 'Crackles'],
-                imaging: 'New infiltrate on chest X-ray or CT',
-                labs: 'Leukocytosis, elevated procalcitonin'
-            },
-            
-            severity: {
-                CURB65: {
-                    components: ['Confusion', 'Urea >7 mmol/L', 'RR ≥30', 'BP <90/60', 'Age ≥65'],
-                    interpretation: {
-                        '0-1': 'Outpatient',
-                        '2': 'Consider admission',
-                        '3-5': 'ICU consideration'
-                    }
-                }
-            },
-            
-            management: {
-                CAP_outpatient: 'Amoxicillin OR Doxycycline OR Macrolide',
-                CAP_inpatient: 'Beta-lactam + Macrolide OR Respiratory fluoroquinolone',
-                CAP_ICU: 'Beta-lactam + Macrolide (or FQ); add MRSA/Pseudomonas coverage if risk',
-                HAP_VAP: 'Cover MRSA + Pseudomonas (double-cover if shock or high risk)',
-                duration: '5 days minimum (CAP); 7 days (HAP/VAP)'
+            treatment: {
+                outpatient: 'Amoxicillin OR Doxycycline OR Macrolide',
+                inpatient: 'Beta-lactam + Macrolide OR Respiratory FQ',
+                ICU: 'Beta-lactam + Macrolide + consider MRSA/Pseudomonas coverage'
             },
             
             sources: [
-                { ref: 'ATS/IDSA CAP Guidelines 2019', evidence: '1a' },
-                { ref: 'ATS/IDSA HAP/VAP Guidelines 2016', evidence: '1a' }
+                { ref: 'ATS/IDSA CAP Guidelines 2019', evidence: '1a' }
             ]
         },
 
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
         // ENDOCRINOLOGY
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
 
         'dka': {
             title: 'Diabetic Ketoacidosis',
-            aka: ['dka', 'diabetic ketoacidosis'],
-            definition: 'Metabolic emergency in diabetes with hyperglycemia, ketosis, and acidosis',
+            keywords: ['dka', 'diabetic ketoacidosis', 'ketoacidosis'],
             
-            diagnosticCriteria: {
-                triad: ['Glucose >250 mg/dL', 'pH <7.3 or HCO3 <18', 'Positive ketones + anion gap >12'],
-                severity: {
-                    mild: 'pH 7.25-7.30, HCO3 15-18',
-                    moderate: 'pH 7.0-7.24, HCO3 10-14',
-                    severe: 'pH <7.0, HCO3 <10'
-                }
+            overview: `DKA is a metabolic emergency with hyperglycemia, ketosis, and acidosis. The three pillars of treatment: fluids, insulin, and potassium.`,
+            
+            criteria: ['Glucose >250', 'pH <7.3 or HCO3 <18', 'Ketones positive', 'Anion gap elevated'],
+            
+            treatment: {
+                fluids: 'NS 1-1.5L first hour, then adjust based on Na',
+                insulin: '0.1 U/kg bolus then 0.1 U/kg/hr infusion',
+                potassium: 'Add to fluids when K <5.2 (before starting insulin if K <3.3)',
+                dextrose: 'Add D5 when glucose <200'
             },
             
-            management: {
-                fluids: {
-                    initial: 'NS 1-1.5L in first hour',
-                    subsequent: '250-500 mL/h NS (or 0.45% if Na >140)',
-                    addDextrose: 'D5 when glucose <200'
-                },
-                insulin: {
-                    bolus: '0.1 units/kg IV',
-                    infusion: '0.1 units/kg/hr',
-                    target: 'Glucose drop 50-70 mg/dL per hour'
-                },
-                potassium: {
-                    check: 'Before insulin if possible',
-                    ifLow: 'Hold insulin until K >3.3, then replace',
-                    ifNormal: 'Add 20-40 mEq to each liter when K <5.2'
-                },
-                bicarbonate: 'Only if pH <6.9 or severe hyperkalemia'
-            },
-            
-            resolution: ['pH >7.3', 'HCO3 >18', 'Anion gap <12', 'Glucose <200'],
-            
-            transition: 'Overlap SC insulin with IV for 1-2 hours before stopping drip',
+            resolution: 'pH >7.3, HCO3 >18, AG <12, glucose <200',
             
             sources: [
-                { ref: 'ADA DKA Guidelines 2024', evidence: '1a' }
+                { ref: 'ADA DKA Guidelines', evidence: '1a' }
             ]
         },
 
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
         // INFECTIOUS DISEASE
-        // ───────────────────────────────────────────────────────────────────────
+        // ─────────────────────────────────────────────────────────────────────────
 
         'meningitis': {
             title: 'Meningitis',
-            aka: ['meningitis', 'meningeal infection'],
-            definition: 'Inflammation of the meninges, usually due to infection',
+            keywords: ['meningitis', 'meningeal', 'bacterial meningitis'],
             
-            diagnosticCriteria: {
-                clinical: ['Headache', 'Fever', 'Neck stiffness', 'Photophobia', 'Altered mental status'],
-                signs: ['Kernig sign', 'Brudzinski sign'],
-                CSF: {
-                    bacterial: { WBC: '>1000 (PMN)', protein: 'High (>100)', glucose: 'Low (<40 or <2/3 serum)' },
-                    viral: { WBC: '10-500 (lymph)', protein: 'Mild elevation', glucose: 'Normal' },
-                    TB_fungal: { WBC: '100-500 (lymph)', protein: 'Very high', glucose: 'Low' }
-                }
+            overview: `Bacterial meningitis is a medical emergency. Don't delay antibiotics for LP if patient is unstable!`,
+            
+            empiric: {
+                adult: 'Vancomycin + Ceftriaxone + Dexamethasone',
+                elderly: 'Add Ampicillin (for Listeria)'
             },
             
-            management: {
-                empiric: {
-                    adult: 'Vancomycin + Ceftriaxone + Dexamethasone',
-                    elderly_immunocompromised: 'Add Ampicillin (for Listeria)',
-                    timing: 'Antibiotics ASAP (within 1 hour); do not delay for LP'
-                },
-                dexamethasone: {
-                    dose: '0.15 mg/kg q6h x 4 days',
-                    timing: 'Before or with first dose of antibiotics',
-                    benefit: 'Reduces mortality/sequelae in S. pneumoniae'
-                },
-                HSV_encephalitis: 'Add Acyclovir if encephalitis suspected'
-            },
+            dexamethasone: 'Give before or with first antibiotic dose',
             
             sources: [
                 { ref: 'IDSA Meningitis Guidelines', evidence: '1a' }
@@ -794,32 +551,13 @@ const AIMedicalConsultant = (function() {
 
         'uti': {
             title: 'Urinary Tract Infection',
-            aka: ['uti', 'urinary tract infection', 'cystitis', 'pyelonephritis', 'urosepsis'],
-            definition: 'Infection of the urinary tract, ranging from cystitis to pyelonephritis to urosepsis',
+            keywords: ['uti', 'urinary tract infection', 'cystitis', 'pyelonephritis', 'urosepsis'],
             
-            types: {
-                cystitis: 'Bladder infection (dysuria, frequency, urgency)',
-                pyelonephritis: 'Kidney infection (fever, flank pain, CVA tenderness)',
-                urosepsis: 'UTI with systemic signs of sepsis'
-            },
+            overview: `UTIs range from simple cystitis to complicated pyelonephritis and urosepsis. Treatment depends on severity and patient factors.`,
             
-            diagnosticCriteria: {
-                symptoms: ['Dysuria', 'Frequency', 'Urgency', 'Suprapubic pain', 'Hematuria'],
-                labs: {
-                    UA: ['Pyuria (>10 WBC/hpf)', 'Bacteriuria', 'Positive leukocyte esterase', 'Nitrites (gram-neg)'],
-                    culture: '>100,000 CFU/mL (or >1,000 if symptomatic)'
-                }
-            },
-            
-            management: {
-                uncomplicated_cystitis: {
-                    firstLine: ['Nitrofurantoin 100mg BID x 5 days', 'TMP-SMX DS BID x 3 days', 'Fosfomycin 3g single dose'],
-                    avoid: 'Fluoroquinolones (save for complicated)'
-                },
-                pyelonephritis: {
-                    outpatient: 'Fluoroquinolone x 5-7 days OR TMP-SMX x 14 days',
-                    inpatient: 'IV Ceftriaxone or Fluoroquinolone (broaden if septic)'
-                },
+            treatment: {
+                cystitis: 'Nitrofurantoin 5d OR TMP-SMX 3d OR Fosfomycin single dose',
+                pyelo: 'Fluoroquinolone 5-7d OR Ceftriaxone',
                 urosepsis: 'Broad-spectrum + sepsis management'
             },
             
@@ -830,197 +568,181 @@ const AIMedicalConsultant = (function() {
     };
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // SYNONYM MAPPING
+    // SMART TOPIC MATCHING
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const SYNONYMS = {};
-    
-    // Build synonym map from knowledge base
-    Object.keys(KNOWLEDGE_BASE).forEach(key => {
-        const entry = KNOWLEDGE_BASE[key];
-        if (entry.aka) {
-            entry.aka.forEach(alias => {
-                SYNONYMS[alias.toLowerCase()] = key;
-            });
-        }
-        SYNONYMS[key.toLowerCase()] = key;
-        if (entry.title) {
-            SYNONYMS[entry.title.toLowerCase()] = key;
-        }
-    });
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // QUERY PROCESSOR
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    function findTopic(query) {
-        const q = query.toLowerCase();
+    function findBestMatch(query, patientDiagnosis) {
+        const q = (query + ' ' + (patientDiagnosis || '')).toLowerCase();
         
-        // Direct match
-        for (const [key, value] of Object.entries(SYNONYMS)) {
-            if (q.includes(key)) {
-                return KNOWLEDGE_BASE[value];
-            }
-        }
+        let bestMatch = null;
+        let bestScore = 0;
         
-        // Fuzzy matching
-        const words = q.split(/\s+/);
-        for (const word of words) {
-            if (word.length > 3) {
-                for (const [key, value] of Object.entries(SYNONYMS)) {
-                    if (key.includes(word) || word.includes(key)) {
-                        return KNOWLEDGE_BASE[value];
-                    }
+        for (const [key, topic] of Object.entries(KNOWLEDGE)) {
+            let score = 0;
+            
+            // Check keywords
+            for (const keyword of topic.keywords) {
+                if (q.includes(keyword.toLowerCase())) {
+                    score += keyword.length; // Longer matches score higher
                 }
             }
+            
+            // Check title
+            if (q.includes(topic.title.toLowerCase())) {
+                score += 10;
+            }
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestMatch = { key, topic, score };
+            }
         }
         
-        return null;
-    }
-
-    function detectIntent(query) {
-        const q = query.toLowerCase();
-        
-        if (/diagnos|criteria|how.*diagnos|definition/.test(q)) return 'diagnostic';
-        if (/treat|manag|therap|medication|drug/.test(q)) return 'treatment';
-        if (/cause|etiolog|why|differential|ddx/.test(q)) return 'etiology';
-        if (/workup|test|lab|imaging/.test(q)) return 'workup';
-        if (/prognos|outcome|survival|mortality/.test(q)) return 'prognosis';
-        
-        return 'general';
+        // Return match only if score is meaningful
+        return bestScore >= 3 ? bestMatch : null;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
-    // RESPONSE FORMATTER
+    // HUMAN-LIKE RESPONSE GENERATOR
     // ═══════════════════════════════════════════════════════════════════════════
 
-    function formatResponse(topic, intent) {
-        if (!topic) return null;
-        
+    function generateHumanResponse(topic, query, patient) {
+        const t = topic.topic;
         let response = '';
         
-        // Title
-        response += `## 🏥 ${topic.title}\n\n`;
+        // Greeting based on context
+        const greetings = [
+            `Great question! Let me walk you through **${t.title}**.`,
+            `Absolutely, here's what you need to know about **${t.title}**.`,
+            `Good thinking to ask about this. **${t.title}** is important.`,
+            `Let me break down **${t.title}** for you.`
+        ];
+        response += greetings[Math.floor(Math.random() * greetings.length)] + '\n\n';
         
-        // Definition
-        if (topic.definition) {
-            response += `**Definition:** ${topic.definition}\n\n`;
+        // Overview
+        if (t.overview) {
+            response += `${t.overview}\n\n`;
         }
         
-        // Intent-specific content
-        if (intent === 'diagnostic' || intent === 'general') {
-            if (topic.diagnosticCriteria) {
-                response += `### 📋 Diagnostic Criteria\n\n`;
-                response += formatObject(topic.diagnosticCriteria);
-            }
-        }
-        
-        if (intent === 'treatment' || intent === 'general') {
-            if (topic.management) {
-                response += `### 💊 Management\n\n`;
-                response += formatObject(topic.management);
-            }
-            if (topic.immediateManagement) {
-                response += `### ⚡ Immediate Management\n\n`;
-                response += formatObject(topic.immediateManagement);
-            }
-            if (topic.hourOneBunde) {
-                response += `### ⏱️ Hour-1 Bundle\n\n`;
-                topic.hourOneBunde.forEach(item => {
-                    response += `${item}\n`;
+        // Check for comparison queries (gout vs septic)
+        if (query.toLowerCase().includes(' vs ') || query.toLowerCase().includes('versus') || query.toLowerCase().includes('differentiate')) {
+            if (t.vsSepticArthritis) {
+                response += `---\n\n### ${t.vsSepticArthritis.title}\n\n`;
+                response += `⚠️ **${t.vsSepticArthritis.importance}**\n\n`;
+                response += `**${t.vsSepticArthritis.needsArthrocentesis}** - always tap the joint!\n\n`;
+                
+                response += `| Feature | Gout | Septic Arthritis |\n`;
+                response += `|---------|------|------------------|\n`;
+                response += `| Crystals | ${t.vsSepticArthritis.comparison.gout.crystals} | ${t.vsSepticArthritis.comparison.septic.crystals} |\n`;
+                response += `| Gram stain | ${t.vsSepticArthritis.comparison.gout.gramStain} | ${t.vsSepticArthritis.comparison.septic.gramStain} |\n`;
+                response += `| WBC count | ${t.vsSepticArthritis.comparison.gout.WBC} | ${t.vsSepticArthritis.comparison.septic.WBC} |\n`;
+                response += `| Culture | ${t.vsSepticArthritis.comparison.gout.culture} | ${t.vsSepticArthritis.comparison.septic.culture} |\n\n`;
+                
+                response += `**🚨 Red Flags for Septic:**\n`;
+                t.vsSepticArthritis.redFlags.forEach(flag => {
+                    response += `• ${flag}\n`;
                 });
+                response += `\n**Golden Rule:** ${t.vsSepticArthritis.rule}\n\n`;
+            }
+        }
+        
+        // Key priorities/bundle if exists
+        if (t.priorities) {
+            response += `### ⚡ Priorities\n`;
+            t.priorities.forEach(p => response += `${p}\n`);
+            response += '\n';
+        }
+        
+        if (t.hourOneBunde) {
+            response += `### ⏱️ Hour-1 Bundle\n`;
+            t.hourOneBunde.forEach(item => response += `${item}\n`);
+            response += '\n';
+        }
+        
+        // Diagnosis section
+        if (t.diagnosis) {
+            response += `### 📋 Diagnosis\n`;
+            if (t.diagnosis.goldStandard) {
+                response += `**Gold Standard:** ${t.diagnosis.goldStandard}\n\n`;
+            }
+            if (t.diagnosis.KDIGO) {
+                response += `**KDIGO Criteria:**\n`;
+                t.diagnosis.KDIGO.forEach(c => response += `• ${c}\n`);
                 response += '\n';
             }
         }
         
-        if (intent === 'etiology') {
-            if (topic.causes) {
-                response += `### 🔍 Causes\n\n`;
-                response += formatArray(topic.causes);
-            }
-            if (topic.etiologies) {
-                response += `### 🔍 Etiologies\n\n`;
-                response += formatObject(topic.etiologies);
-            }
-            if (topic.types) {
-                response += `### 📑 Types\n\n`;
-                response += formatObject(topic.types);
-            }
+        // Treatment section
+        if (t.treatment) {
+            response += `### 💊 Treatment\n`;
+            formatTreatment(t.treatment, (text) => response += text);
         }
         
-        if (intent === 'workup') {
-            if (topic.workup) {
-                response += `### 🔬 Workup\n\n`;
-                response += formatArray(topic.workup);
-            }
-        }
-        
-        if (intent === 'prognosis') {
-            if (topic.prognostication) {
-                response += `### 📊 Prognosis\n\n`;
-                response += formatObject(topic.prognostication);
-            }
-            if (topic.prognosis) {
-                response += `### 📊 Prognosis\n\n`;
-                response += formatObject(topic.prognosis);
-            }
-        }
-        
-        // For general queries, include additional sections
-        if (intent === 'general') {
-            if (topic.types && !response.includes('Types')) {
-                response += `### 📑 Types\n\n`;
-                response += formatObject(topic.types);
-            }
-            if (topic.workup && !response.includes('Workup')) {
-                response += `### 🔬 Workup\n\n`;
-                response += formatArray(topic.workup);
-            }
-        }
-        
-        // Sources
-        if (topic.sources && topic.sources.length > 0) {
-            response += `\n---\n### 📚 References\n`;
-            topic.sources.forEach(src => {
-                response += `• ${src.ref}`;
-                if (src.pmid) response += ` (PMID: ${src.pmid})`;
-                if (src.evidence) response += ` [${src.evidence}]`;
-                response += '\n';
-            });
-        }
+        // Add encouraging closer
+        const closers = [
+            `\n---\n💡 **Remember:** The key with ${t.title.toLowerCase()} is early recognition and prompt treatment!`,
+            `\n---\n🎯 **Clinical Pearl:** Don't forget the basics - history and physical exam are your best tools!`,
+            `\n---\n✅ **You've got this!** Let me know if you want me to elaborate on any specific aspect.`
+        ];
+        response += closers[Math.floor(Math.random() * closers.length)];
         
         return response;
     }
 
-    function formatObject(obj, depth = 0) {
-        let result = '';
-        const indent = '  '.repeat(depth);
-        
-        for (const [key, value] of Object.entries(obj)) {
-            const label = key.replace(/_/g, ' ').replace(/([A-Z])/g, ' $1').trim();
-            
+    function formatTreatment(treatment, append) {
+        for (const [key, value] of Object.entries(treatment)) {
             if (Array.isArray(value)) {
-                result += `${indent}**${label}:**\n`;
-                value.forEach(item => {
-                    if (typeof item === 'string') {
-                        result += `${indent}• ${item}\n`;
-                    } else {
-                        result += formatObject(item, depth + 1);
+                append(`**${formatKey(key)}:**\n`);
+                value.forEach(item => append(`• ${item}\n`));
+                append('\n');
+            } else if (typeof value === 'object') {
+                append(`**${formatKey(key)}:**\n`);
+                for (const [k, v] of Object.entries(value)) {
+                    if (Array.isArray(v)) {
+                        append(`*${formatKey(k)}:*\n`);
+                        v.forEach(item => append(`  • ${item}\n`));
+                    } else if (typeof v === 'string') {
+                        append(`• ${formatKey(k)}: ${v}\n`);
                     }
-                });
-            } else if (typeof value === 'object' && value !== null) {
-                result += `${indent}**${label}:**\n`;
-                result += formatObject(value, depth + 1);
+                }
+                append('\n');
             } else {
-                result += `${indent}• **${label}:** ${value}\n`;
+                append(`• **${formatKey(key)}:** ${value}\n`);
             }
         }
-        
-        return result + '\n';
     }
 
-    function formatArray(arr) {
-        return arr.map(item => `• ${item}`).join('\n') + '\n\n';
+    function formatKey(key) {
+        return key.replace(/([A-Z])/g, ' $1').replace(/_/g, ' ').replace(/^\w/, c => c.toUpperCase());
+    }
+
+    // ═══════════════════════════════════════════════════════════════════════════
+    // FALLBACK RESPONSE
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    function generateFallbackResponse(query, patient) {
+        let response = `## 🤔 I'd love to help!\n\n`;
+        response += `I'm not sure I have specific information on "${query}" in my current knowledge base, but I can definitely help with many clinical topics!\n\n`;
+        
+        response += `### 📚 Topics I Know Well:\n\n`;
+        response += `**Critical Care:** Sepsis, Post-Arrest Care, Cardiac Arrest\n`;
+        response += `**Cardiology:** ACS/MI, Heart Failure, Atrial Fibrillation\n`;
+        response += `**Neurology:** Stroke/CVA, TIA\n`;
+        response += `**Nephrology:** AKI, Hyperkalemia, Hyponatremia\n`;
+        response += `**Pulmonology:** PE, Pneumonia\n`;
+        response += `**Rheumatology:** Gout, Septic Arthritis\n`;
+        response += `**ID:** Meningitis, UTI/Urosepsis\n`;
+        response += `**Endocrine:** DKA\n\n`;
+        
+        response += `### 💬 Try asking:\n`;
+        response += `• "How do I treat sepsis?"\n`;
+        response += `• "What's the difference between gout and septic arthritis?"\n`;
+        response += `• "Walk me through DKA management"\n`;
+        response += `• "What are the diagnostic criteria for AKI?"\n\n`;
+        
+        response += `---\n🤝 I'm here to help you work through clinical problems - just ask!`;
+        
+        return response;
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
@@ -1028,13 +750,6 @@ const AIMedicalConsultant = (function() {
     // ═══════════════════════════════════════════════════════════════════════════
 
     const conversations = new Map();
-
-    function getConversation(patientId) {
-        if (!conversations.has(patientId)) {
-            conversations.set(patientId, []);
-        }
-        return conversations.get(patientId);
-    }
 
     // ═══════════════════════════════════════════════════════════════════════════
     // PUBLIC API
@@ -1049,58 +764,31 @@ const AIMedicalConsultant = (function() {
             conversations.set(patientId, []);
             return {
                 success: true,
-                message: `AI Medical Consultant v${VERSION} ready`,
-                capabilities: Object.keys(KNOWLEDGE_BASE)
+                message: `Hey! I'm your AI Medical Consultant (${CODENAME} v${VERSION}). Ask me anything about your patient - diagnostics, treatment, differentials. I'm here to help! 🩺`
             };
         },
 
         askQuestion(patientId, query, patient) {
-            const conv = getConversation(patientId);
+            // Store in conversation
+            if (!conversations.has(patientId)) {
+                conversations.set(patientId, []);
+            }
+            const conv = conversations.get(patientId);
             conv.push({ role: 'user', content: query, timestamp: Date.now() });
             
-            // Find topic
-            const topic = findTopic(query);
-            const intent = detectIntent(query);
+            // Find matching topic
+            const match = findBestMatch(query, patient?.diagnosis);
             
             let responseText;
-            let confidence = 0;
-            let sources = [];
+            let confidence;
             
-            if (topic) {
-                responseText = formatResponse(topic, intent);
-                confidence = 0.95;
-                sources = topic.sources || [];
+            if (match) {
+                responseText = generateHumanResponse(match, query, patient);
+                confidence = Math.min(0.95, 0.7 + (match.score / 20));
             } else {
-                // Fallback - provide helpful response
-                responseText = `## 🤖 Medical Query\n\n`;
-                responseText += `I understand you're asking about **"${query}"**.\n\n`;
-                responseText += `I have comprehensive information on:\n\n`;
-                
-                const categories = {
-                    'Critical Care': ['post arrest', 'cardiac arrest', 'sepsis'],
-                    'Neurology': ['stroke', 'tia'],
-                    'Cardiology': ['acs', 'heart failure', 'atrial fibrillation'],
-                    'Nephrology': ['aki', 'hyponatremia', 'hyperkalemia'],
-                    'Pulmonology': ['pe', 'pneumonia'],
-                    'Endocrinology': ['dka'],
-                    'Infectious Disease': ['meningitis', 'uti']
-                };
-                
-                for (const [cat, topics] of Object.entries(categories)) {
-                    responseText += `**${cat}:** ${topics.map(t => KNOWLEDGE_BASE[t]?.title || t).join(', ')}\n`;
-                }
-                
-                responseText += `\n**Try asking:**\n`;
-                responseText += `• "What are the diagnostic criteria for [condition]?"\n`;
-                responseText += `• "How do you treat [condition]?"\n`;
-                responseText += `• "What causes [condition]?"\n`;
-                
+                responseText = generateFallbackResponse(query, patient);
                 confidence = 0.5;
             }
-            
-            // Add confidence badge
-            responseText += `\n---\n✅ **Confidence:** ${Math.round(confidence * 100)}% | `;
-            responseText += `**Source:** ${sources.length > 0 ? 'Evidence-Based Guidelines' : 'Knowledge Base'}`;
             
             conv.push({ role: 'assistant', content: responseText, timestamp: Date.now() });
             
@@ -1109,13 +797,13 @@ const AIMedicalConsultant = (function() {
                 response: {
                     text: responseText,
                     confidence: confidence,
-                    sources: sources.map(s => s.ref)
+                    sources: match ? (match.topic.sources || []).map(s => s.ref) : []
                 }
             };
         },
 
         getHistory(patientId) {
-            return getConversation(patientId);
+            return conversations.get(patientId) || [];
         },
 
         clearHistory(patientId) {
@@ -1125,24 +813,28 @@ const AIMedicalConsultant = (function() {
 
         getCapabilities() {
             return {
-                topics: Object.keys(KNOWLEDGE_BASE),
-                count: Object.keys(KNOWLEDGE_BASE).length
+                topics: Object.keys(KNOWLEDGE),
+                count: Object.keys(KNOWLEDGE).length
             };
         },
-        
+
         getDatabaseInfo() {
             return {
                 version: VERSION,
-                topics: Object.keys(KNOWLEDGE_BASE).length,
+                codename: CODENAME,
+                topics: Object.keys(KNOWLEDGE).length,
                 ready: true
             };
         }
     };
 })();
 
-// Export
+// ═══════════════════════════════════════════════════════════════════════════
+// EXPORT
+// ═══════════════════════════════════════════════════════════════════════════
+
 window.AIMedicalConsultant = AIMedicalConsultant;
 window.NeuralClinicalIntelligence = AIMedicalConsultant;
 
-console.log('✅ AI Medical Consultant v4.0 ASCLEPIUS-PRO loaded');
-console.log('📚 Topics available:', Object.keys(AIMedicalConsultant.getCapabilities().topics).length);
+console.log(`✅ AI Medical Consultant v${AIMedicalConsultant.version} "${AIMedicalConsultant.codename}" loaded`);
+console.log(`📚 ${AIMedicalConsultant.getCapabilities().count} clinical topics available`);
