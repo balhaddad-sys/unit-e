@@ -1746,8 +1746,141 @@ const NeuralClinicalIntelligence = (function() {
 window.NeuralClinicalIntelligence = NeuralClinicalIntelligence;
 window.AIMedicalConsultant = NeuralClinicalIntelligence; // Backwards compatibility
 
+// Add ready flag
+NeuralClinicalIntelligence.isReady = true;
+
 if (typeof module !== 'undefined' && module.exports) {
     module.exports = NeuralClinicalIntelligence;
 }
 
 console.log('✅ Neural Clinical Intelligence "ASCLEPIUS" v3.0 loaded');
+
+// ═══════════════════════════════════════════════════════════════════════════
+// VISUAL INDICATOR - Shows badge when module is loaded
+// ═══════════════════════════════════════════════════════════════════════════
+
+(function() {
+    function showAIBadge() {
+        if (document.getElementById('ai-intelligence-badge')) return;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            .ai-intelligence-badge {
+                position: fixed;
+                top: 110px;
+                right: 20px;
+                background: linear-gradient(135deg, #8b5cf6 0%, #6d28d9 100%);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4);
+                z-index: 9997;
+                animation: aiBadgeSlide 0.5s ease-out 0.2s both;
+                cursor: pointer;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+            
+            @keyframes aiBadgeSlide {
+                from { transform: translateX(100px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            
+            .ai-intelligence-badge:hover {
+                transform: scale(1.05);
+                box-shadow: 0 6px 20px rgba(139, 92, 246, 0.5);
+            }
+            
+            .ai-badge-icon {
+                font-size: 14px;
+            }
+            
+            .ai-badge-close {
+                margin-left: 8px;
+                cursor: pointer;
+                opacity: 0.7;
+                font-size: 14px;
+            }
+            
+            .ai-badge-close:hover {
+                opacity: 1;
+            }
+            
+            .ai-badge-pulse {
+                animation: aiPulse 2s ease-in-out infinite;
+            }
+            
+            @keyframes aiPulse {
+                0%, 100% { box-shadow: 0 4px 15px rgba(139, 92, 246, 0.4); }
+                50% { box-shadow: 0 4px 25px rgba(139, 92, 246, 0.6); }
+            }
+        `;
+        document.head.appendChild(style);
+        
+        const badge = document.createElement('div');
+        badge.id = 'ai-intelligence-badge';
+        badge.className = 'ai-intelligence-badge ai-badge-pulse';
+        badge.innerHTML = `
+            <span class="ai-badge-icon">🤖</span>
+            <span>ASCLEPIUS AI v3.0</span>
+            <span class="ai-badge-close" onclick="event.stopPropagation(); this.parentElement.remove();">×</span>
+        `;
+        
+        badge.addEventListener('click', function(e) {
+            if (e.target.classList.contains('ai-badge-close')) return;
+            
+            const caps = window.NeuralClinicalIntelligence.getCapabilities();
+            
+            alert(`🤖 NEURAL CLINICAL INTELLIGENCE "ASCLEPIUS" v3.0
+
+Status: ✅ INSTALLED & READY
+
+Capabilities:
+  🧠 Semantic Understanding (synonyms, intent detection)
+  💭 Chain-of-Thought Clinical Reasoning
+  📚 Comprehensive Medical Knowledge Base
+  ✅ Evidence-Based Recommendations
+  📖 Verified Source Citations
+
+Knowledge Coverage:
+  • Neurology: Stroke/CVA, TIA, NIHSS, thrombolysis
+  • Cardiology: ACS, Heart Failure, Atrial Fibrillation
+  • Nephrology: AKI, CKD, Electrolytes
+  • Pulmonology: PE, COPD, Asthma, Pneumonia
+  • Infectious Disease: Sepsis, Meningitis, Endocarditis
+  • And more...
+
+Supported Intents:
+  ${caps.intents.slice(0, 6).join(', ')}
+
+Try asking:
+  "What are the diagnostic criteria for CVA?"
+  "How do you treat sepsis?"
+  "Differential diagnosis for chest pain"`);
+        });
+        
+        document.body.appendChild(badge);
+        
+        // Auto-minimize after 10 seconds
+        setTimeout(() => {
+            if (badge && badge.parentElement) {
+                badge.classList.remove('ai-badge-pulse');
+                badge.style.transition = 'all 0.5s ease';
+                badge.style.padding = '6px 12px';
+                badge.style.fontSize = '10px';
+                badge.querySelector('span:nth-child(2)').textContent = 'AI Ready';
+            }
+        }, 10000);
+    }
+    
+    // Show badge when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', showAIBadge);
+    } else {
+        showAIBadge();
+    }
+})();
