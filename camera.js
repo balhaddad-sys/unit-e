@@ -1,21 +1,15 @@
 /**
  * ╔══════════════════════════════════════════════════════════════════════════════╗
- * ║  CAMERA MODULE v5.0 - AUTO-PATCH                                             ║
- * ║  Works with existing HTML - No changes needed!                               ║
+ * ║  CAMERA MODULE v6.0 - Clean & Simple                                         ║
+ * ║  No badge, just works                                                         ║
  * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 (function() {
     'use strict';
 
-    const VERSION = '5.0.0';
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // CAMERA MODULE
-    // ═══════════════════════════════════════════════════════════════════════════
-
     const CameraModule = {
-        version: VERSION,
+        version: '6.0.0',
         isReady: true,
         
         _stream: null,
@@ -37,7 +31,6 @@
         init(options = {}) {
             this._onCapture = options.onCapture || null;
             this._onClose = options.onClose || null;
-            this._onError = options.onError || console.error;
             return this;
         },
 
@@ -47,20 +40,29 @@
 
             try {
                 if (!navigator.mediaDevices?.getUserMedia) {
-                    throw new Error('Camera not supported');
+                    throw new Error('Camera not supported on this device');
                 }
 
+                // Request camera with preferences
                 this._stream = await navigator.mediaDevices.getUserMedia({
-                    video: { facingMode: this._facingMode, width: { ideal: 1920 }, height: { ideal: 1080 } },
+                    video: { 
+                        facingMode: this._facingMode, 
+                        width: { ideal: 1920 }, 
+                        height: { ideal: 1080 } 
+                    },
                     audio: false
-                }).catch(() => navigator.mediaDevices.getUserMedia({ video: true, audio: false }));
+                }).catch(() => {
+                    // Fallback without constraints
+                    return navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                });
 
                 this._buildUI();
+                console.log('[Camera] Opened successfully');
                 return true;
 
             } catch (error) {
                 console.error('[Camera] Error:', error);
-                alert('📷 Camera Error: ' + error.message);
+                alert('📷 Camera Error: ' + error.message + '\n\nPlease check camera permissions.');
                 return false;
             }
         },
@@ -69,47 +71,50 @@
             if (this._modal) this._modal.remove();
 
             this._modal = document.createElement('div');
-            this._modal.id = 'adv-camera-modal';
+            this._modal.id = 'camera-modal-v6';
             this._modal.innerHTML = `
                 <style>
-                    #adv-camera-modal {
+                    #camera-modal-v6 {
                         position: fixed;
                         inset: 0;
                         background: #000;
                         z-index: 999999;
                         display: flex;
                         flex-direction: column;
-                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+                        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
                     }
-                    .acm-header {
+                    
+                    /* Header */
+                    .cm6-header {
                         display: flex;
                         justify-content: space-between;
                         align-items: center;
-                        padding: 16px 20px;
-                        background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+                        padding: 14px 18px;
+                        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
                     }
-                    .acm-title {
+                    .cm6-title {
                         color: white;
-                        font-size: 18px;
+                        font-size: 17px;
                         font-weight: 700;
                         display: flex;
                         align-items: center;
-                        gap: 10px;
+                        gap: 8px;
                     }
-                    .acm-close {
+                    .cm6-close {
                         background: rgba(255,255,255,0.2);
                         border: none;
                         color: white;
-                        width: 40px;
-                        height: 40px;
+                        width: 38px;
+                        height: 38px;
                         border-radius: 50%;
-                        font-size: 20px;
+                        font-size: 18px;
                         cursor: pointer;
                         transition: 0.2s;
                     }
-                    .acm-close:hover { background: rgba(255,255,255,0.3); }
+                    .cm6-close:hover { background: rgba(255,255,255,0.3); }
                     
-                    .acm-preview {
+                    /* Preview Area */
+                    .cm6-preview {
                         flex: 1;
                         display: flex;
                         align-items: center;
@@ -118,153 +123,173 @@
                         position: relative;
                         overflow: hidden;
                     }
-                    .acm-video {
+                    .cm6-video {
                         max-width: 100%;
                         max-height: 100%;
                         object-fit: contain;
                     }
-                    .acm-video.mirror { transform: scaleX(-1); }
+                    .cm6-video.mirror { transform: scaleX(-1); }
                     
-                    .acm-frame {
+                    /* Frame Overlay */
+                    .cm6-frame {
                         position: absolute;
                         border: 3px solid #10b981;
-                        border-radius: 12px;
-                        box-shadow: 0 0 0 9999px rgba(0,0,0,0.6);
+                        border-radius: 10px;
+                        box-shadow: 0 0 0 9999px rgba(0,0,0,0.55);
                         pointer-events: none;
-                        transition: 0.3s;
+                        transition: 0.3s ease;
                     }
-                    .acm-frame.hidden { display: none; }
+                    .cm6-frame.hidden { display: none; }
                     
-                    .acm-grid {
+                    /* Grid Overlay */
+                    .cm6-grid {
                         position: absolute;
                         inset: 0;
                         pointer-events: none;
                         opacity: 0;
                         transition: 0.3s;
                     }
-                    .acm-grid.on {
+                    .cm6-grid.on {
                         opacity: 1;
                         background: 
-                            linear-gradient(rgba(255,255,255,0.4) 1px, transparent 1px),
-                            linear-gradient(90deg, rgba(255,255,255,0.4) 1px, transparent 1px);
+                            linear-gradient(rgba(255,255,255,0.35) 1px, transparent 1px),
+                            linear-gradient(90deg, rgba(255,255,255,0.35) 1px, transparent 1px);
                         background-size: 33.33% 33.33%;
                     }
                     
-                    .acm-flash {
+                    /* Flash Effect */
+                    .cm6-flash {
                         position: absolute;
                         inset: 0;
                         background: white;
                         opacity: 0;
                         pointer-events: none;
                     }
-                    .acm-flash.active { animation: acmFlash 0.15s; }
-                    @keyframes acmFlash { from { opacity: 0.9; } to { opacity: 0; } }
+                    .cm6-flash.active { animation: cm6Flash 0.15s ease-out; }
+                    @keyframes cm6Flash { from { opacity: 0.85; } to { opacity: 0; } }
                     
-                    .acm-layouts {
+                    /* Layout Selector */
+                    .cm6-layouts {
                         display: flex;
                         justify-content: center;
-                        gap: 10px;
-                        padding: 14px;
-                        background: #111;
+                        gap: 8px;
+                        padding: 12px;
+                        background: rgba(0,0,0,0.9);
+                        overflow-x: auto;
                     }
-                    .acm-layout-btn {
+                    .cm6-layout-btn {
                         display: flex;
                         flex-direction: column;
                         align-items: center;
-                        gap: 4px;
-                        padding: 10px 14px;
-                        background: rgba(255,255,255,0.08);
+                        gap: 3px;
+                        padding: 8px 12px;
+                        background: rgba(255,255,255,0.1);
                         border: 2px solid transparent;
-                        border-radius: 14px;
+                        border-radius: 12px;
                         color: white;
                         cursor: pointer;
                         transition: 0.2s;
-                        min-width: 60px;
+                        min-width: 56px;
                     }
-                    .acm-layout-btn:hover { background: rgba(255,255,255,0.15); }
-                    .acm-layout-btn.active {
-                        background: rgba(16, 185, 129, 0.25);
+                    .cm6-layout-btn:hover { background: rgba(255,255,255,0.18); }
+                    .cm6-layout-btn.active {
+                        background: rgba(16, 185, 129, 0.3);
                         border-color: #10b981;
                     }
-                    .acm-layout-icon { font-size: 22px; }
-                    .acm-layout-name { font-size: 11px; font-weight: 500; }
+                    .cm6-layout-icon { font-size: 20px; }
+                    .cm6-layout-name { font-size: 10px; font-weight: 600; }
                     
-                    .acm-controls {
-                        padding: 20px;
-                        background: linear-gradient(135deg, #1e1e2e 0%, #111 100%);
+                    /* Controls */
+                    .cm6-controls {
+                        padding: 18px;
+                        background: linear-gradient(180deg, #111 0%, #000 100%);
                     }
-                    .acm-row {
+                    .cm6-row {
                         display: flex;
                         justify-content: center;
                         align-items: center;
-                        gap: 24px;
+                        gap: 28px;
                     }
-                    .acm-btn {
-                        width: 54px;
-                        height: 54px;
+                    .cm6-btn {
+                        width: 52px;
+                        height: 52px;
                         background: rgba(255,255,255,0.12);
                         border: none;
                         border-radius: 50%;
                         color: white;
-                        font-size: 24px;
+                        font-size: 22px;
                         cursor: pointer;
                         transition: 0.2s;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                     }
-                    .acm-btn:hover { background: rgba(255,255,255,0.2); transform: scale(1.1); }
-                    .acm-btn.active { background: rgba(16, 185, 129, 0.4); }
+                    .cm6-btn:hover { background: rgba(255,255,255,0.22); transform: scale(1.08); }
+                    .cm6-btn.active { background: rgba(16, 185, 129, 0.5); }
                     
-                    .acm-capture {
-                        width: 76px;
-                        height: 76px;
-                        background: white;
-                        border: 5px solid rgba(255,255,255,0.4);
+                    /* Capture Button */
+                    .cm6-capture {
+                        width: 72px;
+                        height: 72px;
+                        background: #10b981;
+                        border: 4px solid rgba(16, 185, 129, 0.4);
                         border-radius: 50%;
                         cursor: pointer;
                         position: relative;
                         transition: 0.2s;
                     }
-                    .acm-capture:hover { background: #10b981; border-color: #10b981; }
-                    .acm-capture:active { transform: scale(0.95); }
-                    .acm-capture-inner {
+                    .cm6-capture:hover { 
+                        background: #059669; 
+                        transform: scale(1.05);
+                        box-shadow: 0 0 20px rgba(16, 185, 129, 0.5);
+                    }
+                    .cm6-capture:active { transform: scale(0.95); }
+                    .cm6-capture-inner {
                         position: absolute;
-                        inset: 5px;
-                        background: inherit;
+                        inset: 4px;
+                        background: white;
                         border-radius: 50%;
+                    }
+                    
+                    /* Status Text */
+                    .cm6-status {
+                        text-align: center;
+                        color: rgba(255,255,255,0.5);
+                        font-size: 11px;
+                        margin-top: 12px;
                     }
                 </style>
                 
-                <div class="acm-header">
-                    <div class="acm-title">📷 Camera</div>
-                    <button class="acm-close" id="acm-close">✕</button>
+                <div class="cm6-header">
+                    <div class="cm6-title">📷 Camera</div>
+                    <button class="cm6-close" id="cm6-close">✕</button>
                 </div>
                 
-                <div class="acm-preview">
-                    <video class="acm-video" id="acm-video" autoplay playsinline muted></video>
-                    <div class="acm-frame hidden" id="acm-frame"></div>
-                    <div class="acm-grid" id="acm-grid"></div>
-                    <div class="acm-flash" id="acm-flash"></div>
+                <div class="cm6-preview">
+                    <video class="cm6-video" id="cm6-video" autoplay playsinline muted></video>
+                    <div class="cm6-frame hidden" id="cm6-frame"></div>
+                    <div class="cm6-grid" id="cm6-grid"></div>
+                    <div class="cm6-flash" id="cm6-flash"></div>
                 </div>
                 
-                <div class="acm-layouts" id="acm-layouts"></div>
+                <div class="cm6-layouts" id="cm6-layouts"></div>
                 
-                <div class="acm-controls">
-                    <div class="acm-row">
-                        <button class="acm-btn" id="acm-grid-btn" title="Grid">▦</button>
-                        <button class="acm-capture" id="acm-capture"><div class="acm-capture-inner"></div></button>
-                        <button class="acm-btn" id="acm-switch" title="Switch">🔄</button>
+                <div class="cm6-controls">
+                    <div class="cm6-row">
+                        <button class="cm6-btn" id="cm6-grid-btn" title="Grid">▦</button>
+                        <button class="cm6-capture" id="cm6-capture"><div class="cm6-capture-inner"></div></button>
+                        <button class="cm6-btn" id="cm6-switch" title="Switch Camera">🔄</button>
                     </div>
+                    <div class="cm6-status" id="cm6-status">Tap capture to take photo</div>
                 </div>
                 
-                <canvas id="acm-canvas" style="display:none;"></canvas>
+                <canvas id="cm6-canvas" style="display:none;"></canvas>
             `;
 
             document.body.appendChild(this._modal);
 
             // Setup video
-            const video = this._modal.querySelector('#acm-video');
+            const video = this._modal.querySelector('#cm6-video');
             video.srcObject = this._stream;
             video.play();
 
@@ -272,22 +297,25 @@
             this._buildLayouts();
 
             // Events
-            this._modal.querySelector('#acm-close').onclick = () => this.close();
-            this._modal.querySelector('#acm-capture').onclick = () => this._capture();
-            this._modal.querySelector('#acm-switch').onclick = () => this._switch();
-            this._modal.querySelector('#acm-grid-btn').onclick = () => this._toggleGrid();
+            this._modal.querySelector('#cm6-close').onclick = () => this.close();
+            this._modal.querySelector('#cm6-capture').onclick = () => this._capture();
+            this._modal.querySelector('#cm6-switch').onclick = () => this._switch();
+            this._modal.querySelector('#cm6-grid-btn').onclick = () => this._toggleGrid();
 
             this._applyLayout('full');
+            this._updateStatus();
         },
 
         _buildLayouts() {
-            const container = this._modal.querySelector('#acm-layouts');
+            const container = this._modal.querySelector('#cm6-layouts');
+            container.innerHTML = '';
+            
             for (const [key, layout] of Object.entries(this.layouts)) {
                 const btn = document.createElement('button');
-                btn.className = 'acm-layout-btn' + (key === this._currentLayout ? ' active' : '');
-                btn.innerHTML = `<span class="acm-layout-icon">${layout.icon}</span><span class="acm-layout-name">${layout.name}</span>`;
+                btn.className = 'cm6-layout-btn' + (key === this._currentLayout ? ' active' : '');
+                btn.innerHTML = `<span class="cm6-layout-icon">${layout.icon}</span><span class="cm6-layout-name">${layout.name}</span>`;
                 btn.onclick = () => {
-                    container.querySelectorAll('.acm-layout-btn').forEach(b => b.classList.remove('active'));
+                    container.querySelectorAll('.cm6-layout-btn').forEach(b => b.classList.remove('active'));
                     btn.classList.add('active');
                     this._applyLayout(key);
                 };
@@ -298,8 +326,8 @@
         _applyLayout(key) {
             this._currentLayout = key;
             const layout = this.layouts[key];
-            const frame = this._modal.querySelector('#acm-frame');
-            const preview = this._modal.querySelector('.acm-preview');
+            const frame = this._modal.querySelector('#cm6-frame');
+            const preview = this._modal.querySelector('.cm6-preview');
 
             if (!layout.ratio) {
                 frame.classList.add('hidden');
@@ -312,10 +340,10 @@
 
             let w, h;
             if (layout.ratio > containerRatio) {
-                w = rect.width * 0.88;
+                w = rect.width * 0.85;
                 h = w / layout.ratio;
             } else {
-                h = rect.height * 0.88;
+                h = rect.height * 0.85;
                 w = h * layout.ratio;
             }
 
@@ -327,8 +355,14 @@
 
         _toggleGrid() {
             this._gridOn = !this._gridOn;
-            this._modal.querySelector('#acm-grid').classList.toggle('on', this._gridOn);
-            this._modal.querySelector('#acm-grid-btn').classList.toggle('active', this._gridOn);
+            this._modal.querySelector('#cm6-grid').classList.toggle('on', this._gridOn);
+            this._modal.querySelector('#cm6-grid-btn').classList.toggle('active', this._gridOn);
+        },
+
+        _updateStatus() {
+            const status = this._modal.querySelector('#cm6-status');
+            const cam = this._facingMode === 'environment' ? 'Back' : 'Front';
+            status.textContent = `${cam} camera • ${this.layouts[this._currentLayout].name} layout`;
         },
 
         async _switch() {
@@ -340,27 +374,29 @@
                     video: { facingMode: this._facingMode },
                     audio: false
                 });
-                const video = this._modal.querySelector('#acm-video');
+                const video = this._modal.querySelector('#cm6-video');
                 video.srcObject = this._stream;
                 video.classList.toggle('mirror', this._facingMode === 'user');
                 video.play();
+                this._updateStatus();
             } catch (err) {
                 console.error('[Camera] Switch failed:', err);
             }
         },
 
         _capture() {
-            // Flash
-            const flash = this._modal.querySelector('#acm-flash');
+            // Flash effect
+            const flash = this._modal.querySelector('#cm6-flash');
             flash.classList.add('active');
             setTimeout(() => flash.classList.remove('active'), 150);
 
-            const video = this._modal.querySelector('#acm-video');
-            const canvas = this._modal.querySelector('#acm-canvas');
+            const video = this._modal.querySelector('#cm6-video');
+            const canvas = this._modal.querySelector('#cm6-canvas');
             const layout = this.layouts[this._currentLayout];
 
             let sw = video.videoWidth, sh = video.videoHeight, sx = 0, sy = 0;
 
+            // Crop based on layout
             if (layout.ratio) {
                 const vr = sw / sh;
                 if (layout.ratio > vr) {
@@ -378,6 +414,7 @@
             canvas.height = sh;
             const ctx = canvas.getContext('2d');
 
+            // Mirror if front camera
             if (this._facingMode === 'user') {
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
@@ -385,9 +422,14 @@
 
             ctx.drawImage(video, sx, sy, sw, sh, 0, 0, sw, sh);
 
+            // Convert to file
             canvas.toBlob(blob => {
                 const file = new File([blob], `photo-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                if (this._onCapture) this._onCapture(file);
+                console.log('[Camera] Captured:', file.name, Math.round(blob.size/1024) + 'KB');
+                
+                if (this._onCapture) {
+                    this._onCapture(file);
+                }
                 this.close();
             }, 'image/jpeg', 0.92);
         },
@@ -398,115 +440,14 @@
             this._modal?.remove();
             this._modal = null;
             if (this._onClose) this._onClose();
+            console.log('[Camera] Closed');
         }
     };
 
-    // ═══════════════════════════════════════════════════════════════════════════
-    // AUTO-PATCH: Override FAB camera button
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    function patchCameraButton() {
-        // Watch for FAB menu camera button clicks
-        document.addEventListener('click', function(e) {
-            const target = e.target.closest('.fab-menu-item');
-            if (!target) return;
-            
-            // Check if it's the camera button (contains 📷 or "Camera")
-            const text = target.textContent || '';
-            if (text.includes('📷') || text.toLowerCase().includes('camera')) {
-                e.preventDefault();
-                e.stopPropagation();
-                e.stopImmediatePropagation();
-                
-                console.log('[Camera] Intercepted camera button click');
-                
-                // Find the handleFileInput function by looking for file input nearby
-                const fileInput = document.querySelector('input[type="file"][accept*="image"]');
-                
-                CameraModule.open(
-                    (file) => {
-                        console.log('[Camera] Photo captured:', file.name);
-                        // Trigger file input change event with our file
-                        if (fileInput) {
-                            const dt = new DataTransfer();
-                            dt.items.add(file);
-                            fileInput.files = dt.files;
-                            fileInput.dispatchEvent(new Event('change', { bubbles: true }));
-                        }
-                    },
-                    () => console.log('[Camera] Closed')
-                );
-            }
-        }, true); // Use capture phase to intercept before React
-        
-        console.log('[Camera] Auto-patch installed');
-    }
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // EXPORT
-    // ═══════════════════════════════════════════════════════════════════════════
-
+    // Export
     window.CameraModule = CameraModule;
     window.AdvancedCameraModule = CameraModule;
 
-    console.log('✅ Camera Module v' + VERSION + ' loaded (auto-patch)');
-
-    // ═══════════════════════════════════════════════════════════════════════════
-    // BADGE
-    // ═══════════════════════════════════════════════════════════════════════════
-
-    function showBadge() {
-        if (document.getElementById('cam-ready-badge')) return;
-
-        const badge = document.createElement('div');
-        badge.id = 'cam-ready-badge';
-        badge.style.cssText = `
-            position: fixed;
-            top: 60px;
-            right: 16px;
-            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
-            color: white;
-            padding: 8px 14px;
-            border-radius: 20px;
-            font-size: 12px;
-            font-weight: 600;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            box-shadow: 0 4px 15px rgba(99,102,241,0.4);
-            z-index: 99998;
-            cursor: pointer;
-            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
-            animation: camIn 0.4s ease-out;
-        `;
-        badge.innerHTML = `📷 <span>Camera v5</span> <span style="opacity:0.6;cursor:pointer" onclick="event.stopPropagation();this.parentElement.remove()">×</span>`;
-
-        const style = document.createElement('style');
-        style.textContent = `@keyframes camIn { from { transform: translateX(100px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }`;
-        document.head.appendChild(style);
-
-        badge.onclick = () => alert(`📷 Camera Module v${VERSION}\n\n✅ Status: READY\n\nFeatures:\n• 5 Layout Options\n• Grid Overlay\n• Front/Back Switch\n• High Quality Capture\n\nClick 📷 in Labs to use!`);
-
-        document.body.appendChild(badge);
-
-        setTimeout(() => {
-            if (badge.parentElement) {
-                badge.querySelector('span').textContent = 'Cam ✓';
-                badge.style.padding = '6px 10px';
-                badge.style.fontSize = '10px';
-            }
-        }, 8000);
-    }
-
-    // Initialize
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', () => {
-            showBadge();
-            patchCameraButton();
-        });
-    } else {
-        showBadge();
-        patchCameraButton();
-    }
+    console.log('✅ Camera Module v6.0 ready');
 
 })();
