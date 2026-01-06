@@ -5169,67 +5169,84 @@ const AIConsultModal = ({ patient, onClose }) => {
 const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const videoRef = useRef(null);
     const canvasRef = useRef(null);
+    const streamRef = useRef(null); // Use ref to avoid race conditions
     const [stream, setStream] = useState(null);
     const [facingMode, setFacingMode] = useState('environment'); // Start with back camera
     const [cameraError, setCameraError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
     const isMountedRef = useRef(true);
+    const facingModeRef = useRef(facingMode); // Track facing mode in ref
 
-    // Start camera when modal opens (only on isOpen change)
+    // Keep facingModeRef in sync
     useEffect(() => {
-        isMountedRef.current = true;
-        if (isOpen) {
-            startCamera();
-        }
-        return () => {
-            isMountedRef.current = false;
-            stopCamera();
-        };
-    }, [isOpen]);
-
-    // Restart camera when facing mode changes (while modal is open)
-    useEffect(() => {
-        if (isOpen && stream) {
-            // Stop current stream before switching
-            stopCamera();
-            startCamera();
-        }
+        facingModeRef.current = facingMode;
     }, [facingMode]);
 
-    const startCamera = async () => {
+    // Cleanup function that uses ref (not state)
+    const stopCameraStream = () => {
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => {
+                track.stop();
+                console.log('[CameraModal] Camera track stopped');
+            });
+            streamRef.current = null;
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+        setStream(null);
+    };
+
+    // Start camera function
+    const startCameraStream = async (mode) => {
         try {
             setIsLoading(true);
             setCameraError(null);
 
+            // Stop any existing stream first
+            stopCameraStream();
+
             // Request camera access
             const constraints = {
                 video: {
-                    facingMode: facingMode,
+                    facingMode: mode,
                     width: { ideal: 1920 },
                     height: { ideal: 1080 }
                 },
                 audio: false
             };
 
+            console.log('[CameraModal] Requesting camera with mode:', mode);
             const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
             
-            if (videoRef.current && isMountedRef.current) {
+            if (!isMountedRef.current) {
+                // Component unmounted during async call, clean up
+                mediaStream.getTracks().forEach(track => track.stop());
+                return;
+            }
+
+            // Store in ref immediately
+            streamRef.current = mediaStream;
+            setStream(mediaStream);
+
+            if (videoRef.current) {
                 videoRef.current.srcObject = mediaStream;
-                // Wait for video to be ready with cleanup
-                const handleMetadata = () => {
+                
+                // Important: explicitly play video for iOS/Safari compatibility
+                try {
+                    await videoRef.current.play();
+                    console.log('[CameraModal] Video playing');
+                } catch (playErr) {
+                    console.warn('[CameraModal] Auto-play blocked, waiting for user interaction:', playErr);
+                }
+                
+                // Wait for video to be ready
+                videoRef.current.onloadedmetadata = () => {
                     if (isMountedRef.current) {
                         setIsLoading(false);
+                        console.log('[CameraModal] Camera started successfully');
                     }
                 };
-                videoRef.current.addEventListener('loadedmetadata', handleMetadata, { once: true });
-            }
-            
-            if (isMountedRef.current) {
-                setStream(mediaStream);
-                console.log('[CameraModal] Camera started successfully');
-            } else {
-                // Component unmounted, clean up the stream
-                mediaStream.getTracks().forEach(track => track.stop());
             }
         } catch (err) {
             console.error('[CameraModal] Camera error:', err);
@@ -5243,6 +5260,24 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
                     errorMessage += 'No camera found on this device.';
                 } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
                     errorMessage += 'Camera is already in use by another application.';
+                } else if (err.name === 'OverconstrainedError') {
+                    // Handle case where requested camera mode isn't available
+                    errorMessage += 'Requested camera not available. Trying default camera...';
+                    // Try without facingMode constraint
+                    try {
+                        const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                        if (isMountedRef.current && videoRef.current) {
+                            streamRef.current = fallbackStream;
+                            setStream(fallbackStream);
+                            videoRef.current.srcObject = fallbackStream;
+                            await videoRef.current.play();
+                            setIsLoading(false);
+                            setCameraError(null);
+                            return;
+                        }
+                    } catch (fallbackErr) {
+                        errorMessage = 'Unable to access any camera on this device.';
+                    }
                 } else {
                     errorMessage += err.message || 'Unknown error occurred.';
                 }
@@ -5252,17 +5287,28 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
         }
     };
 
+    // Start camera when modal opens
+    useEffect(() => {
+        isMountedRef.current = true;
+        if (isOpen) {
+            startCameraStream(facingModeRef.current);
+        }
+        return () => {
+            isMountedRef.current = false;
+            stopCameraStream();
+        };
+    }, [isOpen]);
+
+    // Handle facing mode changes separately (only when modal is open)
+    useEffect(() => {
+        if (isOpen && streamRef.current) {
+            console.log('[CameraModal] Facing mode changed to:', facingMode);
+            startCameraStream(facingMode);
+        }
+    }, [facingMode]);
+
     const stopCamera = () => {
-        if (stream) {
-            stream.getTracks().forEach(track => {
-                track.stop();
-                console.log('[CameraModal] Camera track stopped');
-            });
-            setStream(null);
-        }
-        if (videoRef.current) {
-            videoRef.current.srcObject = null;
-        }
+        stopCameraStream();
     };
 
     const capturePhoto = async () => {
