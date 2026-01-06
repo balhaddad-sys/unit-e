@@ -5326,7 +5326,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
             {/* Floating Action Button (FAB) for Lab Upload - Only show when not on Debug tab */}
             {tab !== "Debug" && (
-                <div className="fab-container">
+                <div className="fab-container" onClick={e => e.stopPropagation()}>
                     <button
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
                         onClick={() => {
