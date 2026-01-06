@@ -4445,6 +4445,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [debugLogs, setDebugLogs] = useState([]);
     const [showInterpretation, setShowInterpretation] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showFabMenu, setShowFabMenu] = useState(false);
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
     
@@ -5331,37 +5332,49 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
                         onClick={() => {
                             if (!uploading) {
-                                // Show menu options
-                                const menu = document.getElementById('fab-menu');
-                                if (menu) {
-                                    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
-                                }
+                                setShowFabMenu(!showFabMenu);
                             }
                         }}
                         disabled={uploading}
                     >
                         {uploading ? '⏳' : '📷'}
                     </button>
-                    <div id="fab-menu" className="fab-menu" style={{ display: 'none' }}>
-                        <button
-                            className="fab-menu-item"
-                            onClick={() => {
-                                cameraRef.current?.click();
-                                document.getElementById('fab-menu').style.display = 'none';
-                            }}
-                        >
-                            📸 Camera
-                        </button>
-                        <button
-                            className="fab-menu-item"
-                            onClick={() => {
-                                fileRef.current?.click();
-                                document.getElementById('fab-menu').style.display = 'none';
-                            }}
-                        >
-                            📁 Gallery
-                        </button>
-                    </div>
+                    {showFabMenu && (
+                        <div className="fab-menu" style={{ display: 'flex' }}>
+                            <button
+                                className="fab-menu-item"
+                                onClick={() => {
+                                    console.log('Camera button clicked', cameraRef.current);
+                                    addDebugLog('info', 'Camera button clicked');
+                                    if (cameraRef.current) {
+                                        cameraRef.current.click();
+                                        addDebugLog('info', 'Camera input triggered');
+                                    } else {
+                                        addDebugLog('error', 'Camera ref not available');
+                                    }
+                                    setShowFabMenu(false);
+                                }}
+                            >
+                                📸 Camera
+                            </button>
+                            <button
+                                className="fab-menu-item"
+                                onClick={() => {
+                                    console.log('Gallery button clicked', fileRef.current);
+                                    addDebugLog('info', 'Gallery button clicked');
+                                    if (fileRef.current) {
+                                        fileRef.current.click();
+                                        addDebugLog('info', 'File input triggered');
+                                    } else {
+                                        addDebugLog('error', 'File ref not available');
+                                    }
+                                    setShowFabMenu(false);
+                                }}
+                            >
+                                📁 Gallery
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
