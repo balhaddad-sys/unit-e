@@ -4554,8 +4554,9 @@ const AIConsultModal = ({ patient, onClose }) => {
             let retryCount = 0;
             const maxRetries = 3;
             const retryDelay = 500;
+            const loadingMessageId = `loading-${Date.now()}`;
 
-            const tryConsultant = async () => {
+            const tryConsultant = () => {
                 if (window.AIMedicalConsultant) {
                     // Get AI response - include labImages in patient context
                     const patientWithLabs = {
@@ -4579,19 +4580,23 @@ const AIConsultModal = ({ patient, onClose }) => {
                     setLoading(false);
                 } else if (retryCount < maxRetries) {
                     retryCount++;
-                    // Show loading message
+                    // Show loading message with unique ID
                     setConversation(prev => [...prev, {
                         role: 'assistant',
                         content: '⏳ AI Medical Consultant is loading, please wait...',
-                        timestamp: Date.now()
+                        timestamp: Date.now(),
+                        isLoadingMessage: true,
+                        messageId: loadingMessageId
                     }]);
                     
                     setTimeout(() => {
-                        // Remove loading message
-                        setConversation(prev => prev.slice(0, -1));
+                        // Remove loading message by ID
+                        setConversation(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
                         tryConsultant();
                     }, retryDelay);
                 } else {
+                    // Remove any loading messages
+                    setConversation(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
                     setConversation(prev => [...prev, {
                         role: 'assistant',
                         content: '⚠️ AI Medical Consultant module did not load after multiple attempts. Please refresh the page to retry.',
@@ -4601,7 +4606,7 @@ const AIConsultModal = ({ patient, onClose }) => {
                 }
             };
 
-            await tryConsultant();
+            tryConsultant();
 
         } catch (error) {
             console.error('AI Consultation Error:', error);
@@ -5285,6 +5290,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
         let retryCount = 0;
         const maxRetries = 3;
         const retryDelay = 500;
+        const loadingMessageId = `loading-${Date.now()}`;
 
         const getAIResponse = () => {
             if (window.MedicalAIAssistant) {
@@ -5297,14 +5303,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 setChatMessages(prev => [...prev, { 
                     role: 'assistant', 
                     content: '⏳ AI Assistant is loading, please wait...', 
-                    timestamp: Date.now() 
+                    timestamp: Date.now(),
+                    isLoadingMessage: true,
+                    messageId: loadingMessageId
                 }]);
                 setTimeout(() => {
-                    // Remove loading message
-                    setChatMessages(prev => prev.slice(0, -1));
+                    // Remove loading message by ID
+                    setChatMessages(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
                     getAIResponse();
                 }, retryDelay);
             } else {
+                // Remove any loading messages
+                setChatMessages(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
                 setChatMessages(prev => [...prev, { 
                     role: 'assistant', 
                     content: '⚠️ AI Assistant module did not load. Please refresh the page to retry.', 
