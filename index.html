@@ -5235,43 +5235,16 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
-    const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
-
-    // Initialize Camera Module after handleFile is defined
-    useEffect(() => {
-        let retryCount = 0;
-        const maxRetries = 3;
-        const retryDelay = 500;
-
-        const initializeCameraModule = () => {
-            if (window.CameraModule) {
-                window.CameraModule.init({
-                    onFileSelected: (file) => {
-                        addDebugLog('info', `Camera captured file: ${file.name}`);
-                        handleFile(file);
-                    },
-                    onDebug: (type, message) => {
-                        addDebugLog(type, message);
-                    }
-                });
-                addDebugLog('success', 'Camera Module initialized');
-            } else if (retryCount < maxRetries) {
-                retryCount++;
-                addDebugLog('info', `Camera Module not ready, retrying... (${retryCount}/${maxRetries})`);
-                setTimeout(initializeCameraModule, retryDelay);
-            } else {
-                addDebugLog('warn', 'Camera Module not loaded - using fallback');
-            }
-        };
-
-        initializeCameraModule();
-
-        return () => {
-            if (window.CameraModule && window.CameraModule.destroy) {
-                window.CameraModule.destroy();
-            }
-        };
-    }, []); // Run once on mount, handleFile is in scope now
+    const handleFileInput = (e) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            addDebugLog('info', `File selected: ${file.name}`);
+            handleFile(file);
+        } else {
+            addDebugLog('warn', 'No file selected');
+        }
+        e.target.value = '';
+    };
 
     const handleAIChat = (message) => {
         if (!message.trim()) return;
