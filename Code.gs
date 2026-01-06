@@ -599,47 +599,45 @@ function handleClaudeVision(requestData) {
     Logger.log('Processing Claude Vision OCR request...');
 
     // Extract base64 image data
-    let imageData = requestData.image;
+    var imageData = requestData.image;
     if (imageData.includes(',')) {
       imageData = imageData.split(',')[1];
     }
 
     // Determine media type
-    const mediaType = requestData.image.match(/data:image\/(\w+);/)?.[1] || 'jpeg';
-    const fullMediaType = 'image/' + mediaType;
+    var imageMatch = requestData.image.match(/data:image\/(\w+);/);
+    var mediaType = (imageMatch && imageMatch[1]) ? imageMatch[1] : 'jpeg';
+    var fullMediaType = 'image/' + mediaType;
 
     // Call Claude Opus 4.5 with vision
-    const prompt = requestData.prompt || `Analyze this medical laboratory report image and extract all lab values with extreme precision.
+    var prompt = requestData.prompt || 'Analyze this medical laboratory report image and extract all lab values with extreme precision.\n\n' +
+      'For each lab test found, extract:\n' +
+      '- Test name (exactly as it appears)\n' +
+      '- Numeric value\n' +
+      '- Unit of measurement\n' +
+      '- Reference range if visible\n' +
+      '- Any flags (L/H/LL/HH for Low/High/Critical Low/Critical High)\n\n' +
+      'Return ONLY a valid JSON object in this exact format:\n' +
+      '{\n' +
+      '  "reportType": "CBC" or "BMP" or "LFT" or "GENERAL",\n' +
+      '  "confidence": 0-100,\n' +
+      '  "values": [\n' +
+      '    {\n' +
+      '      "test": "WBC",\n' +
+      '      "value": "8.5",\n' +
+      '      "unit": "×10⁹/L",\n' +
+      '      "flag": "N",\n' +
+      '      "refLow": 4.0,\n' +
+      '      "refHigh": 11.0,\n' +
+      '      "confidence": 95\n' +
+      '    }\n' +
+      '  ]\n' +
+      '}\n\n' +
+      'Be extremely selective - only extract values you are highly confident about. Reject physiologically impossible values.';
 
-For each lab test found, extract:
-- Test name (exactly as it appears)
-- Numeric value
-- Unit of measurement
-- Reference range if visible
-- Any flags (L/H/LL/HH for Low/High/Critical Low/Critical High)
+    var url = 'https://api.anthropic.com/v1/messages';
 
-Return ONLY a valid JSON object in this exact format:
-{
-  "reportType": "CBC" or "BMP" or "LFT" or "GENERAL",
-  "confidence": 0-100,
-  "values": [
-    {
-      "test": "WBC",
-      "value": "8.5",
-      "unit": "×10⁹/L",
-      "flag": "N",
-      "refLow": 4.0,
-      "refHigh": 11.0,
-      "confidence": 95
-    }
-  ]
-}
-
-Be extremely selective - only extract values you are highly confident about. Reject physiologically impossible values.`;
-
-    const url = 'https://api.anthropic.com/v1/messages';
-
-    const payload = {
+    var payload = {
       model: 'claude-opus-4-20250514',  // Latest Claude Opus 4.5
       max_tokens: 4096,
       messages: [
@@ -663,7 +661,7 @@ Be extremely selective - only extract values you are highly confident about. Rej
       ]
     };
 
-    const options = {
+    var options = {
       method: 'post',
       contentType: 'application/json',
       headers: {
@@ -674,27 +672,27 @@ Be extremely selective - only extract values you are highly confident about. Rej
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(url, options);
-    const responseCode = response.getResponseCode();
-    const responseText = response.getContentText();
+    var response = UrlFetchApp.fetch(url, options);
+    var responseCode = response.getResponseCode();
+    var responseText = response.getContentText();
 
     if (responseCode !== 200) {
       throw new Error('Claude API error: ' + responseCode + ' - ' + responseText);
     }
 
-    const result = JSON.parse(responseText);
+    var result = JSON.parse(responseText);
 
     // Extract text content from Claude's response
-    const content = result.content && result.content[0] && result.content[0].text;
+    var content = result.content && result.content[0] && result.content[0].text;
     if (!content) {
       throw new Error('No content in Claude response');
     }
 
     // Parse the JSON response from Claude
-    let parsedData;
+    var parsedData;
     try {
       // Extract JSON from response (Claude might include explanatory text)
-      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      var jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         parsedData = JSON.parse(jsonMatch[0]);
       } else {
@@ -713,16 +711,21 @@ Be extremely selective - only extract values you are highly confident about. Rej
       });
     }
 
-    Logger.log('Claude Vision OCR completed - Found ' + (parsedData.values?.length || 0) + ' lab values');
+    var valuesCount = (parsedData.values && parsedData.values.length) ? parsedData.values.length : 0;
+    Logger.log('Claude Vision OCR completed - Found ' + valuesCount + ' lab values');
 
-    return createJsonResponse({
+    var responseData = {
       success: true,
-      ...parsedData,
+      reportType: parsedData.reportType,
+      confidence: parsedData.confidence,
+      values: parsedData.values,
       rawText: content,
       source: 'claude_opus_4.5',
       model: 'claude-opus-4-20250514',
       timestamp: new Date().toISOString()
-    });
+    };
+
+    return createJsonResponse(responseData);
 
   } catch (error) {
     Logger.log('Claude Vision Error: ' + error.toString());
@@ -748,43 +751,44 @@ function handleClaudeConsult(requestData) {
 
     Logger.log('Processing Claude medical consultation: ' + requestData.query);
 
-    const patientContext = requestData.patientContext || '';
-    const labValues = requestData.labValues || [];
+    var patientContext = requestData.patientContext || '';
+    var labValues = requestData.labValues || [];
 
     // Build comprehensive medical prompt
-    let systemPrompt = `You are an elite medical AI consultant with GPT-5 level capabilities, providing expert clinical decision support.
+    var systemPrompt = 'You are an elite medical AI consultant with GPT-5 level capabilities, providing expert clinical decision support.\n\n' +
+      'You have comprehensive knowledge of:\n' +
+      '- Internal medicine, emergency medicine, critical care\n' +
+      '- Lab value interpretation and clinical correlations\n' +
+      '- Diagnostic reasoning and differential diagnosis\n' +
+      '- Evidence-based treatment guidelines\n' +
+      '- Drug interactions and dosing\n' +
+      '- Clinical pearls and common pitfalls\n\n' +
+      'Provide clear, actionable, evidence-based medical guidance. Structure your responses with:\n' +
+      '- Key clinical points\n' +
+      '- Diagnostic considerations\n' +
+      '- Treatment recommendations\n' +
+      '- Critical warnings when applicable\n\n' +
+      'Be precise, thorough, and cite clinical reasoning.';
 
-You have comprehensive knowledge of:
-- Internal medicine, emergency medicine, critical care
-- Lab value interpretation and clinical correlations
-- Diagnostic reasoning and differential diagnosis
-- Evidence-based treatment guidelines
-- Drug interactions and dosing
-- Clinical pearls and common pitfalls
-
-Provide clear, actionable, evidence-based medical guidance. Structure your responses with:
-- Key clinical points
-- Diagnostic considerations
-- Treatment recommendations
-- Critical warnings when applicable
-
-Be precise, thorough, and cite clinical reasoning.`;
-
-    let userPrompt = requestData.query;
+    var userPrompt = requestData.query;
 
     if (patientContext) {
       userPrompt += '\n\nPatient Context:\n' + patientContext;
     }
 
     if (labValues.length > 0) {
-      userPrompt += '\n\nRecent Lab Values:\n' + labValues.map(v =>
-        `${v.test}: ${v.value} ${v.unit} (ref: ${v.refLow}-${v.refHigh}) ${v.flag !== 'N' ? '[' + v.flag + ']' : ''}`
-      ).join('\n');
+      var labValuesText = '\n\nRecent Lab Values:\n';
+      for (var i = 0; i < labValues.length; i++) {
+        var v = labValues[i];
+        var flagText = (v.flag !== 'N') ? ' [' + v.flag + ']' : '';
+        labValuesText += v.test + ': ' + v.value + ' ' + v.unit + ' (ref: ' + v.refLow + '-' + v.refHigh + ')' + flagText + '\n';
+      }
+      userPrompt += labValuesText;
     }
 
-    const url = 'https://api.anthropic.com/v1/messages';
+    var url = 'https://api.anthropic.com/v1/messages';
 
-    const payload = {
+    var payload = {
       model: 'claude-opus-4-20250514',  // Latest Claude Opus 4.5
       max_tokens: 8192,
       system: systemPrompt,
@@ -796,7 +800,7 @@ Be precise, thorough, and cite clinical reasoning.`;
       ]
     };
 
-    const options = {
+    var options = {
       method: 'post',
       contentType: 'application/json',
       headers: {
@@ -807,18 +811,18 @@ Be precise, thorough, and cite clinical reasoning.`;
       muteHttpExceptions: true
     };
 
-    const response = UrlFetchApp.fetch(url, options);
-    const responseCode = response.getResponseCode();
-    const responseText = response.getContentText();
+    var response = UrlFetchApp.fetch(url, options);
+    var responseCode = response.getResponseCode();
+    var responseText = response.getContentText();
 
     if (responseCode !== 200) {
       throw new Error('Claude API error: ' + responseCode + ' - ' + responseText);
     }
 
-    const result = JSON.parse(responseText);
+    var result = JSON.parse(responseText);
 
     // Extract text content from Claude's response
-    const content = result.content && result.content[0] && result.content[0].text;
+    var content = result.content && result.content[0] && result.content[0].text;
     if (!content) {
       throw new Error('No content in Claude response');
     }
