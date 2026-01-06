@@ -4595,13 +4595,15 @@ const AIConsultModal = ({ patient, onClose }) => {
                         tryConsultant();
                     }, retryDelay);
                 } else {
-                    // Remove any loading messages
-                    setConversation(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
-                    setConversation(prev => [...prev, {
-                        role: 'assistant',
-                        content: '⚠️ AI Medical Consultant module did not load after multiple attempts. Please refresh the page to retry.',
-                        timestamp: Date.now()
-                    }]);
+                    // Remove any loading messages and add error message in one call
+                    setConversation(prev => [
+                        ...prev.filter(msg => msg.messageId !== loadingMessageId),
+                        {
+                            role: 'assistant',
+                            content: '⚠️ AI Medical Consultant module did not load after multiple attempts. Please refresh the page to retry.',
+                            timestamp: Date.now()
+                        }
+                    ]);
                     setLoading(false);
                 }
             };
@@ -5313,13 +5315,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     getAIResponse();
                 }, retryDelay);
             } else {
-                // Remove any loading messages
-                setChatMessages(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
-                setChatMessages(prev => [...prev, { 
-                    role: 'assistant', 
-                    content: '⚠️ AI Assistant module did not load. Please refresh the page to retry.', 
-                    timestamp: Date.now() 
-                }]);
+                // Remove any loading messages and add error message in one call
+                setChatMessages(prev => [
+                    ...prev.filter(msg => msg.messageId !== loadingMessageId),
+                    { 
+                        role: 'assistant', 
+                        content: '⚠️ AI Assistant module did not load. Please refresh the page to retry.', 
+                        timestamp: Date.now() 
+                    }
+                ]);
             }
         };
 
