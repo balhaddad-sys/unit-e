@@ -4872,7 +4872,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {/* Hidden file inputs - Always rendered so refs remain valid */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
+                    <input ref={cameraRef} type="file" accept="image/*" capture onChange={handleFileInput} style={{ display: 'none' }} />
 
                     {tab !== "Debug" && (
                         <>
