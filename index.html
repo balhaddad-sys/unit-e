@@ -5247,8 +5247,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 return updated;
             });
 
-            console.log('[handleFile] Image added to state, scheduling OCR...');
+            console.log('[handleFile] Image added to state, switching to Images tab...');
+            setTab("Images"); // Switch to Images tab to show the newly added image
             setUploading(false);
+            addDebugLog('success', `✓ Image added! Running OCR...`);
 
             setTimeout(() => {
                 console.log('[handleFile] Running OCR on image:', newImage.id);
