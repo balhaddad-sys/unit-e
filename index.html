@@ -6544,29 +6544,28 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                     addDebugLog('info', 'Camera button clicked');
                                     setShowFabMenu(false);
                                     
-                                    // Use Advanced Camera Module with layout options
-                                    if (window.AdvancedCameraModule) {
-                                        window.AdvancedCameraModule.init({
-                                            onError: (err) => addDebugLog('error', 'Camera error: ' + err)
-                                        });
-                                        window.AdvancedCameraModule.open(
+                                    // Use Advanced Camera Module with layouts
+                                    if (window.CameraModule && window.CameraModule.isReady) {
+                                        addDebugLog('info', 'Opening Advanced Camera Module');
+                                        window.CameraModule.open(
                                             (file) => {
-                                                console.log('[LabModal] Camera captured file:', file);
-                                                addDebugLog('info', 'Photo captured from advanced camera');
+                                                console.log('[LabModal] Camera captured:', file.name);
+                                                addDebugLog('success', 'Photo captured: ' + file.name);
                                                 handleFileInput({ target: { files: [file] } });
                                             },
-                                            () => addDebugLog('info', 'Camera closed')
+                                            () => {
+                                                addDebugLog('info', 'Camera closed');
+                                            }
                                         );
-                                        addDebugLog('info', 'Opening advanced camera with layout options');
                                     } else if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-                                        // Fallback to basic camera
+                                        // Fallback to built-in camera modal
                                         setShowCameraModal(true);
                                         addDebugLog('info', 'Opening fallback camera modal');
                                     } else {
-                                        // Fallback to file input with capture attribute
+                                        // Last resort: file input
                                         if (cameraRef.current) {
                                             cameraRef.current.click();
-                                            addDebugLog('info', 'Camera opened via fallback file input');
+                                            addDebugLog('info', 'Camera opened via file input');
                                         } else {
                                             addDebugLog('error', 'Camera not available');
                                         }
