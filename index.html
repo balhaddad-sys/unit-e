@@ -2532,6 +2532,242 @@
                 height: 36px !important;
             }
         }
+
+        /* ═══════════════════════════════════════════════════════════════
+           CAMERA MODAL - Live Camera Preview with getUserMedia
+           ═══════════════════════════════════════════════════════════════ */
+        .camera-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: cameraFadeIn 0.3s ease-out;
+        }
+
+        @keyframes cameraFadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .camera-modal-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: var(--space-lg);
+            gap: var(--space-lg);
+        }
+
+        .camera-video-container {
+            position: relative;
+            max-width: 90%;
+            max-height: 70vh;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-2xl);
+            background: #000;
+        }
+
+        .camera-video {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: var(--radius-xl);
+        }
+
+        .camera-error-message {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 2px solid var(--error);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            color: #991b1b;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .camera-error-icon {
+            font-size: 48px;
+            margin-bottom: var(--space-md);
+        }
+
+        .camera-error-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: var(--space-sm);
+        }
+
+        .camera-error-text {
+            font-size: 0.9375rem;
+            line-height: 1.6;
+            margin-bottom: var(--space-md);
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0 var(--space-md);
+        }
+
+        .camera-btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: var(--radius-full);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .camera-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .camera-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .camera-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .camera-btn:active {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .camera-btn-capture {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            min-width: 160px;
+        }
+
+        .camera-btn-capture:hover {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+        }
+
+        .camera-btn-switch {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
+            color: white;
+        }
+
+        .camera-btn-switch:hover {
+            background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--secondary) 100%);
+        }
+
+        .camera-btn-cancel {
+            background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .camera-btn-cancel:hover {
+            background: linear-gradient(135deg, #dc2626 0%, var(--error) 100%);
+        }
+
+        .camera-btn-fallback {
+            background: white;
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+
+        .camera-btn-fallback:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-secondary);
+        }
+
+        .camera-status-text {
+            color: white;
+            text-align: center;
+            font-size: 0.875rem;
+            opacity: 0.8;
+            max-width: 400px;
+        }
+
+        /* Mobile optimizations for camera modal */
+        @media (max-width: 768px) {
+            .camera-modal-content {
+                padding: var(--space-md);
+                gap: var(--space-md);
+            }
+
+            .camera-video-container {
+                max-width: 100%;
+                max-height: 60vh;
+                border-radius: var(--radius-lg);
+            }
+
+            .camera-controls {
+                gap: var(--space-sm);
+                width: 100%;
+            }
+
+            .camera-btn {
+                padding: 12px 20px;
+                font-size: 0.9375rem;
+                flex: 1;
+                min-width: 0;
+                justify-content: center;
+            }
+
+            .camera-btn-capture {
+                min-width: 0;
+                flex: 1.5;
+            }
+
+            .camera-error-message {
+                max-width: 90%;
+                padding: var(--space-md);
+            }
+
+            .camera-error-icon {
+                font-size: 36px;
+            }
+
+            .camera-error-title {
+                font-size: 1.125rem;
+            }
+        }
+
+        /* iOS specific fixes */
+        @supports (-webkit-touch-callout: none) {
+            .camera-video {
+                -webkit-transform: translateZ(0);
+                transform: translateZ(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -4929,6 +5165,238 @@ const AIConsultModal = ({ patient, onClose }) => {
     );
 };
 
+// Camera Modal Component with Live Preview
+const CameraModal = ({ isOpen, onClose, onCapture }) => {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const [stream, setStream] = useState(null);
+    const [facingMode, setFacingMode] = useState('environment'); // Start with back camera
+    const [cameraError, setCameraError] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+
+    // Start camera when modal opens
+    useEffect(() => {
+        if (isOpen) {
+            startCamera();
+        }
+        return () => {
+            stopCamera();
+        };
+    }, [isOpen, facingMode]);
+
+    const startCamera = async () => {
+        try {
+            setIsLoading(true);
+            setCameraError(null);
+
+            // Request camera access
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            if (videoRef.current) {
+                videoRef.current.srcObject = mediaStream;
+                // Wait for video to be ready
+                videoRef.current.onloadedmetadata = () => {
+                    setIsLoading(false);
+                };
+            }
+            
+            setStream(mediaStream);
+            console.log('[CameraModal] Camera started successfully');
+        } catch (err) {
+            console.error('[CameraModal] Camera error:', err);
+            setIsLoading(false);
+            
+            let errorMessage = 'Unable to access camera. ';
+            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                errorMessage += 'Please grant camera permissions in your browser settings and try again.';
+            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                errorMessage += 'No camera found on this device.';
+            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                errorMessage += 'Camera is already in use by another application.';
+            } else {
+                errorMessage += err.message || 'Unknown error occurred.';
+            }
+            
+            setCameraError(errorMessage);
+        }
+    };
+
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => {
+                track.stop();
+                console.log('[CameraModal] Camera track stopped');
+            });
+            setStream(null);
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+    };
+
+    const capturePhoto = () => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        
+        if (!video || !canvas) {
+            console.error('[CameraModal] Video or canvas ref not available');
+            return;
+        }
+
+        try {
+            // Set canvas dimensions to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert to data URL (JPEG with high quality)
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            
+            console.log('[CameraModal] Photo captured:', canvas.width, 'x', canvas.height);
+
+            // Stop camera and close modal
+            stopCamera();
+            onClose();
+
+            // Pass the captured image data to callback
+            if (onCapture) {
+                // Convert data URL to File object
+                fetch(imageDataUrl)
+                    .then(res => res.blob())
+                    .then(blob => {
+                        const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
+                        onCapture(file);
+                    })
+                    .catch(err => {
+                        console.error('[CameraModal] Failed to convert capture to file:', err);
+                    });
+            }
+        } catch (err) {
+            console.error('[CameraModal] Capture failed:', err);
+            setCameraError('Failed to capture photo. Please try again.');
+        }
+    };
+
+    const switchCamera = () => {
+        console.log('[CameraModal] Switching camera from', facingMode);
+        setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
+    };
+
+    const handleClose = () => {
+        stopCamera();
+        onClose();
+    };
+
+    const handleFallbackToFileInput = () => {
+        stopCamera();
+        onClose();
+        // Trigger the hidden file input
+        const fileInput = document.querySelector('input[type="file"][accept="image/*"]:not([capture])');
+        if (fileInput) {
+            fileInput.click();
+        }
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="camera-modal-overlay">
+            <div className="camera-modal-content">
+                {cameraError ? (
+                    // Error state
+                    <div className="camera-error-message">
+                        <div className="camera-error-icon">📷</div>
+                        <div className="camera-error-title">Camera Error</div>
+                        <div className="camera-error-text">{cameraError}</div>
+                        <div className="camera-controls">
+                            <button 
+                                className="camera-btn camera-btn-fallback"
+                                onClick={handleFallbackToFileInput}
+                            >
+                                📁 Choose from Gallery
+                            </button>
+                            <button 
+                                className="camera-btn camera-btn-cancel"
+                                onClick={handleClose}
+                            >
+                                ✕ Close
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    // Camera preview state
+                    <>
+                        <div className="camera-video-container">
+                            <video
+                                ref={videoRef}
+                                className="camera-video"
+                                autoPlay
+                                playsInline
+                                muted
+                            />
+                            {isLoading && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    color: 'white',
+                                    fontSize: '1.25rem',
+                                    fontWeight: 600
+                                }}>
+                                    Loading camera...
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="camera-controls">
+                            <button 
+                                className="camera-btn camera-btn-capture"
+                                onClick={capturePhoto}
+                                disabled={isLoading}
+                            >
+                                📸 Capture
+                            </button>
+                            <button 
+                                className="camera-btn camera-btn-switch"
+                                onClick={switchCamera}
+                                disabled={isLoading}
+                            >
+                                🔄 Switch
+                            </button>
+                            <button 
+                                className="camera-btn camera-btn-cancel"
+                                onClick={handleClose}
+                            >
+                                ✕ Cancel
+                            </button>
+                        </div>
+
+                        <div className="camera-status-text">
+                            {facingMode === 'environment' ? 'Using rear camera' : 'Using front camera'}
+                        </div>
+                    </>
+                )}
+
+                {/* Hidden canvas for capturing frames */}
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+            </div>
+        </div>
+    );
+};
+
 const LabModal = ({ patient, onClose, onSave }) => {
     const [labImages, setLabImages] = useState([]);
     const [dragging, setDragging] = useState(false);
@@ -4945,6 +5413,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [showInterpretation, setShowInterpretation] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [showFabMenu, setShowFabMenu] = useState(false);
+    const [showCameraModal, setShowCameraModal] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const fileRef = useRef(null);
@@ -6008,6 +6477,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
             </div>
             {viewerIndex !== null && labImages[viewerIndex]?.image && <ImageViewer images={labImages.filter(l => l.image)} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
 
+            {/* Camera Modal with Live Preview */}
+            <CameraModal
+                isOpen={showCameraModal}
+                onClose={() => setShowCameraModal(false)}
+                onCapture={(file) => {
+                    console.log('[LabModal] Camera captured file:', file);
+                    addDebugLog('info', 'Photo captured from camera');
+                    // Process the captured file same as file input
+                    handleFileInput({ target: { files: [file] } });
+                }}
+            />
+
             {/* Floating Action Button (FAB) for Lab Upload - Only show when not on Debug tab */}
             {tab !== "Debug" && (
                 <div className="fab-container">
@@ -6026,29 +6507,25 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <div className="fab-menu" style={{ display: 'flex' }}>
                             <button
                                 className="fab-menu-item"
-                                onClick={async () => {
+                                onClick={() => {
                                     console.log('Camera button clicked');
                                     addDebugLog('info', 'Camera button clicked');
-
-                                    // Try to use CameraModule first, fallback to ref
-                                    if (window.CameraModule && window.CameraModule.openCamera) {
-                                        try {
-                                            const success = await window.CameraModule.openCamera();
-                                            if (success) {
-                                                addDebugLog('success', 'Camera opened via CameraModule');
-                                            } else {
-                                                addDebugLog('error', 'Failed to open camera via CameraModule');
-                                            }
-                                        } catch (error) {
-                                            addDebugLog('error', `Camera error: ${error.message}`);
-                                        }
-                                    } else if (cameraRef.current) {
-                                        cameraRef.current.click();
-                                        addDebugLog('info', 'Camera opened via fallback method');
-                                    } else {
-                                        addDebugLog('error', 'Camera not available');
-                                    }
                                     setShowFabMenu(false);
+                                    
+                                    // Check if getUserMedia is supported
+                                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                                        // Use new camera modal with live preview
+                                        setShowCameraModal(true);
+                                        addDebugLog('info', 'Opening camera modal with live preview');
+                                    } else {
+                                        // Fallback to file input with capture attribute
+                                        if (cameraRef.current) {
+                                            cameraRef.current.click();
+                                            addDebugLog('info', 'Camera opened via fallback file input');
+                                        } else {
+                                            addDebugLog('error', 'Camera not available');
+                                        }
+                                    }
                                 }}
                             >
                                 📸 Camera
