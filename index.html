@@ -51,6 +51,10 @@
     <script src="adaptive-neural-expansion.js"></script>
     <!-- Neural Expansion Demo & Testing Module -->
     <script src="neural-expansion-demo.js"></script>
+    <!-- Verified Medical Knowledge Enhancer - Enhanced Medical Databases -->
+    <script src="verified-medical-knowledge-enhancer.js"></script>
+    <!-- AI Medical Consultant - Conversational AI for Medical Consultation -->
+    <script src="ai-medical-consultant.js"></script>
     <style>
         /* ═══════════════════════════════════════════════════════════════
            MODERN ELEGANT DESIGN - Mobile-First Responsive UI
@@ -934,9 +938,28 @@
             box-shadow: none;
         }
 
+        .btn-ai-consult {
+            padding: var(--space-xs) var(--space-sm);
+            border-radius: var(--radius-md);
+            background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);
+            color: #4338ca;
+            border: none;
+            font-weight: 700;
+            font-size: 0.75rem;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .btn-ai-consult:hover {
+            background: linear-gradient(135deg, #6366f1 0%, #4f46e5 100%);
+            color: white;
+            transform: translateY(-2px);
+            box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3), 0 4px 6px -2px rgba(99, 102, 241, 0.2);
+        }
+
         @media (max-width: 768px) {
             .btn-del { width: 28px; height: 28px; }
-            .btn-lab, .btn-guideline { padding: 6px 10px; font-size: 0.6875rem; }
+            .btn-lab, .btn-guideline, .btn-ai-consult { padding: 6px 10px; font-size: 0.6875rem; }
         }
         .guideline-badge {
             display: inline-block;
@@ -4430,6 +4453,367 @@ const GuidelinesModal = ({ patient, onClose }) => {
     );
 };
 
+// ============ AI CONSULTATION MODAL ============
+const AIConsultModal = ({ patient, onClose }) => {
+    const [conversation, setConversation] = useState([]);
+    const [userInput, setUserInput] = useState('');
+    const [loading, setLoading] = useState(false);
+    const chatEndRef = useRef(null);
+    const inputRef = useRef(null);
+
+    // Initialize AI consultation on mount
+    useEffect(() => {
+        if (window.AIMedicalConsultant && patient) {
+            window.AIMedicalConsultant.startConsultation(patient.id);
+            // Load previous conversation if exists
+            const history = window.AIMedicalConsultant.getHistory(patient.id);
+            setConversation(history);
+        }
+    }, [patient]);
+
+    // Auto-scroll to bottom
+    useEffect(() => {
+        chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    }, [conversation]);
+
+    // Focus input on mount
+    useEffect(() => {
+        inputRef.current?.focus();
+    }, []);
+
+    const handleSendMessage = async () => {
+        if (!userInput.trim() || loading) return;
+
+        const message = userInput.trim();
+        setUserInput('');
+        setLoading(true);
+
+        try {
+            // Get AI response
+            const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
+
+            if (result.success) {
+                // Update conversation
+                const updatedConversation = window.AIMedicalConsultant.getHistory(patient.id);
+                setConversation(updatedConversation);
+            } else {
+                // Show error
+                setConversation(prev => [...prev, {
+                    role: 'assistant',
+                    content: '⚠️ Error: ' + (result.error || 'Unknown error occurred'),
+                    timestamp: Date.now()
+                }]);
+            }
+        } catch (error) {
+            console.error('AI Consultation Error:', error);
+            setConversation(prev => [...prev, {
+                role: 'assistant',
+                content: '⚠️ An error occurred while processing your query.',
+                timestamp: Date.now()
+            }]);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleKeyPress = (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            handleSendMessage();
+        }
+    };
+
+    const formatResponse = (content) => {
+        // Simple markdown-like formatting
+        return content.split('\n').map((line, i) => {
+            // Bold headers
+            if (line.startsWith('**') && line.endsWith('**')) {
+                return <div key={i} style={{ fontWeight: 700, fontSize: '14px', marginTop: '12px', marginBottom: '8px', color: '#0f172a' }}>{line.replace(/\*\*/g, '')}</div>;
+            }
+            // Bullet points
+            if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
+                return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', fontSize: '13px', color: '#475569' }}>{line}</div>;
+            }
+            // Normal text
+            if (line.trim()) {
+                return <div key={i} style={{ marginBottom: '8px', fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>{line}</div>;
+            }
+            return <div key={i} style={{ height: '8px' }} />;
+        });
+    };
+
+    return (
+        <div className="modalOverlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{
+                maxWidth: '900px',
+                maxHeight: '85vh',
+                height: '85vh',
+                borderRadius: 'var(--radius-xl)',
+                overflow: 'hidden',
+                display: 'flex',
+                flexDirection: 'column'
+            }}>
+                <div className="modal-head" style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+                    padding: '20px 24px',
+                    borderBottom: '3px solid #4338ca',
+                    flexShrink: 0
+                }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                        <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.2)',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontSize: '20px'
+                        }}>
+                            🤖
+                        </div>
+                        <div>
+                            <span style={{ fontSize: '18px', fontWeight: 700 }}>AI Medical Consultation</span>
+                            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
+                                {patient.name} • {patient.diagnosis || 'No diagnosis specified'}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Patient Context Summary */}
+                <div style={{
+                    padding: '12px 24px',
+                    background: '#f8fafc',
+                    borderBottom: '1px solid #e2e8f0',
+                    fontSize: '12px',
+                    color: '#64748b',
+                    flexShrink: 0
+                }}>
+                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
+                        <span>📍 <strong>Ward:</strong> {patient.ward} • Bed {patient.bed}</span>
+                        <span>🔢 <strong>MRN:</strong> {patient.mrn || 'N/A'}</span>
+                        <span>👨‍⚕️ <strong>Doctor:</strong> {patient.doctor || 'N/A'}</span>
+                        <span>🧪 <strong>Lab Results:</strong> {(patient.labImages || []).filter(l => !l.deleted).length} available</span>
+                    </div>
+                </div>
+
+                {/* Chat Container */}
+                <div style={{
+                    flex: 1,
+                    overflowY: 'auto',
+                    padding: '20px 24px',
+                    background: '#ffffff'
+                }}>
+                    {conversation.length === 0 ? (
+                        <div style={{
+                            height: '100%',
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            color: '#94a3b8',
+                            textAlign: 'center'
+                        }}>
+                            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🤖</div>
+                            <div style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px', color: '#64748b' }}>AI Medical Consultant Ready</div>
+                            <div style={{ fontSize: '13px', maxWidth: '500px', lineHeight: '1.6' }}>
+                                Ask me about lab interpretation, drug information, diagnostic criteria, treatment protocols, or differential diagnosis.
+                                I have access to this patient's clinical data and lab values.
+                            </div>
+                            <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '500px' }}>
+                                <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Try asking:</div>
+                                <button
+                                    style={{
+                                        padding: '10px 16px',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        color: '#475569',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onClick={() => setUserInput('Interpret the latest lab results')}
+                                    onMouseEnter={e => e.target.style.background = '#eff6ff'}
+                                    onMouseLeave={e => e.target.style.background = '#f8fafc'}
+                                >
+                                    "Interpret the latest lab results"
+                                </button>
+                                <button
+                                    style={{
+                                        padding: '10px 16px',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        color: '#475569',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onClick={() => setUserInput('What are the diagnostic criteria for ' + (patient.diagnosis || 'this condition') + '?')}
+                                    onMouseEnter={e => e.target.style.background = '#eff6ff'}
+                                    onMouseLeave={e => e.target.style.background = '#f8fafc'}
+                                >
+                                    "What are the diagnostic criteria for {patient.diagnosis || 'this condition'}?"
+                                </button>
+                                <button
+                                    style={{
+                                        padding: '10px 16px',
+                                        background: '#f8fafc',
+                                        border: '1px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        fontSize: '12px',
+                                        color: '#475569',
+                                        cursor: 'pointer',
+                                        textAlign: 'left',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onClick={() => setUserInput('Tell me about drug interactions')}
+                                    onMouseEnter={e => e.target.style.background = '#eff6ff'}
+                                    onMouseLeave={e => e.target.style.background = '#f8fafc'}
+                                >
+                                    "Tell me about drug interactions"
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <>
+                            {conversation.map((msg, idx) => (
+                                <div key={idx} style={{
+                                    marginBottom: '16px',
+                                    display: 'flex',
+                                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                                }}>
+                                    <div style={{
+                                        maxWidth: '75%',
+                                        padding: '12px 16px',
+                                        borderRadius: '12px',
+                                        background: msg.role === 'user' ? '#6366f1' : '#f1f5f9',
+                                        color: msg.role === 'user' ? '#ffffff' : '#0f172a',
+                                        fontSize: '13px',
+                                        lineHeight: '1.6',
+                                        boxShadow: msg.role === 'user' ? '0 2px 8px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.05)'
+                                    }}>
+                                        {msg.role === 'user' ? (
+                                            <div>{msg.content}</div>
+                                        ) : (
+                                            <div>
+                                                {formatResponse(msg.content)}
+                                                {msg.metadata?.references && msg.metadata.references.length > 0 && (
+                                                    <div style={{
+                                                        marginTop: '12px',
+                                                        paddingTop: '12px',
+                                                        borderTop: '1px solid #e2e8f0',
+                                                        fontSize: '11px',
+                                                        color: '#64748b'
+                                                    }}>
+                                                        📚 <strong>References:</strong> {msg.metadata.references.join(', ')}
+                                                    </div>
+                                                )}
+                                                {msg.metadata?.confidence && (
+                                                    <div style={{
+                                                        marginTop: '8px',
+                                                        fontSize: '10px',
+                                                        color: '#94a3b8'
+                                                    }}>
+                                                        Confidence: {Math.round(msg.metadata.confidence * 100)}%
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                </div>
+                            ))}
+                            {loading && (
+                                <div style={{
+                                    display: 'flex',
+                                    justifyContent: 'flex-start',
+                                    marginBottom: '16px'
+                                }}>
+                                    <div style={{
+                                        padding: '12px 16px',
+                                        borderRadius: '12px',
+                                        background: '#f1f5f9',
+                                        fontSize: '13px'
+                                    }}>
+                                        <span style={{ opacity: 0.5 }}>🤖 Analyzing...</span>
+                                    </div>
+                                </div>
+                            )}
+                            <div ref={chatEndRef} />
+                        </>
+                    )}
+                </div>
+
+                {/* Input Area */}
+                <div style={{
+                    padding: '16px 24px',
+                    borderTop: '1px solid #e2e8f0',
+                    background: '#f8fafc',
+                    flexShrink: 0
+                }}>
+                    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                        <textarea
+                            ref={inputRef}
+                            className="inp"
+                            value={userInput}
+                            onChange={(e) => setUserInput(e.target.value)}
+                            onKeyPress={handleKeyPress}
+                            placeholder="Ask about labs, drugs, diagnosis, treatment..."
+                            style={{
+                                flex: 1,
+                                minHeight: '44px',
+                                maxHeight: '120px',
+                                resize: 'vertical',
+                                padding: '12px',
+                                fontSize: '13px',
+                                lineHeight: '1.5'
+                            }}
+                            disabled={loading}
+                        />
+                        <button
+                            onClick={handleSendMessage}
+                            disabled={!userInput.trim() || loading}
+                            style={{
+                                padding: '12px 24px',
+                                background: userInput.trim() && !loading ? '#6366f1' : '#cbd5e1',
+                                color: '#ffffff',
+                                border: 'none',
+                                borderRadius: '8px',
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                cursor: userInput.trim() && !loading ? 'pointer' : 'not-allowed',
+                                transition: 'all 0.2s',
+                                height: '44px'
+                            }}
+                        >
+                            Send
+                        </button>
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+                        Press Enter to send • Shift+Enter for new line
+                    </div>
+                </div>
+
+                <div className="modal-foot" style={{ borderTop: '1px solid #e2e8f0', padding: '12px 24px', flexShrink: 0 }}>
+                    <button className="btn btn-white" onClick={() => {
+                        if (window.AIMedicalConsultant) {
+                            window.AIMedicalConsultant.clearHistory(patient.id);
+                            setConversation([]);
+                        }
+                    }}>
+                        Clear Conversation
+                    </button>
+                    <button className="btn btn-blue" onClick={onClose}>Close</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 const LabModal = ({ patient, onClose, onSave }) => {
     const [labImages, setLabImages] = useState([]);
     const [dragging, setDragging] = useState(false);
@@ -5408,6 +5792,7 @@ const App = () => {
     const [addModal, setAddModal] = useState(false);
     const [labModal, setLabModal] = useState(null);
     const [guidelineModal, setGuidelineModal] = useState(null);
+    const [aiConsultModal, setAiConsultModal] = useState(null);
     const [newP, setNewP] = useState({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
     const [collapsedWards, setCollapsedWards] = useState({});
     const [syncing, setSyncing] = useState(false);
@@ -5695,6 +6080,7 @@ const App = () => {
                                 <div style={{ display: 'flex', gap: 6, alignItems: 'center', flexWrap: 'wrap' }}>
                                     <button className={`btn-lab ${getLabCount(p) > 0 ? 'has-labs' : ''}`} onClick={() => setLabModal(p)}>🧪 Labs {getLabCount(p) > 0 && <span className="lab-count">{getLabCount(p)}</span>}</button>
                                     <button className={`btn-guideline ${p.diagnosis ? 'has-guideline' : ''}`} onClick={() => setGuidelineModal(p)} disabled={!p.diagnosis}>📋 Guidelines</button>
+                                    <button className="btn-ai-consult" onClick={() => setAiConsultModal(p)}>🤖 AI Consult</button>
                                     <select className={`status-select status-${(p.status || "").toLowerCase().split('-')[0]}`} value={p.status || ""} onChange={e => update(p.id, 'status', e.target.value)}><option value="">-</option>{STATUS_OPTIONS.map(s => <option key={s} value={s}>{s}</option>)}</select>
                                     {isNewAdmission(p) && <button className="new-dismiss-btn" onClick={() => update(p.id, 'newDismissed', true)}>✓ Seen</button>}
                                     <button className="btn-del" onClick={() => del(p.id)}>×</button>
@@ -5736,6 +6122,7 @@ const App = () => {
             )}
             {labModal && <LabModal patient={labModal} onClose={() => setLabModal(null)} onSave={saveLabImages} />}
             {guidelineModal && <GuidelinesModal patient={guidelineModal} onClose={() => setGuidelineModal(null)} />}
+            {aiConsultModal && <AIConsultModal patient={aiConsultModal} onClose={() => setAiConsultModal(null)} />}
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
             {confirmDialog && <ConfirmDialog {...confirmDialog} />}
             {toast && <div className="toast">{toast}</div>}
