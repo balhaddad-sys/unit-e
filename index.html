@@ -5173,16 +5173,28 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const [facingMode, setFacingMode] = useState('environment'); // Start with back camera
     const [cameraError, setCameraError] = useState(null);
     const [isLoading, setIsLoading] = useState(true);
+    const isMountedRef = useRef(true);
 
-    // Start camera when modal opens
+    // Start camera when modal opens (only on isOpen change)
     useEffect(() => {
+        isMountedRef.current = true;
         if (isOpen) {
             startCamera();
         }
         return () => {
+            isMountedRef.current = false;
             stopCamera();
         };
-    }, [isOpen, facingMode]);
+    }, [isOpen]);
+
+    // Restart camera when facing mode changes (while modal is open)
+    useEffect(() => {
+        if (isOpen && stream) {
+            // Stop current stream before switching
+            stopCamera();
+            startCamera();
+        }
+    }, [facingMode]);
 
     const startCamera = async () => {
         try {
@@ -5201,32 +5213,42 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
 
             const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
             
-            if (videoRef.current) {
+            if (videoRef.current && isMountedRef.current) {
                 videoRef.current.srcObject = mediaStream;
-                // Wait for video to be ready
-                videoRef.current.onloadedmetadata = () => {
-                    setIsLoading(false);
+                // Wait for video to be ready with cleanup
+                const handleMetadata = () => {
+                    if (isMountedRef.current) {
+                        setIsLoading(false);
+                    }
                 };
+                videoRef.current.addEventListener('loadedmetadata', handleMetadata, { once: true });
             }
             
-            setStream(mediaStream);
-            console.log('[CameraModal] Camera started successfully');
+            if (isMountedRef.current) {
+                setStream(mediaStream);
+                console.log('[CameraModal] Camera started successfully');
+            } else {
+                // Component unmounted, clean up the stream
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
         } catch (err) {
             console.error('[CameraModal] Camera error:', err);
-            setIsLoading(false);
-            
-            let errorMessage = 'Unable to access camera. ';
-            if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
-                errorMessage += 'Please grant camera permissions in your browser settings and try again.';
-            } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
-                errorMessage += 'No camera found on this device.';
-            } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
-                errorMessage += 'Camera is already in use by another application.';
-            } else {
-                errorMessage += err.message || 'Unknown error occurred.';
+            if (isMountedRef.current) {
+                setIsLoading(false);
+                
+                let errorMessage = 'Unable to access camera. ';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMessage += 'Please grant camera permissions in your browser settings and try again.';
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    errorMessage += 'No camera found on this device.';
+                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    errorMessage += 'Camera is already in use by another application.';
+                } else {
+                    errorMessage += err.message || 'Unknown error occurred.';
+                }
+                
+                setCameraError(errorMessage);
             }
-            
-            setCameraError(errorMessage);
         }
     };
 
@@ -5243,12 +5265,17 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
         }
     };
 
-    const capturePhoto = () => {
+    const capturePhoto = async () => {
         const video = videoRef.current;
         const canvas = canvasRef.current;
         
         if (!video || !canvas) {
             console.error('[CameraModal] Video or canvas ref not available');
+            return;
+        }
+
+        if (!onCapture) {
+            console.error('[CameraModal] No capture callback provided');
             return;
         }
 
@@ -5266,22 +5293,29 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
             
             console.log('[CameraModal] Photo captured:', canvas.width, 'x', canvas.height);
 
-            // Stop camera and close modal
-            stopCamera();
-            onClose();
-
-            // Pass the captured image data to callback
-            if (onCapture) {
-                // Convert data URL to File object
-                fetch(imageDataUrl)
-                    .then(res => res.blob())
-                    .then(blob => {
-                        const file = new File([blob], `camera-capture-${Date.now()}.jpg`, { type: 'image/jpeg' });
-                        onCapture(file);
-                    })
-                    .catch(err => {
-                        console.error('[CameraModal] Failed to convert capture to file:', err);
-                    });
+            // Convert data URL to File object synchronously using manual conversion
+            try {
+                const arr = imageDataUrl.split(',');
+                const mime = arr[0].match(/:(.*?);/)[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                
+                const file = new File([u8arr], `camera-capture-${Date.now()}.jpg`, { type: mime });
+                
+                // Stop camera and close modal only after successful conversion
+                stopCamera();
+                onClose();
+                
+                // Pass the file to callback
+                onCapture(file);
+            } catch (convertErr) {
+                console.error('[CameraModal] Failed to convert capture to file:', convertErr);
+                setCameraError('Failed to process captured photo. Please try again.');
             }
         } catch (err) {
             console.error('[CameraModal] Capture failed:', err);
@@ -5302,11 +5336,9 @@ const CameraModal = ({ isOpen, onClose, onCapture }) => {
     const handleFallbackToFileInput = () => {
         stopCamera();
         onClose();
-        // Trigger the hidden file input
-        const fileInput = document.querySelector('input[type="file"][accept="image/*"]:not([capture])');
-        if (fileInput) {
-            fileInput.click();
-        }
+        // Note: This function is called from error state, so the file input
+        // should be triggered by parent component via fileRef
+        // We'll just close the modal and let the user try the Gallery option
     };
 
     if (!isOpen) return null;
