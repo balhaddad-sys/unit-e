@@ -5122,7 +5122,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
                     <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
-                        {labImages.length === 0 ? '🗑 Clear All' : `Save (${labImages.length})`}
+                        {labImages.length === 0 ? 'Clear All' : 'Save (' + labImages.length + ')'}
                     </button>
                 </div>
             </div>
