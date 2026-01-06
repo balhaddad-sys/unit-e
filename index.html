@@ -5208,15 +5208,27 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleFile = async (file) => {
-        if (!file || !file.type.startsWith('image/')) return;
+        console.log('[handleFile] Called with file:', file);
+        if (!file || !file.type.startsWith('image/')) {
+            console.log('[handleFile] Invalid file type or no file');
+            addDebugLog('error', 'Invalid file type or no file');
+            return;
+        }
+
         setUploading(true);
         setOcrError(null);
         addDebugLog('info', `Processing file: ${file.name}`);
+        console.log('[handleFile] Starting compression...');
+
         try {
             // Use OCREngine module for compression
-            const compressed = window.OCREngine?.compressImage 
+            const compressed = window.OCREngine?.compressImage
                 ? await window.OCREngine.compressImage(file)
                 : await compressImageFallback(file);
+
+            console.log('[handleFile] Compression complete, size:', compressed.length);
+            addDebugLog('success', `Compressed image (${compressed.length} bytes)`);
+
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
@@ -5224,10 +5236,29 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 note: "",
                 ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null, labType: null }
             };
-            updateLabImages(prev => [newImage, ...prev]);
+
+            console.log('[handleFile] Created newImage object:', newImage.id);
+            console.log('[handleFile] Current labImages count:', labImages.length);
+
+            updateLabImages(prev => {
+                console.log('[handleFile] updateLabImages prev count:', prev.length);
+                const updated = [newImage, ...prev];
+                console.log('[handleFile] updateLabImages new count:', updated.length);
+                return updated;
+            });
+
+            console.log('[handleFile] Image added to state, switching to Images tab...');
+            setTab("Images"); // Switch to Images tab to show the newly added image
             setUploading(false);
-            setTimeout(() => runOcrOnImage(newImage), 300);
+            addDebugLog('success', `✓ Image added! Running OCR...`);
+
+            setTimeout(() => {
+                console.log('[handleFile] Running OCR on image:', newImage.id);
+                runOcrOnImage(newImage);
+            }, 300);
+
         } catch (err) {
+            console.error('[handleFile] Error:', err);
             addDebugLog('error', `File processing failed: ${err.message}`);
             setOcrError("Failed to process image");
             setUploading(false);
@@ -5235,43 +5266,20 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
-    const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
+    const handleFileInput = (e) => {
+        console.log('[handleFileInput] Called, event:', e);
+        const file = e.target.files?.[0];
+        console.log('[handleFileInput] Selected file:', file);
 
-    // Initialize Camera Module after handleFile is defined
-    useEffect(() => {
-        let retryCount = 0;
-        const maxRetries = 3;
-        const retryDelay = 500;
-
-        const initializeCameraModule = () => {
-            if (window.CameraModule) {
-                window.CameraModule.init({
-                    onFileSelected: (file) => {
-                        addDebugLog('info', `Camera captured file: ${file.name}`);
-                        handleFile(file);
-                    },
-                    onDebug: (type, message) => {
-                        addDebugLog(type, message);
-                    }
-                });
-                addDebugLog('success', 'Camera Module initialized');
-            } else if (retryCount < maxRetries) {
-                retryCount++;
-                addDebugLog('info', `Camera Module not ready, retrying... (${retryCount}/${maxRetries})`);
-                setTimeout(initializeCameraModule, retryDelay);
-            } else {
-                addDebugLog('warn', 'Camera Module not loaded - using fallback');
-            }
-        };
-
-        initializeCameraModule();
-
-        return () => {
-            if (window.CameraModule && window.CameraModule.destroy) {
-                window.CameraModule.destroy();
-            }
-        };
-    }, []); // Run once on mount, handleFile is in scope now
+        if (file) {
+            addDebugLog('info', `File selected: ${file.name} (${file.size} bytes, type: ${file.type})`);
+            handleFile(file);
+        } else {
+            addDebugLog('warn', 'No file selected');
+            console.log('[handleFileInput] No file in e.target.files');
+        }
+        e.target.value = '';
+    };
 
     const handleAIChat = (message) => {
         if (!message.trim()) return;
@@ -6169,13 +6177,17 @@ const App = () => {
             
             console.log('[Save] ✓ SUCCESS - Labs saved to Google Drive');
             console.log('[Save] File:', result.filename);
-            
+
             // Also save minimal reference to Firebase (just count and timestamp)
             await db.ref(`patients/${patientId}/labInfo`).set({
                 count: labData.length,
                 lastSaved: Date.now(),
                 driveFolder: result.folderId || null
             });
+
+            // Auto-sync with Google Sheets after saving labs
+            console.log('[Save] Auto-syncing with Google Sheets...');
+            await pingSheets().catch(err => console.log('[Save] Sheet sync error (non-critical):', err));
             
             showToast("✓ Labs saved to Drive");
             scheduleSync();
@@ -6316,17 +6328,51 @@ const App = () => {
                     <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 CSV</button>
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
-                    <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
-                    <button className="btn btn-blue" onClick={async () => { 
-                        setSyncing(true); 
-                        showToast("🔄 Syncing sheet..."); 
-                        await pingSheets(); 
-                        showToast("✓ Sheet synced!"); 
-                        setTimeout(() => setSyncing(false), 1000); 
-                    }}>🔄</button>
+                    <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')} title="Open Google Sheets">📊 Sheets</button>
+                    <button className="btn btn-blue" onClick={async () => {
+                        setSyncing(true);
+                        showToast("🔄 Syncing with Google Sheets...");
+                        await pingSheets();
+                        showToast("✓ Synced with Google Sheets!");
+                        setTimeout(() => setSyncing(false), 1000);
+                    }} title="Sync with Google Sheets now">🔄 Sync</button>
                 </div>
             </div>
             <NoticeBanner notice={notice} onSave={saveNotice} />
+            {/* Google Sheets Link Display */}
+            <div style={{
+                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+                color: 'white',
+                padding: '8px 16px',
+                borderRadius: '8px',
+                margin: '12px 16px 8px 16px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                fontSize: '13px',
+                fontWeight: 600,
+                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
+            }}>
+                <span>📊 Google Sheets: Real-time sync enabled</span>
+                <button
+                    onClick={() => window.open(SHEET_URL, '_blank')}
+                    style={{
+                        background: 'rgba(255,255,255,0.2)',
+                        border: '1px solid rgba(255,255,255,0.3)',
+                        color: 'white',
+                        padding: '4px 12px',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        transition: 'all 0.2s'
+                    }}
+                    onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
+                    onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
+                >
+                    Open Sheets →
+                </button>
+            </div>
             <div className="controls-container">
                 <div className="filter-row">{['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (<button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>))}</div>
                 <input ref={searchRef} className="search-bar" placeholder="Search patients... (Ctrl+F)" value={search} onChange={e => setSearch(e.target.value)} />
