@@ -4948,7 +4948,6 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const fileRef = useRef(null);
-    const cameraRef = useRef(null);
     const chatEndRef = useRef(null);
     
     const addDebugLog = (type, msg) => {
@@ -5466,7 +5465,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {/* Hidden file inputs - Always rendered so refs remain valid */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
+                    {/* Camera input is created and managed by CameraModule */}
 
                     {tab !== "Debug" && (
                         <>
@@ -6030,23 +6029,20 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                     console.log('Camera button clicked');
                                     addDebugLog('info', 'Camera button clicked');
 
-                                    // Try to use CameraModule first, fallback to ref
+                                    // Use CameraModule for camera functionality
                                     if (window.CameraModule && window.CameraModule.openCamera) {
                                         try {
                                             const success = await window.CameraModule.openCamera();
                                             if (success) {
-                                                addDebugLog('success', 'Camera opened via CameraModule');
+                                                addDebugLog('success', 'Camera opened successfully');
                                             } else {
-                                                addDebugLog('error', 'Failed to open camera via CameraModule');
+                                                addDebugLog('warn', 'Camera was cancelled or not available');
                                             }
                                         } catch (error) {
                                             addDebugLog('error', `Camera error: ${error.message}`);
                                         }
-                                    } else if (cameraRef.current) {
-                                        cameraRef.current.click();
-                                        addDebugLog('info', 'Camera opened via fallback method');
                                     } else {
-                                        addDebugLog('error', 'Camera not available');
+                                        addDebugLog('error', 'Camera Module not loaded. Please refresh the page.');
                                     }
                                     setShowFabMenu(false);
                                 }}

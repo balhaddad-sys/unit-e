@@ -18,7 +18,7 @@
             quality: 0.95,
             acceptedTypes: ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'],
             captureMode: 'environment', // Use back camera by default on mobile devices
-            preferNativeCamera: true, // Prefer getUserMedia over file input
+            preferNativeCamera: false, // Use simple file input for better compatibility
             previewEnabled: true // Show preview modal before capture
         },
 
@@ -69,7 +69,7 @@
             input.id = 'camera-input-hidden';
             input.type = 'file';
             input.accept = 'image/*';
-            input.capture = this.config.captureMode;
+            input.setAttribute('capture', 'environment'); // Use environment (back) camera on mobile
             input.style.display = 'none';
 
             // Add change event listener
