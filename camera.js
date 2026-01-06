@@ -1221,6 +1221,114 @@
     window.AdvancedCameraModule = AdvancedCameraModule;
     window.CameraModule = AdvancedCameraModule; // Backwards compatibility
     
+    // Add ready flag
+    AdvancedCameraModule.isReady = true;
+    AdvancedCameraModule.version = '3.0.0';
+    
     console.log('✅ Advanced Camera Module v3.0 loaded');
+    
+    // ═══════════════════════════════════════════════════════════════════════
+    // VISUAL INDICATOR - Shows badge when module is loaded
+    // ═══════════════════════════════════════════════════════════════════════
+    
+    function showCameraBadge() {
+        if (document.getElementById('camera-module-badge')) return;
+        
+        const style = document.createElement('style');
+        style.textContent = `
+            .camera-module-badge {
+                position: fixed;
+                top: 60px;
+                right: 20px;
+                background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+                color: white;
+                padding: 8px 16px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: 600;
+                display: flex;
+                align-items: center;
+                gap: 8px;
+                box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+                z-index: 9998;
+                animation: cameraBadgeSlide 0.5s ease-out;
+                cursor: pointer;
+                font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            }
+            
+            @keyframes cameraBadgeSlide {
+                from { transform: translateX(100px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            
+            .camera-module-badge:hover {
+                transform: scale(1.05);
+                box-shadow: 0 6px 20px rgba(59, 130, 246, 0.5);
+            }
+            
+            .camera-badge-icon {
+                font-size: 14px;
+            }
+            
+            .camera-badge-close {
+                margin-left: 8px;
+                cursor: pointer;
+                opacity: 0.7;
+                font-size: 14px;
+            }
+            
+            .camera-badge-close:hover {
+                opacity: 1;
+            }
+        `;
+        document.head.appendChild(style);
+        
+        const badge = document.createElement('div');
+        badge.id = 'camera-module-badge';
+        badge.className = 'camera-module-badge';
+        badge.innerHTML = `
+            <span class="camera-badge-icon">📷</span>
+            <span>Advanced Camera v3.0</span>
+            <span class="camera-badge-close" onclick="event.stopPropagation(); this.parentElement.remove();">×</span>
+        `;
+        
+        badge.addEventListener('click', function(e) {
+            if (e.target.classList.contains('camera-badge-close')) return;
+            
+            alert(`📷 ADVANCED CAMERA MODULE v3.0
+
+Status: ✅ INSTALLED & READY
+
+Features:
+  📱 Multiple Layouts (Full, Square, Document, Portrait, Wide, Lab)
+  ▦ Grid Overlays (Thirds, Golden Ratio, Center)
+  ⏱️ Timer Mode (3s, 5s, 10s)
+  🔍 Zoom Controls (1x - 4x)
+  ⚙️ Quality Settings (70% - 100%)
+  🔄 Front/Back Camera Switch
+  
+Usage:
+  Click the 📷 button in Labs to open camera with layout options`);
+        });
+        
+        document.body.appendChild(badge);
+        
+        // Auto-minimize after 10 seconds
+        setTimeout(() => {
+            if (badge && badge.parentElement) {
+                badge.style.transition = 'all 0.5s ease';
+                badge.style.padding = '6px 12px';
+                badge.style.fontSize = '10px';
+                badge.querySelector('span:nth-child(2)').textContent = 'Camera Ready';
+            }
+        }, 10000);
+    }
+    
+    // Show badge when DOM is ready
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', showCameraBadge);
+    } else {
+        showCameraBadge();
+    }
     
 })(window);
