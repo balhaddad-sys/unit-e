@@ -1447,7 +1447,6 @@
         .pill.med-conf { background: #f59e0b; }
         .pill.low-conf { background: #ef4444; }
         .pill.vision { background: #4285f4; }
-        .pill.tesseract { background: #7e22ce; }
         .lab-values-body { padding: 10px 12px; background: white; }
         .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .kv { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
@@ -1656,14 +1655,6 @@
             color: #b91c1c;
             font-size: 13px;
         }
-        .ocr-engine-toggle {
-            display: flex;
-            gap: 8px;
-            padding: 8px;
-            background: #f8fafc;
-            border-radius: 10px;
-            border: 1px solid #e2e8f0;
-        }
         .engine-btn {
             flex: 1;
             padding: 10px 12px;
@@ -1687,15 +1678,6 @@
             color: white;
             border-color: #1e40af;
         }
-        .engine-btn.tesseract {
-            background: #faf5ff;
-            color: #6b21a8;
-        }
-        .engine-btn.tesseract.active {
-            background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%);
-            color: white;
-            border-color: #6b21a8;
-        }
         .engine-btn.hybrid {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             color: #92400e;
@@ -1715,7 +1697,6 @@
             font-weight: 800;
         }
         .source-badge.vision { background: #dbeafe; color: #1e40af; }
-        .source-badge.tesseract { background: #f3e8ff; color: #6b21a8; }
         .debug-panel {
             background: #1e293b;
             border-radius: 8px;
@@ -5454,10 +5435,6 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
                         <button className={`tab ${tab === "AI Chat" ? "active" : ""}`} onClick={() => setTab("AI Chat")}>🤖 AI Chat</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
-                    </div>
-
-                    <div className="ocr-engine-toggle">
-
                     </div>
 
                     {tab === "Debug" && (
