@@ -4493,6 +4493,17 @@ const AIConsultModal = ({ patient, onClose }) => {
         setLoading(true);
 
         try {
+            // Check if AIMedicalConsultant is available
+            if (!window.AIMedicalConsultant) {
+                setConversation(prev => [...prev, {
+                    role: 'assistant',
+                    content: '⚠️ AI Medical Consultant module is not loaded. Please refresh the page.',
+                    timestamp: Date.now()
+                }]);
+                setLoading(false);
+                return;
+            }
+
             // Get AI response
             const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
 
@@ -4512,7 +4523,7 @@ const AIConsultModal = ({ patient, onClose }) => {
             console.error('AI Consultation Error:', error);
             setConversation(prev => [...prev, {
                 role: 'assistant',
-                content: '⚠️ An error occurred while processing your query.',
+                content: '⚠️ An error occurred while processing your query. Please try again or contact support.',
                 timestamp: Date.now()
             }]);
         } finally {
@@ -4928,7 +4939,31 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
         loadLabsFromDrive();
     }, [patient.id]);
-    
+
+    // Initialize Camera Module
+    useEffect(() => {
+        if (window.CameraModule) {
+            window.CameraModule.init({
+                onFileSelected: (file) => {
+                    addDebugLog('info', `Camera captured file: ${file.name}`);
+                    handleFile(file);
+                },
+                onDebug: (type, message) => {
+                    addDebugLog(type, message);
+                }
+            });
+            addDebugLog('success', 'Camera Module initialized');
+        } else {
+            addDebugLog('warn', 'Camera Module not loaded - using fallback');
+        }
+
+        return () => {
+            if (window.CameraModule && window.CameraModule.destroy) {
+                window.CameraModule.destroy();
+            }
+        };
+    }, []);
+
     // Mark changes when labs are modified
     const updateLabImages = (updater) => {
         setHasUnsavedChanges(true);
@@ -5850,13 +5885,22 @@ const LabModal = ({ patient, onClose, onSave }) => {
                             <button
                                 className="fab-menu-item"
                                 onClick={() => {
-                                    console.log('Camera button clicked', cameraRef.current);
+                                    console.log('Camera button clicked');
                                     addDebugLog('info', 'Camera button clicked');
-                                    if (cameraRef.current) {
+
+                                    // Try to use CameraModule first, fallback to ref
+                                    if (window.CameraModule && window.CameraModule.openCamera) {
+                                        const success = window.CameraModule.openCamera();
+                                        if (success) {
+                                            addDebugLog('success', 'Camera opened via CameraModule');
+                                        } else {
+                                            addDebugLog('error', 'Failed to open camera via CameraModule');
+                                        }
+                                    } else if (cameraRef.current) {
                                         cameraRef.current.click();
-                                        addDebugLog('info', 'Camera input triggered');
+                                        addDebugLog('info', 'Camera opened via fallback method');
                                     } else {
-                                        addDebugLog('error', 'Camera ref not available');
+                                        addDebugLog('error', 'Camera not available');
                                     }
                                     setShowFabMenu(false);
                                 }}
