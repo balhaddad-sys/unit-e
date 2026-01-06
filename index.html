@@ -4869,12 +4869,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         </div>
                     )}
 
+                    {/* Hidden file inputs - Always rendered so refs remain valid */}
+                    <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
+
                     {tab !== "Debug" && (
                         <>
-                            {/* Hidden file inputs */}
-                            <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                            <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
-
                             {/* Compact auto-detect hint - only show if there's a detected lab type */}
                             {detectedLabType && (
                                 <div style={{ fontSize: 11, color: '#0d9488', background: '#f0f9ff', padding: 6, borderRadius: 6, marginBottom: 8, textAlign: 'center' }}>
