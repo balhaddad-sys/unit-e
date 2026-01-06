@@ -40,7 +40,7 @@ const USE_SERVICE_ACCOUNT = false; // Set to true to use service account instead
 // NOTE: For security, configure these in Apps Script > Project Settings > Script Properties
 const CONFIG = {
   visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
-  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
+  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('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'),
   serviceAccountEmail: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_EMAIL'),
   serviceAccountKey: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_KEY'),
   spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
