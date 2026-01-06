@@ -880,6 +880,26 @@
     };
 
     /**
+     * Helper to find the matched text portion from the original input
+     */
+    const findMatchedText = (input, normalizedMatch, possibleMatches) => {
+        if (!input || !possibleMatches) return normalizedMatch;
+
+        const inputLower = input.toLowerCase();
+
+        // Try to find the actual text that matched in the original input
+        for (const match of possibleMatches) {
+            const matchLower = String(match).toLowerCase();
+            const index = inputLower.indexOf(matchLower);
+            if (index !== -1) {
+                return input.substring(index, index + matchLower.length);
+            }
+        }
+
+        return normalizedMatch;
+    };
+
+    /**
      * Find the best matching test name - ULTRA OPTIMIZED with O(1) lookups
      */
     const findBestMatch = (input, threshold = 0.70) => {
@@ -890,28 +910,37 @@
 
         // STEP 1: O(1) exact match in test names
         if (normalizedTestNames.has(normalized)) {
+            const testName = normalizedTestNames.get(normalized);
             return {
-                test: normalizedTestNames.get(normalized),
+                test: testName,
                 score: 1,
-                matchType: 'exact'
+                matchType: 'exact',
+                matchedText: testName
             };
         }
 
         // STEP 2: O(1) exact match in alias map
         if (aliasToTestMap.has(normalized)) {
+            const testName = aliasToTestMap.get(normalized);
+            // Find the original alias text from input
+            const matchedText = findMatchedText(input, normalized, labRanges[testName]?.aliases || [testName]);
             return {
-                test: aliasToTestMap.get(normalized),
+                test: testName,
                 score: 1,
-                matchType: 'alias'
+                matchType: 'alias',
+                matchedText: matchedText
             };
         }
 
         // STEP 3: O(1) exact match in OCR error map
         if (ocrErrorToTestMap.has(normalized)) {
+            const testName = ocrErrorToTestMap.get(normalized);
+            const matchedText = findMatchedText(input, normalized, labRanges[testName]?.ocrErrors || [testName]);
             return {
-                test: ocrErrorToTestMap.get(normalized),
+                test: testName,
                 score: 0.95,
-                matchType: 'ocr-correction'
+                matchType: 'ocr-correction',
+                matchedText: matchedText
             };
         }
 
@@ -921,10 +950,12 @@
                 if (alias.length >= 2 && normalized.includes(alias)) {
                     const score = 0.9 + (alias.length / normalized.length) * 0.1;
                     if (score >= threshold) {
+                        const matchedText = findMatchedText(input, alias, [alias]);
                         return {
                             test: testName,
                             score: score,
-                            matchType: 'partial-alias'
+                            matchType: 'partial-alias',
+                            matchedText: matchedText
                         };
                     }
                 }
@@ -935,6 +966,7 @@
         // Only check against test names and top aliases (reduced search space)
         let bestMatch = null;
         let bestScore = 0;
+        let bestMatchedText = '';
 
         // Check test names
         for (const [normTest, testName] of normalizedTestNames) {
@@ -944,7 +976,8 @@
             const score = calculateSimilarity(normalized, normTest);
             if (score > bestScore && score >= threshold) {
                 bestScore = score;
-                bestMatch = { test: testName, score, matchType: 'fuzzy' };
+                bestMatchedText = testName;
+                bestMatch = { test: testName, score, matchType: 'fuzzy', matchedText: testName };
             }
         }
 
@@ -957,7 +990,8 @@
                 const score = calculateSimilarity(normalized, alias);
                 if (score > bestScore && score >= threshold) {
                     bestScore = score;
-                    bestMatch = { test: testName, score, matchType: 'fuzzy-alias' };
+                    const matchedText = findMatchedText(input, alias, [alias]);
+                    bestMatch = { test: testName, score, matchType: 'fuzzy-alias', matchedText: matchedText };
                 }
             }
         }
@@ -979,15 +1013,29 @@
         let cleaned = String(str).trim();
         if (cleaned.length === 0) return null;
 
-        // Apply OCR fixes in one pass
+        // Apply OCR fixes in one pass - BUT be careful with L/H flags
         let i = 0;
         let result = '';
         while (i < cleaned.length) {
             const ch = cleaned[i];
-            if (ch === 'O' || ch === 'o') result += '0';
-            else if (ch === 'I' || ch === 'i') result += '1';
-            else if (ch === 'L' || ch === 'l') result += '1';
-            else if (ch === 'S' || ch === 's') result += '5';
+            const nextCh = i + 1 < cleaned.length ? cleaned[i + 1] : '';
+            const prevCh = i > 0 ? cleaned[i - 1] : '';
+
+            // Check if 'L' or 'H' is a flag (followed by space, end, or parenthesis)
+            // Don't convert these to numbers
+            if ((ch === 'L' || ch === 'l' || ch === 'H' || ch === 'h') &&
+                (nextCh === '' || nextCh === ' ' || nextCh === '(' || nextCh === ')' || nextCh === ',' || nextCh === ';')) {
+                // This is likely a flag (Low/High), stop OCR correction here
+                result += ch;
+                i++;
+                break;
+            }
+
+            // OCR corrections for characters within numbers
+            if (ch === 'O' || (ch === 'o' && prevCh >= '0' && prevCh <= '9')) result += '0';
+            else if (ch === 'I' && (prevCh >= '0' && prevCh <= '9' || nextCh >= '0' && nextCh <= '9')) result += '1';
+            else if ((ch === 'L' || ch === 'l') && (prevCh >= '0' && prevCh <= '9' || nextCh >= '0' && nextCh <= '9')) result += '1';
+            else if (ch === 'S' && (prevCh >= '0' && prevCh <= '9' || nextCh >= '0' && nextCh <= '9')) result += '5';
             else if (ch === ',') result += '.';
             else if (ch !== ' ') result += ch; // Skip spaces
             i++;
@@ -1051,25 +1099,45 @@
      * Detect and normalize unit from string
      */
     const detectUnit = (str, testName) => {
-        if (!str || ! testName) return null;
-        
+        if (!str || !testName) return null;
+
         const testData = labRanges[testName];
         if (!testData) return null;
 
-        const cleaned = String(str).trim();
-        
+        const cleaned = String(str).trim().toUpperCase();
+
+        // Check for unit variants - try exact matches first
         if (testData.unitVariants) {
+            // First pass: exact case-insensitive match
             for (const variant of testData.unitVariants) {
-                if (variant && cleaned.toLowerCase().includes(variant.toLowerCase())) {
+                if (!variant) continue;
+                const variantUpper = variant.toUpperCase();
+
+                // Use word boundary matching to avoid false matches
+                // e.g., "131 L mmol/L" should match "mmol/L" not just "L"
+                const regex = new RegExp('\\b' + variantUpper.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b');
+                if (regex.test(cleaned) || cleaned.includes(variantUpper)) {
                     if (testData.convertFrom && testData.convertFrom[variant]) {
                         return { unit: testData.unit, originalUnit: variant, needsConversion: true };
                     }
-                    return { unit: testData. unit, originalUnit:  variant, needsConversion:  false };
+                    return { unit: testData.unit, originalUnit: variant, needsConversion: false };
+                }
+            }
+
+            // Second pass: check convertFrom keys (SI units) with priority
+            if (testData.convertFrom) {
+                for (const siUnit of Object.keys(testData.convertFrom)) {
+                    const siUnitUpper = siUnit.toUpperCase();
+                    // Match SI units more aggressively since they need conversion
+                    if (cleaned.includes(siUnitUpper)) {
+                        return { unit: testData.unit, originalUnit: siUnit, needsConversion: true };
+                    }
                 }
             }
         }
 
-        return { unit: testData. unit, originalUnit:  null, needsConversion: false };
+        // Fallback: return default unit (no conversion)
+        return { unit: testData.unit, originalUnit: null, needsConversion: false };
     };
 
     /**
@@ -2034,9 +2102,45 @@
                 if (seenTests.has(testName)) continue;
 
                 const testData = labRanges[testName];
-                const extracted = extractNumericValue(line, testData.allowNegative);
+
+                // IMPROVED: Extract the result value from table structure
+                // Table format: "Test Name | Value Flag | Unit | Reference"
+                // Example: "Sodium (Na)    131 L    (mmol/L)    136-145"
+
+                // First, remove the test name from the line to avoid picking up wrong numbers
+                let valuePortion = line;
+                if (bestMatch.matchedText) {
+                    // Remove the matched test name from the line
+                    const testNameIndex = line.toLowerCase().indexOf(bestMatch.matchedText.toLowerCase());
+                    if (testNameIndex !== -1) {
+                        valuePortion = line.substring(testNameIndex + bestMatch.matchedText.length);
+                    }
+                }
+
+                // Try to extract the first numeric value (this should be the result)
+                // Split by multiple spaces to separate columns
+                const columns = valuePortion.split(/\s{2,}/).map(c => c.trim()).filter(c => c.length > 0);
+
+                let extracted = null;
+                let extractedColumn = '';
+
+                // Try each column to find the first valid numeric value
+                for (const col of columns) {
+                    extracted = extractNumericValue(col, testData.allowNegative);
+                    if (extracted && extracted.value !== null) {
+                        extractedColumn = col;
+                        break;
+                    }
+                }
+
+                // Fallback: try the whole value portion
+                if (!extracted || extracted.value === null) {
+                    extracted = extractNumericValue(valuePortion, testData.allowNegative);
+                    extractedColumn = valuePortion;
+                }
 
                 if (extracted && extracted.value !== null) {
+                    // Detect unit from the entire line (more context)
                     const unitInfo = detectUnit(line, testName);
                     let finalValue = extracted.value;
 
@@ -2049,7 +2153,7 @@
                     const corrected = correctValue(testName, finalValue);
                     finalValue = corrected.value;
 
-                    // Determine flag
+                    // Determine flag - check for L/H in the extracted column or nearby text
                     let flag = 'N';
                     const [refLow, refHigh] = testData.range;
                     if (finalValue < refLow) flag = 'L';
