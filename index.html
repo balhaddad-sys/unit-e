@@ -115,12 +115,20 @@
             margin: 0;
             font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
             background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+            background-attachment: fixed;
             color: var(--text-primary);
             padding-bottom: 100px;
             font-size: 16px;
             line-height: 1.6;
             -webkit-font-smoothing: antialiased;
             -moz-osx-font-smoothing: grayscale;
+            scroll-behavior: smooth;
+            overflow-x: hidden;
+        }
+
+        /* Smooth scrolling for all browsers */
+        html {
+            scroll-behavior: smooth;
         }
 
         .wrap {
@@ -1057,22 +1065,102 @@
                 padding: var(--space-md);
             }
         }
-        .sync-badge { font-size: 10px; padding: 3px 8px; border-radius: 10px; font-weight: 600; }
-        .sync-badge.idle { background: rgba(255,255,255,0.2); color: white; }
-        .sync-badge.syncing { background: #fef08a; color: #854d0e; }
+        /* ═══════════════════════════════════════════════════════════════
+           SYNC BADGE - Live Status Indicator
+           ═══════════════════════════════════════════════════════════════ */
+        .sync-badge {
+            font-size: 0.6875rem;
+            padding: 6px 12px;
+            border-radius: var(--radius-full);
+            font-weight: 700;
+            letter-spacing: 0.5px;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-sm);
+            backdrop-filter: blur(10px);
+        }
+
+        .sync-badge.idle {
+            background: rgba(255,255,255,0.25);
+            color: white;
+        }
+
+        .sync-badge.syncing {
+            background: linear-gradient(135deg, #fef08a 0%, #fde047 100%);
+            color: #854d0e;
+            animation: syncPulse 1.5s ease-in-out infinite;
+        }
+
+        @keyframes syncPulse {
+            0%, 100% {
+                box-shadow: 0 0 0 0 rgba(254, 240, 138, 0.7);
+            }
+            50% {
+                box-shadow: 0 0 0 8px rgba(254, 240, 138, 0);
+            }
+        }
+
+        /* ═══════════════════════════════════════════════════════════════
+           FOCUS STATES - Accessibility & Keyboard Navigation
+           ═══════════════════════════════════════════════════════════════ */
+        *:focus-visible {
+            outline: 3px solid var(--primary);
+            outline-offset: 2px;
+            border-radius: var(--radius-sm);
+        }
+
+        button:focus-visible,
+        .btn:focus-visible {
+            outline: 3px solid var(--primary);
+            outline-offset: 3px;
+        }
+
+        .inp:focus-visible {
+            outline: none;
+        }
+
+        .status-select:focus-visible {
+            outline: 3px solid var(--primary);
+            outline-offset: 2px;
+        }
+        /* ═══════════════════════════════════════════════════════════════
+           TOAST NOTIFICATIONS - Elegant & Modern
+           ═══════════════════════════════════════════════════════════════ */
         .toast {
             position: fixed;
-            bottom: 20px;
+            bottom: 30px;
             left: 50%;
             transform: translateX(-50%);
-            background: #1e293b;
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
             color: white;
-            padding: 12px 20px;
-            border-radius: 8px;
-            font-size: 14px;
-            z-index: 200;
+            padding: 16px 28px;
+            border-radius: var(--radius-full);
+            font-size: 0.9375rem;
+            font-weight: 600;
+            z-index: 2000;
             max-width: 90%;
             text-align: center;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255, 255, 255, 0.1);
+            animation: toastSlideUp 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            backdrop-filter: blur(10px);
+        }
+
+        @keyframes toastSlideUp {
+            from {
+                opacity: 0;
+                transform: translateX(-50%) translateY(20px) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translateX(-50%) translateY(0) scale(1);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .toast {
+                bottom: 80px;
+                font-size: 0.875rem;
+                padding: 14px 24px;
+            }
         }
         .tabs {
             display: flex;
@@ -2050,9 +2138,187 @@
             .col-3 { width: 280px; display: flex; flex-direction: column; gap: 6px; }
             .kv-grid { grid-template-columns: 1fr 1fr 1fr; }
         }
+
+        /* ═══════════════════════════════════════════════════════════════
+           ENHANCED MOBILE RESPONSIVENESS - Phone-Optimized
+           ═══════════════════════════════════════════════════════════════ */
         @media (max-width: 767px) {
+            /* Better touch targets */
             .mobile-row { display: flex; gap: 8px; }
-            .p-card { padding-right: 50px; }
+            .p-card {
+                padding: var(--space-md);
+                padding-right: 48px;
+                gap: var(--space-md);
+            }
+
+            /* Larger touch targets for buttons */
+            .btn-lab, .btn-guideline {
+                padding: 10px 14px !important;
+                font-size: 0.8125rem !important;
+                min-height: 44px;
+                display: inline-flex;
+                align-items: center;
+                justify-content: center;
+            }
+
+            .status-select {
+                min-height: 44px;
+                padding: 10px 12px;
+                font-size: 0.8125rem;
+            }
+
+            .btn-del {
+                width: 40px !important;
+                height: 40px !important;
+                font-size: 1.25rem;
+            }
+
+            /* Better input spacing */
+            .inp {
+                padding: 12px 14px;
+                font-size: 1rem;
+                min-height: 44px;
+            }
+
+            .inp-area {
+                min-height: 80px;
+                font-size: 1rem;
+                line-height: 1.6;
+            }
+
+            /* Modal optimizations */
+            .modal {
+                max-width: 100%;
+                max-height: 100vh;
+                border-radius: var(--radius-md);
+                margin: 0;
+            }
+
+            .modalOverlay {
+                padding: 0;
+                align-items: flex-end;
+            }
+
+            .modal-body {
+                max-height: calc(100vh - 200px);
+                overflow-y: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .modal-head {
+                padding: var(--space-md);
+                font-size: 0.9375rem;
+            }
+
+            .modal-foot {
+                padding: var(--space-md);
+                gap: var(--space-sm);
+                flex-direction: column-reverse;
+            }
+
+            .modal-foot .btn {
+                width: 100%;
+                min-height: 48px;
+                font-size: 1rem;
+            }
+
+            /* Better new admission badge on mobile */
+            .p-card.new-admission::before {
+                font-size: 0.625rem;
+                padding: 6px 12px;
+                top: -12px;
+            }
+
+            /* Scrollable filter tabs */
+            .filter-row {
+                gap: var(--space-xs);
+                padding-bottom: var(--space-sm);
+            }
+
+            .filter-btn {
+                font-size: 0.875rem;
+                padding: 10px 16px;
+                min-height: 44px;
+            }
+
+            /* Better ward headers */
+            .ward-header {
+                padding: var(--space-md);
+                font-size: 0.9375rem;
+            }
+
+            /* Better search bar */
+            .search-bar {
+                padding: 14px 16px;
+                font-size: 1rem;
+                min-height: 48px;
+            }
+
+            /* Better topbar */
+            .topbar {
+                padding: var(--space-md);
+                gap: var(--space-md);
+            }
+
+            .title h1 {
+                font-size: 1.5rem;
+            }
+
+            .btn-white, .btn-blue, .btn-green {
+                min-height: 44px;
+                padding: 10px 16px;
+                font-size: 0.875rem;
+            }
+
+            /* Better controls container */
+            .controls-container {
+                padding: var(--space-md);
+                margin-bottom: var(--space-lg);
+            }
+
+            /* Better notice banner */
+            .notice-banner {
+                padding: var(--space-md);
+                margin-bottom: var(--space-md);
+            }
+
+            .notice-textarea {
+                min-height: 100px;
+                padding: var(--space-md);
+                font-size: 1rem;
+            }
+
+            /* Improve lab modal on mobile */
+            .tabs {
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+                display: flex;
+                gap: var(--space-xs);
+                padding-bottom: var(--space-xs);
+            }
+
+            .tab {
+                white-space: nowrap;
+                min-height: 44px;
+                padding: 10px 16px;
+            }
+        }
+
+        /* Extra small phones */
+        @media (max-width: 360px) {
+            .wrap {
+                padding: var(--space-xs);
+            }
+
+            .p-card {
+                padding: var(--space-sm);
+                padding-right: 42px;
+            }
+
+            .btn-del {
+                width: 36px !important;
+                height: 36px !important;
+            }
         }
     </style>
 </head>
@@ -4321,10 +4587,20 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log('[LabModal] Saving labs for patient:', patient.id, patient.name);
         console.log('[LabModal] Lab images:', labImages.length);
 
-        // Validate that we have data to save
+        // Allow saving even with 0 labs to clear the count in Firebase
         if (labImages.length === 0) {
-            addDebugLog('warn', 'No lab images to save');
-            return;
+            try {
+                addDebugLog('info', 'Clearing all labs...');
+                await onSave(patient.id, labImages);
+                setHasUnsavedChanges(false);
+                addDebugLog('success', '✓ All labs cleared successfully');
+                onClose();
+                return;
+            } catch (error) {
+                console.error('[LabModal] Clear failed:', error);
+                addDebugLog('error', `Clear failed: ${error.message}`);
+                return;
+            }
         }
 
         // Check if any lab has values
@@ -4845,7 +5121,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 </div>
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
-                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>Save ({labImages.length})</button>
+                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
+                        {labImages.length === 0 ? '🗑 Clear All' : `Save (${labImages.length})`}
+                    </button>
                 </div>
             </div>
             {viewerIndex !== null && labImages[viewerIndex]?.image && <ImageViewer images={labImages.filter(l => l.image)} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
