@@ -4944,7 +4944,6 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [debugLogs, setDebugLogs] = useState([]);
     const [showInterpretation, setShowInterpretation] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
-    const [showFabMenu, setShowFabMenu] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const fileRef = useRef(null);
@@ -6013,60 +6012,16 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     <button
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
                         onClick={() => {
-                            if (!uploading) {
-                                setShowFabMenu(!showFabMenu);
+                            if (!uploading && fileRef.current) {
+                                addDebugLog('info', 'Upload button clicked');
+                                fileRef.current.click();
                             }
                         }}
                         disabled={uploading}
+                        title="Upload lab image"
                     >
-                        {uploading ? '⏳' : '📷'}
+                        {uploading ? '⏳' : '📤'}
                     </button>
-                    {showFabMenu && (
-                        <div className="fab-menu" style={{ display: 'flex' }}>
-                            <button
-                                className="fab-menu-item"
-                                onClick={async () => {
-                                    console.log('Camera button clicked');
-                                    addDebugLog('info', 'Camera button clicked');
-
-                                    // Use CameraModule for camera functionality
-                                    if (window.CameraModule && window.CameraModule.openCamera) {
-                                        try {
-                                            const success = await window.CameraModule.openCamera();
-                                            if (success) {
-                                                addDebugLog('success', 'Camera opened successfully');
-                                            } else {
-                                                addDebugLog('warn', 'Camera was cancelled or not available');
-                                            }
-                                        } catch (error) {
-                                            addDebugLog('error', `Camera error: ${error.message}`);
-                                        }
-                                    } else {
-                                        addDebugLog('error', 'Camera Module not loaded. Please refresh the page.');
-                                    }
-                                    setShowFabMenu(false);
-                                }}
-                            >
-                                📸 Camera
-                            </button>
-                            <button
-                                className="fab-menu-item"
-                                onClick={() => {
-                                    console.log('Gallery button clicked', fileRef.current);
-                                    addDebugLog('info', 'Gallery button clicked');
-                                    if (fileRef.current) {
-                                        fileRef.current.click();
-                                        addDebugLog('info', 'File input triggered');
-                                    } else {
-                                        addDebugLog('error', 'File ref not available');
-                                    }
-                                    setShowFabMenu(false);
-                                }}
-                            >
-                                📁 Gallery
-                            </button>
-                        </div>
-                    )}
                 </div>
             )}
         </div>
