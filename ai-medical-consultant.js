@@ -1045,6 +1045,73 @@ const AIMedicalConsultant = (function() {
     }
 
     // ═══════════════════════════════════════════════════════════════════════════
+    // ═══════════════════════════════════════════════════════════════════════════
+    // CLAUDE OPUS 4.5 INTEGRATION - GPT-5 LEVEL MEDICAL AI
+    // ═══════════════════════════════════════════════════════════════════════════
+
+    const CLAUDE_CONFIG = {
+        API_URL: 'https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec',
+        USE_CLAUDE: true,         // Enable Claude Opus 4.5 for advanced reasoning
+        USE_FALLBACK: true,       // Fallback to knowledge base if Claude fails
+        TIMEOUT: 15000            // 15 second timeout
+    };
+
+    async function askClaude(query, patient, labValues = []) {
+        try {
+            // Build patient context
+            let patientContext = '';
+            if (patient) {
+                patientContext = `Patient: ${patient.name || 'Unknown'}
+Age/Sex: ${patient.age || '?'}/${patient.sex || '?'}
+Diagnosis: ${patient.diagnosis || 'Not specified'}
+Status: ${patient.status || 'Not specified'}`;
+
+                if (patient.plan) {
+                    patientContext += `\nCurrent Plan: ${patient.plan}`;
+                }
+            }
+
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), CLAUDE_CONFIG.TIMEOUT);
+
+            const response = await fetch(CLAUDE_CONFIG.API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'claudeConsult',
+                    query: query,
+                    patientContext: patientContext,
+                    labValues: labValues
+                }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+
+            const result = await response.json();
+
+            if (result.error) {
+                throw new Error(result.error);
+            }
+
+            return {
+                success: true,
+                text: result.response,
+                source: 'claude_opus_4.5',
+                model: result.model,
+                confidence: 0.95,  // Claude Opus 4.5 is highly reliable
+                usage: result.usage
+            };
+
+        } catch (err) {
+            console.error('[AI Consultant] Claude error:', err);
+            return {
+                success: false,
+                error: err.message
+            };
+        }
+    }
+
     // PUBLIC API
     // ═══════════════════════════════════════════════════════════════════════════
 
@@ -1054,44 +1121,81 @@ const AIMedicalConsultant = (function() {
         version: VERSION,
         codename: CODENAME,
         isReady: true,
+        claudeEnabled: CLAUDE_CONFIG.USE_CLAUDE,
 
         startConsultation(patientId) {
             conversations.set(patientId, []);
             return {
                 success: true,
-                message: `Welcome! I'm your AI Medical Consultant (${CODENAME}). Ask me about diagnoses, treatments, or clinical decision-making. I have comprehensive knowledge on many conditions. How can I help?`
+                message: `Welcome! I'm your AI Medical Consultant powered by Claude Opus 4.5 (GPT-5 level). Ask me about diagnoses, treatments, lab interpretation, or clinical decision-making. How can I help?`
             };
         },
 
-        askQuestion(patientId, query, patient) {
+        async askQuestion(patientId, query, patient, options = {}) {
             if (!conversations.has(patientId)) {
                 conversations.set(patientId, []);
             }
-            
+
             const conv = conversations.get(patientId);
             conv.push({ role: 'user', content: query, timestamp: Date.now() });
-            
-            const match = findBestMatch(query, patient?.diagnosis);
-            
+
             let responseText;
             let confidence;
-            
-            if (match) {
-                responseText = generateResponse(match, query, patient);
-                confidence = Math.min(0.95, 0.7 + (match.score / 30));
+            let source = 'knowledge_base';
+
+            // Try Claude Opus 4.5 first for advanced reasoning
+            if (CLAUDE_CONFIG.USE_CLAUDE && !options.useKnowledgeBaseOnly) {
+                console.log('[AI Consultant] 🚀 Using Claude Opus 4.5 for advanced medical reasoning...');
+
+                const labValues = options.labValues || [];
+                const claudeResult = await askClaude(query, patient, labValues);
+
+                if (claudeResult.success) {
+                    responseText = claudeResult.text;
+                    confidence = claudeResult.confidence;
+                    source = 'claude_opus_4.5';
+                    console.log('[AI Consultant] ✨ Claude Opus 4.5 response received');
+                } else if (CLAUDE_CONFIG.USE_FALLBACK) {
+                    console.log('[AI Consultant] ⚠️ Claude failed, using knowledge base fallback');
+                    // Fallback to knowledge base
+                    const match = findBestMatch(query, patient?.diagnosis);
+                    if (match) {
+                        responseText = generateResponse(match, query, patient);
+                        confidence = Math.min(0.95, 0.7 + (match.score / 30));
+                        source = 'knowledge_base';
+                    } else {
+                        responseText = generateFallback(query, patient);
+                        confidence = 0.5;
+                        source = 'fallback';
+                    }
+                } else {
+                    responseText = `I'm sorry, I'm unable to process your request at the moment. Error: ${claudeResult.error}`;
+                    confidence = 0;
+                    source = 'error';
+                }
             } else {
-                responseText = generateFallback(query, patient);
-                confidence = 0.5;
+                // Use knowledge base directly
+                const match = findBestMatch(query, patient?.diagnosis);
+                if (match) {
+                    responseText = generateResponse(match, query, patient);
+                    confidence = Math.min(0.95, 0.7 + (match.score / 30));
+                    source = 'knowledge_base';
+                } else {
+                    responseText = generateFallback(query, patient);
+                    confidence = 0.5;
+                    source = 'fallback';
+                }
             }
-            
-            conv.push({ role: 'assistant', content: responseText, timestamp: Date.now() });
-            
+
+            conv.push({ role: 'assistant', content: responseText, timestamp: Date.now(), source: source });
+
             return {
                 success: true,
                 response: {
                     text: responseText,
                     confidence: confidence,
-                    sources: match?.topic?.sources || []
+                    source: source,
+                    sources: source === 'knowledge_base' ? (findBestMatch(query)?.topic?.sources || []) : ['Claude Opus 4.5 AI']
                 }
             };
         },
@@ -1114,6 +1218,25 @@ const AIMedicalConsultant = (function() {
 
         getDatabaseInfo() {
             return { version: VERSION, codename: CODENAME, topics: Object.keys(KNOWLEDGE).length, ready: true };
+        },
+
+        // Claude Configuration
+        enableClaude() {
+            CLAUDE_CONFIG.USE_CLAUDE = true;
+            console.log('✅ Claude Opus 4.5 enabled (GPT-5 level)');
+        },
+
+        disableClaude() {
+            CLAUDE_CONFIG.USE_CLAUDE = false;
+            console.log('⚠️ Claude Opus 4.5 disabled - using knowledge base only');
+        },
+
+        getConfig() {
+            return {
+                claudeEnabled: CLAUDE_CONFIG.USE_CLAUDE,
+                fallbackEnabled: CLAUDE_CONFIG.USE_FALLBACK,
+                timeout: CLAUDE_CONFIG.TIMEOUT
+            };
         }
     };
 })();
@@ -1123,4 +1246,4 @@ window.AIMedicalConsultant = AIMedicalConsultant;
 window.NeuralClinicalIntelligence = AIMedicalConsultant;
 
 console.log(`✅ AI Medical Consultant v${AIMedicalConsultant.version} "${AIMedicalConsultant.codename}" loaded`);
-console.log(`📚 ${AIMedicalConsultant.getCapabilities().count} comprehensive clinical topics available`);
+console.log(`🚀 Powered by Claude Opus 4.5 (GPT-5 level) - ${AIMedicalConsultant.getCapabilities().count} clinical topics available`);

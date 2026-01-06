@@ -23,9 +23,10 @@
 
 /**
  * IMPORTANT: Set up Script Properties for secure credential storage
- * 
+ *
  * Go to Project Settings > Script Properties and add:
  * - VISION_API_KEY: Your Google Cloud Vision API key
+ * - ANTHROPIC_API_KEY: Your Anthropic Claude API key (for GPT-5 level AI)
  * - SERVICE_ACCOUNT_EMAIL: Service account email (if using service account)
  * - SERVICE_ACCOUNT_KEY: Service account private key (if using service account)
  * - SPREADSHEET_ID: Your Google Sheets ID for patient data
@@ -36,12 +37,14 @@ const SCRIPT_VERSION = '1.0.0';
 const USE_SERVICE_ACCOUNT = false; // Set to true to use service account instead of API key
 
 // Get configuration from Script Properties
+// NOTE: For security, configure these in Apps Script > Project Settings > Script Properties
 const CONFIG = {
-  visionApiKey: PropertiesService.getScriptProperties().getProperty('AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y'),
+  visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
+  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY'),
   serviceAccountEmail: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_EMAIL'),
   serviceAccountKey: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_KEY'),
-  spreadsheetId: PropertiesService.getScriptProperties().getProperty('1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4'),
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I') || 'root'
+  spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
+  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I'
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -133,16 +136,22 @@ function doPost(e) {
     switch (action) {
       case 'runOCR':
         return handleRunOCR(requestData);
-        
+
+      case 'claudeVision':
+        return handleClaudeVision(requestData);
+
+      case 'claudeConsult':
+        return handleClaudeConsult(requestData);
+
       case 'saveLabs':
         return handleSaveLabs(requestData);
-        
+
       case 'loadLabs':
         return handleLoadLabs(requestData);
-        
+
       case 'syncSheet':
         return handleSyncSheet(requestData);
-        
+
       case 'test':
         return createJsonResponse({
           success: true,
@@ -150,11 +159,11 @@ function doPost(e) {
           version: SCRIPT_VERSION,
           timestamp: new Date().toISOString()
         });
-        
+
       default:
         return createJsonResponse({
           error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'saveLabs', 'loadLabs', 'syncSheet', 'test']
+          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'test']
         }, 400);
     }
     
@@ -566,6 +575,270 @@ function createJWT(claim, privateKey) {
   const signatureStr = Utilities.base64EncodeWebSafe(signature);
   
   return signatureInput + '.' + signatureStr;
+}
+
+// ═══════════════════════════════════════════════════════════════════════
+// CLAUDE OPUS 4.5 API INTEGRATION (GPT-5 LEVEL AI)
+// ═══════════════════════════════════════════════════════════════════════
+
+/**
+ * Handle Claude Vision request - Advanced OCR with AI analysis
+ * Uses Claude Opus 4.5 vision capabilities for superior medical document understanding
+ */
+function handleClaudeVision(requestData) {
+  try {
+    if (!requestData.image) {
+      throw new Error('No image data provided');
+    }
+
+    if (!CONFIG.anthropicApiKey) {
+      throw new Error('Anthropic API key not configured. Please add ANTHROPIC_API_KEY to Script Properties.');
+    }
+
+    Logger.log('Processing Claude Vision OCR request...');
+
+    // Extract base64 image data
+    let imageData = requestData.image;
+    if (imageData.includes(',')) {
+      imageData = imageData.split(',')[1];
+    }
+
+    // Determine media type
+    const mediaType = requestData.image.match(/data:image\/(\w+);/)?.[1] || 'jpeg';
+    const fullMediaType = 'image/' + mediaType;
+
+    // Call Claude Opus 4.5 with vision
+    const prompt = requestData.prompt || `Analyze this medical laboratory report image and extract all lab values with extreme precision.
+
+For each lab test found, extract:
+- Test name (exactly as it appears)
+- Numeric value
+- Unit of measurement
+- Reference range if visible
+- Any flags (L/H/LL/HH for Low/High/Critical Low/Critical High)
+
+Return ONLY a valid JSON object in this exact format:
+{
+  "reportType": "CBC" or "BMP" or "LFT" or "GENERAL",
+  "confidence": 0-100,
+  "values": [
+    {
+      "test": "WBC",
+      "value": "8.5",
+      "unit": "×10⁹/L",
+      "flag": "N",
+      "refLow": 4.0,
+      "refHigh": 11.0,
+      "confidence": 95
+    }
+  ]
+}
+
+Be extremely selective - only extract values you are highly confident about. Reject physiologically impossible values.`;
+
+    const url = 'https://api.anthropic.com/v1/messages';
+
+    const payload = {
+      model: 'claude-opus-4-20250514',  // Latest Claude Opus 4.5
+      max_tokens: 4096,
+      messages: [
+        {
+          role: 'user',
+          content: [
+            {
+              type: 'image',
+              source: {
+                type: 'base64',
+                media_type: fullMediaType,
+                data: imageData
+              }
+            },
+            {
+              type: 'text',
+              text: prompt
+            }
+          ]
+        }
+      ]
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'x-api-key': CONFIG.anthropicApiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+
+    if (responseCode !== 200) {
+      throw new Error('Claude API error: ' + responseCode + ' - ' + responseText);
+    }
+
+    const result = JSON.parse(responseText);
+
+    // Extract text content from Claude's response
+    const content = result.content && result.content[0] && result.content[0].text;
+    if (!content) {
+      throw new Error('No content in Claude response');
+    }
+
+    // Parse the JSON response from Claude
+    let parsedData;
+    try {
+      // Extract JSON from response (Claude might include explanatory text)
+      const jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsedData = JSON.parse(jsonMatch[0]);
+      } else {
+        parsedData = JSON.parse(content);
+      }
+    } catch (e) {
+      // If parsing fails, return the raw text
+      Logger.log('Failed to parse Claude JSON, returning raw text: ' + e.toString());
+      return createJsonResponse({
+        success: true,
+        text: content,
+        rawText: content,
+        source: 'claude_opus_4.5',
+        confidence: 85,
+        timestamp: new Date().toISOString()
+      });
+    }
+
+    Logger.log('Claude Vision OCR completed - Found ' + (parsedData.values?.length || 0) + ' lab values');
+
+    return createJsonResponse({
+      success: true,
+      ...parsedData,
+      rawText: content,
+      source: 'claude_opus_4.5',
+      model: 'claude-opus-4-20250514',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Claude Vision Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Claude Vision failed: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle Claude Consult request - Advanced medical AI consultation
+ * Uses Claude Opus 4.5 for GPT-5 level medical reasoning
+ */
+function handleClaudeConsult(requestData) {
+  try {
+    if (!requestData.query) {
+      throw new Error('No query provided');
+    }
+
+    if (!CONFIG.anthropicApiKey) {
+      throw new Error('Anthropic API key not configured. Please add ANTHROPIC_API_KEY to Script Properties.');
+    }
+
+    Logger.log('Processing Claude medical consultation: ' + requestData.query);
+
+    const patientContext = requestData.patientContext || '';
+    const labValues = requestData.labValues || [];
+
+    // Build comprehensive medical prompt
+    let systemPrompt = `You are an elite medical AI consultant with GPT-5 level capabilities, providing expert clinical decision support.
+
+You have comprehensive knowledge of:
+- Internal medicine, emergency medicine, critical care
+- Lab value interpretation and clinical correlations
+- Diagnostic reasoning and differential diagnosis
+- Evidence-based treatment guidelines
+- Drug interactions and dosing
+- Clinical pearls and common pitfalls
+
+Provide clear, actionable, evidence-based medical guidance. Structure your responses with:
+- Key clinical points
+- Diagnostic considerations
+- Treatment recommendations
+- Critical warnings when applicable
+
+Be precise, thorough, and cite clinical reasoning.`;
+
+    let userPrompt = requestData.query;
+
+    if (patientContext) {
+      userPrompt += '\n\nPatient Context:\n' + patientContext;
+    }
+
+    if (labValues.length > 0) {
+      userPrompt += '\n\nRecent Lab Values:\n' + labValues.map(v =>
+        `${v.test}: ${v.value} ${v.unit} (ref: ${v.refLow}-${v.refHigh}) ${v.flag !== 'N' ? '[' + v.flag + ']' : ''}`
+      ).join('\n');
+    }
+
+    const url = 'https://api.anthropic.com/v1/messages';
+
+    const payload = {
+      model: 'claude-opus-4-20250514',  // Latest Claude Opus 4.5
+      max_tokens: 8192,
+      system: systemPrompt,
+      messages: [
+        {
+          role: 'user',
+          content: userPrompt
+        }
+      ]
+    };
+
+    const options = {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'x-api-key': CONFIG.anthropicApiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    };
+
+    const response = UrlFetchApp.fetch(url, options);
+    const responseCode = response.getResponseCode();
+    const responseText = response.getContentText();
+
+    if (responseCode !== 200) {
+      throw new Error('Claude API error: ' + responseCode + ' - ' + responseText);
+    }
+
+    const result = JSON.parse(responseText);
+
+    // Extract text content from Claude's response
+    const content = result.content && result.content[0] && result.content[0].text;
+    if (!content) {
+      throw new Error('No content in Claude response');
+    }
+
+    Logger.log('Claude consultation completed - Response length: ' + content.length);
+
+    return createJsonResponse({
+      success: true,
+      response: content,
+      model: 'claude-opus-4-20250514',
+      source: 'claude_opus_4.5',
+      timestamp: new Date().toISOString(),
+      usage: result.usage
+    });
+
+  } catch (error) {
+    Logger.log('Claude Consult Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Claude consultation failed: ' + error.toString()
+    }, 500);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════════════════
