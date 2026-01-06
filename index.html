@@ -4462,8 +4462,58 @@ const AIConsultModal = ({ patient, onClose }) => {
     const [conversation, setConversation] = useState([]);
     const [userInput, setUserInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [labImages, setLabImages] = useState([]);
+    const [loadingLabs, setLoadingLabs] = useState(true);
     const chatEndRef = useRef(null);
     const inputRef = useRef(null);
+
+    // Load patient lab images
+    useEffect(() => {
+        const loadLabsFromDrive = async () => {
+            setLoadingLabs(true);
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+                const response = await fetch(VISION_API_PROXY_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify({
+                        action: 'loadLabs',
+                        patientId: patient.id,
+                        patientName: patient.name
+                    }),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+                const result = await response.json();
+
+                if (result.labData && result.labData.length > 0) {
+                    const nonDeletedLabs = result.labData.filter(lab => !lab.deleted);
+                    const labs = nonDeletedLabs.map(lab => ({
+                        id: lab.id,
+                        timestamp: lab.timestamp,
+                        ocr: {
+                            values: lab.values || [],
+                            confidence: lab.confidence || 0
+                        }
+                    }));
+                    setLabImages(labs);
+                }
+            } catch (err) {
+                console.error('Failed to load labs for AI consultation:', err);
+                // Use fallback from patient object if available
+                if (patient.labData && patient.labData.length > 0) {
+                    setLabImages(patient.labData);
+                }
+            } finally {
+                setLoadingLabs(false);
+            }
+        };
+
+        loadLabsFromDrive();
+    }, [patient.id]);
 
     // Initialize AI consultation on mount
     useEffect(() => {
@@ -4504,8 +4554,12 @@ const AIConsultModal = ({ patient, onClose }) => {
                 return;
             }
 
-            // Get AI response
-            const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
+            // Get AI response - include labImages in patient context
+            const patientWithLabs = {
+                ...patient,
+                labImages: labImages
+            };
+            const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patientWithLabs);
 
             if (result.success) {
                 // Update conversation
@@ -4636,6 +4690,16 @@ const AIConsultModal = ({ patient, onClose }) => {
                                 Ask me about lab interpretation, drug information, diagnostic criteria, treatment protocols, or differential diagnosis.
                                 I have access to this patient's clinical data and lab values.
                             </div>
+                            {loadingLabs && (
+                                <div style={{ marginTop: '16px', fontSize: '12px', color: '#6366f1' }}>
+                                    ⏳ Loading patient lab data...
+                                </div>
+                            )}
+                            {!loadingLabs && labImages.length > 0 && (
+                                <div style={{ marginTop: '16px', fontSize: '12px', color: '#10b981' }}>
+                                    ✓ {labImages.length} lab result(s) loaded
+                                </div>
+                            )}
                             <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '500px' }}>
                                 <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Try asking:</div>
                                 <button
@@ -4940,30 +5004,6 @@ const LabModal = ({ patient, onClose, onSave }) => {
         loadLabsFromDrive();
     }, [patient.id]);
 
-    // Initialize Camera Module
-    useEffect(() => {
-        if (window.CameraModule) {
-            window.CameraModule.init({
-                onFileSelected: (file) => {
-                    addDebugLog('info', `Camera captured file: ${file.name}`);
-                    handleFile(file);
-                },
-                onDebug: (type, message) => {
-                    addDebugLog(type, message);
-                }
-            });
-            addDebugLog('success', 'Camera Module initialized');
-        } else {
-            addDebugLog('warn', 'Camera Module not loaded - using fallback');
-        }
-
-        return () => {
-            if (window.CameraModule && window.CameraModule.destroy) {
-                window.CameraModule.destroy();
-            }
-        };
-    }, []);
-
     // Mark changes when labs are modified
     const updateLabImages = (updater) => {
         setHasUnsavedChanges(true);
@@ -5162,6 +5202,31 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
     const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
+
+    // Initialize Camera Module after handleFile is defined
+    useEffect(() => {
+        if (window.CameraModule) {
+            window.CameraModule.init({
+                onFileSelected: (file) => {
+                    addDebugLog('info', `Camera captured file: ${file.name}`);
+                    handleFile(file);
+                },
+                onDebug: (type, message) => {
+                    addDebugLog(type, message);
+                }
+            });
+            addDebugLog('success', 'Camera Module initialized');
+        } else {
+            addDebugLog('warn', 'Camera Module not loaded - using fallback');
+        }
+
+        return () => {
+            if (window.CameraModule && window.CameraModule.destroy) {
+                window.CameraModule.destroy();
+            }
+        };
+    }, []); // Run once on mount, handleFile is in scope now
+
     const handleAIChat = (message) => {
         if (!message.trim()) return;
 
