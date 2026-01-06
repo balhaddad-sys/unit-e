@@ -4458,16 +4458,28 @@ const AIConsultModal = ({ patient, onClose }) => {
     const [conversation, setConversation] = useState([]);
     const [userInput, setUserInput] = useState('');
     const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
     const chatEndRef = useRef(null);
     const inputRef = useRef(null);
 
     // Initialize AI consultation on mount
     useEffect(() => {
-        if (window.AIMedicalConsultant && patient) {
-            window.AIMedicalConsultant.startConsultation(patient.id);
-            // Load previous conversation if exists
-            const history = window.AIMedicalConsultant.getHistory(patient.id);
-            setConversation(history);
+        if (!window.AIMedicalConsultant) {
+            setError('AI Medical Consultant module not loaded. Please refresh the page.');
+            console.error('AIMedicalConsultant not found on window object');
+            return;
+        }
+
+        try {
+            if (patient) {
+                window.AIMedicalConsultant.startConsultation(patient.id);
+                // Load previous conversation if exists
+                const history = window.AIMedicalConsultant.getHistory(patient.id);
+                setConversation(history || []);
+            }
+        } catch (err) {
+            console.error('Error initializing AI consultation:', err);
+            setError('Failed to initialize AI consultation: ' + err.message);
         }
     }, [patient]);
 
@@ -4484,20 +4496,32 @@ const AIConsultModal = ({ patient, onClose }) => {
     const handleSendMessage = async () => {
         if (!userInput.trim() || loading) return;
 
+        if (!window.AIMedicalConsultant) {
+            setError('AI Medical Consultant module not available');
+            return;
+        }
+
         const message = userInput.trim();
         setUserInput('');
         setLoading(true);
 
         try {
+            // Add user message to conversation immediately
+            setConversation(prev => [...prev, {
+                role: 'user',
+                content: message,
+                timestamp: Date.now()
+            }]);
+
             // Get AI response
             const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
 
             if (result.success) {
-                // Update conversation
+                // Update conversation with full history
                 const updatedConversation = window.AIMedicalConsultant.getHistory(patient.id);
-                setConversation(updatedConversation);
+                setConversation(updatedConversation || []);
             } else {
-                // Show error
+                // Show error as AI message
                 setConversation(prev => [...prev, {
                     role: 'assistant',
                     content: '⚠️ Error: ' + (result.error || 'Unknown error occurred'),
@@ -4508,7 +4532,7 @@ const AIConsultModal = ({ patient, onClose }) => {
             console.error('AI Consultation Error:', error);
             setConversation(prev => [...prev, {
                 role: 'assistant',
-                content: '⚠️ An error occurred while processing your query.',
+                content: '⚠️ An error occurred while processing your query: ' + error.message,
                 timestamp: Date.now()
             }]);
         } finally {
@@ -4597,6 +4621,28 @@ const AIConsultModal = ({ patient, onClose }) => {
                         <span>🧪 <strong>Lab Results:</strong> {(patient.labImages || []).filter(l => !l.deleted).length} available</span>
                     </div>
                 </div>
+
+                {/* Error Display */}
+                {error && (
+                    <div style={{
+                        padding: '16px 24px',
+                        background: '#fee2e2',
+                        borderBottom: '1px solid #fca5a5',
+                        fontSize: '13px',
+                        color: '#991b1b',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                    }}>
+                        <span style={{ fontSize: '16px' }}>⚠️</span>
+                        <div>
+                            <strong>Error:</strong> {error}
+                            <div style={{ marginTop: '4px', fontSize: '12px' }}>
+                                Try refreshing the page. If the problem persists, check the browser console for details.
+                            </div>
+                        </div>
+                    </div>
+                )}
 
                 {/* Chat Container */}
                 <div style={{
@@ -5256,7 +5302,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {/* Hidden file inputs - Always rendered so refs remain valid */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                    <input ref={cameraRef} type="file" accept="image/*" capture onChange={handleFileInput} style={{ display: 'none' }} />
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
 
                     {tab !== "Debug" && (
                         <>
