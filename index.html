@@ -45,6 +45,8 @@
     <script src="clinical-guidelines.js"></script>
     <!-- Neural Clinical Interpreter - Advanced AI Engine -->
     <script src="neural-clinical-interpreter.js"></script>
+    <!-- Medical AI Assistant - Intelligent Clinical Conversation Engine -->
+    <script src="medical-ai-assistant.js"></script>
     <!-- Clinical Results Parser - Imaging, Scopes, Organizer -->
     <script src="clinical-results-parser.js"></script>
     <!-- Adaptive Neural Expansion System - Self-Learning Medical Knowledge -->
@@ -4446,8 +4448,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [showInterpretation, setShowInterpretation] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
     const [showFabMenu, setShowFabMenu] = useState(false);
+    const [chatMessages, setChatMessages] = useState([]);
+    const [chatInput, setChatInput] = useState('');
     const fileRef = useRef(null);
     const cameraRef = useRef(null);
+    const chatEndRef = useRef(null);
     
     const addDebugLog = (type, msg) => {
         setDebugLogs(prev => [...prev.slice(-50), { type, msg, time: new Date().toLocaleTimeString() }]);
@@ -4736,6 +4741,31 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
     const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
+    const handleAIChat = (message) => {
+        if (!message.trim()) return;
+
+        // Add user message
+        setChatMessages(prev => [...prev, { role: 'user', content: message, timestamp: Date.now() }]);
+        setChatInput('');
+
+        // Prepare patient context
+        const patientContext = {
+            ...patient,
+            labImages: labImages
+        };
+
+        // Get AI response
+        setTimeout(() => {
+            if (window.MedicalAIAssistant) {
+                const aiResponse = window.MedicalAIAssistant.chat(message, patientContext);
+                setChatMessages(prev => [...prev, { role: 'assistant', content: aiResponse, timestamp: Date.now() }]);
+                // Auto-scroll to bottom
+                setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else {
+                setChatMessages(prev => [...prev, { role: 'assistant', content: 'AI Assistant is loading... Please try again in a moment.', timestamp: Date.now() }]);
+            }
+        }, 500);
+    };
     const updateNote = (id, note) => updateLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
     const deleteImage = async (id) => { 
         if (!confirm("Delete this lab?")) return;
@@ -4835,6 +4865,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <button className={`tab ${tab === "Values" ? "active" : ""}`} onClick={() => setTab("Values")}>📋 Values</button>
                         <button className={`tab ${tab === "Trending" ? "active" : ""}`} onClick={() => setTab("Trending")}>📊 Trending</button>
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
+                        <button className={`tab ${tab === "AI Chat" ? "active" : ""}`} onClick={() => setTab("AI Chat")}>🤖 AI Chat</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
                     </div>
 
@@ -5313,6 +5344,95 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                     })}
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {tab === "AI Chat" && (
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '500px', padding: 16 }}>
+                            <div style={{ marginBottom: 12, padding: '12px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '8px', color: 'white' }}>
+                                <div style={{ fontSize: 16, fontWeight: 600, marginBottom: 4 }}>🤖 AI Medical Assistant</div>
+                                <div style={{ fontSize: 12, opacity: 0.9 }}>Ask me about lab results, treatments, medications, or clinical guidelines</div>
+                            </div>
+
+                            <div style={{ flex: 1, overflowY: 'auto', marginBottom: 12, padding: '12px', background: '#f8fafc', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+                                {chatMessages.length === 0 ? (
+                                    <div style={{ textAlign: 'center', color: '#64748b', marginTop: 40 }}>
+                                        <div style={{ fontSize: 48, marginBottom: 12 }}>💬</div>
+                                        <div style={{ fontSize: 14, fontWeight: 600, marginBottom: 8 }}>Start a conversation</div>
+                                        <div style={{ fontSize: 12 }}>Try asking:</div>
+                                        <div style={{ fontSize: 11, marginTop: 8, lineHeight: 1.6 }}>
+                                            • "What do the lab results show?"<br/>
+                                            • "What medications should be given?"<br/>
+                                            • "Explain the diagnosis"<br/>
+                                            • "Are there any critical findings?"<br/>
+                                            • "What are the treatment options?"
+                                        </div>
+                                    </div>
+                                ) : (
+                                    chatMessages.map((msg, idx) => (
+                                        <div key={idx} style={{
+                                            marginBottom: 12,
+                                            display: 'flex',
+                                            justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
+                                        }}>
+                                            <div style={{
+                                                maxWidth: '80%',
+                                                padding: '10px 14px',
+                                                borderRadius: '12px',
+                                                background: msg.role === 'user' ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : 'white',
+                                                color: msg.role === 'user' ? 'white' : '#1e293b',
+                                                border: msg.role === 'user' ? 'none' : '1px solid #e2e8f0',
+                                                fontSize: 13,
+                                                lineHeight: 1.5,
+                                                whiteSpace: 'pre-wrap',
+                                                boxShadow: msg.role === 'user' ? '0 2px 8px rgba(102, 126, 234, 0.3)' : '0 1px 3px rgba(0,0,0,0.1)'
+                                            }}>
+                                                {msg.content}
+                                            </div>
+                                        </div>
+                                    ))
+                                )}
+                                <div ref={chatEndRef} />
+                            </div>
+
+                            <div style={{ display: 'flex', gap: 8 }}>
+                                <input
+                                    type="text"
+                                    value={chatInput}
+                                    onChange={(e) => setChatInput(e.target.value)}
+                                    onKeyPress={(e) => e.key === 'Enter' && handleAIChat(chatInput)}
+                                    placeholder="Ask me anything about this patient..."
+                                    style={{
+                                        flex: 1,
+                                        padding: '10px 14px',
+                                        border: '2px solid #e2e8f0',
+                                        borderRadius: '8px',
+                                        fontSize: 13,
+                                        outline: 'none'
+                                    }}
+                                    onFocus={(e) => e.target.style.borderColor = '#667eea'}
+                                    onBlur={(e) => e.target.style.borderColor = '#e2e8f0'}
+                                />
+                                <button
+                                    onClick={() => handleAIChat(chatInput)}
+                                    disabled={!chatInput.trim()}
+                                    style={{
+                                        padding: '10px 20px',
+                                        background: chatInput.trim() ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#e2e8f0',
+                                        color: chatInput.trim() ? 'white' : '#94a3b8',
+                                        border: 'none',
+                                        borderRadius: '8px',
+                                        fontSize: 13,
+                                        fontWeight: 600,
+                                        cursor: chatInput.trim() ? 'pointer' : 'not-allowed',
+                                        transition: 'all 0.2s'
+                                    }}
+                                    onMouseEnter={(e) => { if (chatInput.trim()) e.target.style.transform = 'translateY(-1px)'; }}
+                                    onMouseLeave={(e) => e.target.style.transform = 'translateY(0)'}
+                                >
+                                    Send
+                                </button>
+                            </div>
                         </div>
                     )}
                 </div>

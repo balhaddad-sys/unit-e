@@ -372,7 +372,16 @@
                 this._detectDKAPattern,
                 this._detectGIBleedPattern,
                 this._detectPulmonaryEmbolismPattern,
-                this._detectAnemiaPattern
+                this._detectAnemiaPattern,
+                this._detectACSPattern,
+                this._detectLiverFailurePattern,
+                this._detectElectrolyteEmergencyPattern,
+                this._detectThyroidCrisisPattern,
+                this._detectAdrenalCrisisPattern,
+                this._detectRhabdomyolysisPattern,
+                this._detectTumorLysisSyndromePattern,
+                this._detectPancreatitisPattern,
+                this._detectHypovolemiaPattern
             ];
 
             syndromeDetectors.forEach(detector => {
@@ -531,6 +540,205 @@
                     recommendation: type === 'microcytic' ? 'Check iron studies, consider GI workup' :
                                   type === 'macrocytic' ? 'Check B12, folate, TSH' :
                                   'Check reticulocyte count, hemolysis labs'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectACSPattern(labAnalysis, imagingAnalysis, scopeAnalysis, vitalAnalysis) {
+            const troponin = labAnalysis.findings.find(f => f.test === 'Troponin' || f.test === 'TROP');
+            const ck = labAnalysis.findings.find(f => f.test === 'CK' || f.test === 'CPK');
+            const chestPain = imagingAnalysis.findings.some(f =>
+                f.description && (f.description.toLowerCase().includes('st elevation') || f.description.toLowerCase().includes('st depression'))
+            );
+
+            if ((troponin && troponin.value > 0.04) || chestPain) {
+                const severity = troponin && troponin.value > 10 ? 'STEMI/Large MI' : 'Non-STEMI/Unstable Angina';
+                return {
+                    detected: true,
+                    syndrome: 'Acute Coronary Syndrome (ACS)',
+                    confidence: (troponin && chestPain) ? 95 : 75,
+                    severity,
+                    recommendation: 'IMMEDIATE: Aspirin 325mg, dual antiplatelet (ticagrelor/prasugrel), anticoagulation (heparin/enoxaparin), cardiology consult for cath. Serial troponins, continuous telemetry. STEMI: Door-to-balloon <90min.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectLiverFailurePattern(labAnalysis) {
+            const alt = labAnalysis.findings.find(f => f.test === 'ALT');
+            const inr = labAnalysis.findings.find(f => f.test === 'INR');
+            const bilirubin = labAnalysis.findings.find(f => f.test === 'TBIL');
+            const albumin = labAnalysis.findings.find(f => f.test === 'ALB');
+
+            if ((alt && alt.value > 1000) || (inr && inr.value > 2.0 && bilirubin && bilirubin.value > 3)) {
+                return {
+                    detected: true,
+                    syndrome: 'Acute Liver Failure',
+                    confidence: 90,
+                    severity: inr && inr.value > 3 ? 'Severe' : 'Moderate',
+                    recommendation: 'Check acetaminophen level immediately (use Rumack-Matthew nomogram if toxic), viral hepatitis panel, autoimmune markers. Monitor for encephalopathy (lactulose, rifaximin), coagulopathy (FFP/vitamin K if bleeding), hypoglycemia. Consider N-acetylcysteine if acetaminophen toxicity. Urgent hepatology/transplant consult if INR >2 + encephalopathy.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectElectrolyteEmergencyPattern(labAnalysis) {
+            const k = labAnalysis.findings.find(f => f.test === 'K');
+            const na = labAnalysis.findings.find(f => f.test === 'NA');
+            const ca = labAnalysis.findings.find(f => f.test === 'CA');
+            const mg = labAnalysis.findings.find(f => f.test === 'MG');
+
+            const criticalElectrolytes = [
+                k && (k.value > 6.5 || k.value < 2.5),
+                na && (na.value < 120 || na.value > 160),
+                ca && (ca.value < 6.5 || ca.value > 13),
+                mg && (mg.value < 1.0)
+            ].filter(Boolean).length;
+
+            if (criticalElectrolytes >= 2) {
+                return {
+                    detected: true,
+                    syndrome: 'Critical Electrolyte Emergency',
+                    confidence: 95,
+                    severity: 'Life-threatening',
+                    recommendation: 'Multiple critical electrolyte abnormalities require immediate correction. K >6.5: Calcium gluconate + insulin/glucose + albuterol. K <2.5: IV potassium with cardiac monitoring. Na <120: 3% saline if symptomatic (limit correction <8-10mEq/24h). Ca <6.5: IV calcium gluconate. Continuous cardiac monitoring, ICU level care.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectThyroidCrisisPattern(labAnalysis, vitalAnalysis) {
+            const tsh = labAnalysis.findings.find(f => f.test === 'TSH');
+            const fever = vitalAnalysis.alerts.some(a => a.type === 'fever');
+            const tachycardia = vitalAnalysis.alerts.some(a => a.type === 'tachycardia');
+
+            if (tsh && tsh.value < 0.1 && fever && tachycardia) {
+                return {
+                    detected: true,
+                    syndrome: 'Thyroid Storm',
+                    confidence: 80,
+                    severity: 'Life-threatening',
+                    recommendation: 'THYROID STORM PROTOCOL: 1) Propylthiouracil (PTU) 500-1000mg load, then 250mg q4h OR Methimazole 20-25mg q4h, 2) Propranolol 60-80mg q4h (or IV if unstable), 3) Hydrocortisone 100mg IV q8h, 4) Saturated solution of potassium iodide (SSKI) 5 drops q6h (give 1hr AFTER antithyroid drug), 5) Cooling measures, aggressive hydration. ICU admission. Mortality 20-30% if untreated.'
+                };
+            }
+
+            if (tsh && tsh.value > 10 && vitalAnalysis.findings.some(f => f.description && f.description.includes('hypothermia'))) {
+                return {
+                    detected: true,
+                    syndrome: 'Myxedema Coma',
+                    confidence: 75,
+                    severity: 'Life-threatening',
+                    recommendation: 'MYXEDEMA COMA PROTOCOL: 1) Levothyroxine 200-400mcg IV load, then 50-100mcg IV daily, 2) Hydrocortisone 100mg IV q8h (give BEFORE thyroid hormone - prevents adrenal crisis), 3) Passive rewarming, 4) Ventilatory support if needed, 5) Correct hyponatremia slowly. ICU admission. Find precipitant (infection, cold exposure, sedatives).'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectAdrenalCrisisPattern(labAnalysis, vitalAnalysis) {
+            const na = labAnalysis.findings.find(f => f.test === 'NA');
+            const k = labAnalysis.findings.find(f => f.test === 'K');
+            const glucose = labAnalysis.findings.find(f => f.test === 'GLUCOSE' || f.test === 'Glucose');
+            const hypotension = vitalAnalysis.alerts.some(a => a.type === 'hypotension' || a.description?.includes('shock'));
+
+            if (na && na.value < 130 && k && k.value > 5.5 && glucose && glucose.value < 70 && hypotension) {
+                return {
+                    detected: true,
+                    syndrome: 'Adrenal Crisis (Addisonian Crisis)',
+                    confidence: 85,
+                    severity: 'Life-threatening',
+                    recommendation: 'ADRENAL CRISIS PROTOCOL: 1) Hydrocortisone 100mg IV STAT, then 50-100mg IV q6-8h (DO NOT WAIT for cortisol level), 2) 0.9% saline 1-2L rapid bolus, then aggressive IVF (may need 4-6L in 24h), 3) Dextrose if hypoglycemic, 4) Correct hyperkalemia if severe, 5) Search for precipitant (infection, trauma, stopping steroids). Random cortisol <3 confirms if needed. Cosyntropin stimulation test AFTER crisis resolves.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectRhabdomyolysisPattern(labAnalysis) {
+            const ck = labAnalysis.findings.find(f => f.test === 'CK' || f.test === 'CPK');
+            const cr = labAnalysis.findings.find(f => f.test === 'CR' || f.test === 'Cr');
+            const k = labAnalysis.findings.find(f => f.test === 'K');
+            const phos = labAnalysis.findings.find(f => f.test === 'PHOS');
+
+            if (ck && ck.value > 1000) {
+                const severity = ck.value > 15000 ? 'Severe (high AKI risk)' : ck.value > 5000 ? 'Moderate' : 'Mild';
+                return {
+                    detected: true,
+                    syndrome: 'Rhabdomyolysis',
+                    confidence: 95,
+                    severity,
+                    recommendation: 'RHABDOMYOLYSIS MANAGEMENT: 1) Aggressive IVF: 0.9% saline 200-300mL/hr (target urine output >200mL/hr, consider urine alkalinization with bicarb if pH <6.5 and no hypocalcemia), 2) Monitor CK daily (should decrease 30-40%/day), Cr, K, Ca, Phos, 3) Avoid nephrotoxins (NSAIDs, contrast, aminoglycosides), 4) Watch for compartment syndrome (measure compartment pressures if concern), 5) Dialysis if refractory AKI or severe hyperkalemia. DDx: Drugs (statins, fibrates), alcohol, seizures, trauma, infection, exertion.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectTumorLysisSyndromePattern(labAnalysis) {
+            const uric = labAnalysis.findings.find(f => f.test === 'URIC');
+            const phos = labAnalysis.findings.find(f => f.test === 'PHOS');
+            const k = labAnalysis.findings.find(f => f.test === 'K');
+            const ca = labAnalysis.findings.find(f => f.test === 'CA');
+            const cr = labAnalysis.findings.find(f => f.test === 'CR' || f.test === 'Cr');
+
+            const tlsCriteria = [
+                uric && uric.value > 8,
+                phos && phos.value > 4.5,
+                k && k.value > 6,
+                ca && ca.value < 7
+            ].filter(Boolean).length;
+
+            if (tlsCriteria >= 2 && (cr && cr.value > 1.5)) {
+                return {
+                    detected: true,
+                    syndrome: 'Tumor Lysis Syndrome',
+                    confidence: 90,
+                    severity: 'Oncologic Emergency',
+                    recommendation: 'TUMOR LYSIS SYNDROME PROTOCOL: 1) Aggressive IVF (150-200mL/hr), target urine output >100mL/hr, 2) Rasburicase 0.2mg/kg IV (if uric acid >8 or AKI) - contraindicated in G6PD deficiency, 3) Allopurinol 300-600mg daily (prophylaxis or if cannot give rasburicase), 4) Correct hyperkalemia (Ca gluconate, insulin/glucose, patiromer), 5) Phosphate binders if phos >6 (avoid aluminum-containing), 6) AVOID calcium supplementation unless symptomatic hypocalcemia (can precipitate Ca-phosphate), 7) Dialysis if refractory. Monitor labs q6-8h. Hold chemotherapy until metabolic abnormalities resolve.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectPancreatitisPattern(labAnalysis, imagingAnalysis) {
+            const lipase = labAnalysis.findings.find(f => f.test === 'Lipase');
+            const amylase = labAnalysis.findings.find(f => f.test === 'Amylase');
+            const imaging = imagingAnalysis.findings.some(f =>
+                f.description && f.description.toLowerCase().includes('pancrea')
+            );
+
+            if ((lipase && lipase.value > 180) || (amylase && amylase.value > 300)) {
+                return {
+                    detected: true,
+                    syndrome: 'Acute Pancreatitis',
+                    confidence: imaging ? 95 : 80,
+                    severity: lipase && lipase.value > 1000 ? 'Severe' : 'Moderate',
+                    recommendation: 'PANCREATITIS MANAGEMENT: 1) NPO initially, advance diet as tolerated (no need to wait for lipase to normalize), 2) Aggressive IVF: Lactated Ringer 250-500mL/hr (better than NS per recent trials), 3) Pain control (opioids acceptable), 4) Determine etiology: RUQ ultrasound (gallstones), alcohol history, triglycerides (>1000 can cause), medications, 5) Nutrition: early enteral feeding (within 24-48h) if severe - improves outcomes vs TPN, 6) Monitor for complications: necrosis (CT at 72-96h if not improving), infected necrosis, pseudocyst. SIRS criteria and Ranson criteria for severity assessment.'
+                };
+            }
+
+            return { detected: false };
+        },
+
+        _detectHypovolemiaPattern(labAnalysis, vitalAnalysis) {
+            const bun = labAnalysis.findings.find(f => f.test === 'BUN' || f.test === 'UREA');
+            const cr = labAnalysis.findings.find(f => f.test === 'CR' || f.test === 'Cr');
+            const na = labAnalysis.findings.find(f => f.test === 'NA');
+            const tachycardia = vitalAnalysis.alerts.some(a => a.type === 'tachycardia');
+
+            if (bun && cr && (bun.value / cr.value) > 20 && tachycardia) {
+                return {
+                    detected: true,
+                    syndrome: 'Hypovolemia / Prerenal Azotemia',
+                    confidence: 80,
+                    severity: na && na.value > 145 ? 'Severe dehydration' : 'Moderate',
+                    recommendation: 'VOLUME RESUSCITATION: 1) IV crystalloid bolus (NS or LR 500-1000mL, reassess), 2) Identify source of volume loss: GI (vomiting, diarrhea, NGT), renal (diuretics, osmotic diuresis), third-spacing (burns, sepsis, pancreatitis), hemorrhage, 3) Monitor response: urine output, vital signs, BUN/Cr ratio should improve with fluids, 4) Calculate free water deficit if hypernatremic: Free water deficit = TBW × [(Na-140)/140], 5) Avoid over-resuscitation in heart failure or renal failure.'
                 };
             }
 
