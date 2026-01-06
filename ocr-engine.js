@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   OCR ENGINE v4.0 - Intelligent Clinical Report Parser
-   Google Vision for OCR + Claude API for intelligent extraction
+   OCR ENGINE v5.0 - GPT-5 Level Intelligent Clinical Report Parser
+   Powered by Claude Opus 4.5 Vision + Google Vision fallback
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
@@ -11,9 +11,10 @@
         VISION_API_URL: 'https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec',
         MAX_IMAGE_WIDTH: 1200,     // Reduced from 1600 for faster upload
         JPEG_QUALITY: 0.88,        // Reduced from 0.92 for smaller file size
-        USE_CLAUDE_PARSING: true,  // Enable Claude API for smart parsing
+        USE_CLAUDE_VISION: true,   // Enable Claude Opus 4.5 Vision (GPT-5 level)
+        USE_CLAUDE_FALLBACK: true, // Fallback to Google Vision if Claude fails
         VISION_TIMEOUT: 8000,      // 8 second timeout for Vision API
-        CLAUDE_TIMEOUT: 5000       // 5 second timeout for Claude parsing
+        CLAUDE_TIMEOUT: 15000      // 15 second timeout for Claude (more powerful, needs more time)
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -125,7 +126,75 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
-    // CLAUDE API - INTELLIGENT REPORT PARSING
+    // CLAUDE OPUS 4.5 VISION - GPT-5 LEVEL OCR WITH AI ANALYSIS
+    // ═══════════════════════════════════════════════════════════════════════
+    const callClaudeVision = async (dataUrl, callbacks = {}) => {
+        const { onProgress, onStage, onLog } = callbacks;
+
+        onLog?.('info', '🚀 Using Claude Opus 4.5 Vision (GPT-5 level)...');
+        onStage?.('Claude AI analyzing...');
+        onProgress?.(10);
+
+        try {
+            // Add timeout to prevent hanging
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), CONFIG.CLAUDE_TIMEOUT);
+
+            const response = await fetch(CONFIG.VISION_API_URL, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'claudeVision',
+                    image: dataUrl
+                }),
+                signal: controller.signal
+            });
+
+            clearTimeout(timeoutId);
+            onProgress?.(70);
+
+            const responseText = await response.text();
+
+            if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
+                throw new Error('Got HTML instead of JSON - Apps Script may need redeployment or ANTHROPIC_API_KEY not configured');
+            }
+
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseErr) {
+                throw new Error('Invalid JSON response: ' + responseText.substring(0, 200));
+            }
+
+            if (result.error) {
+                throw new Error(result.error);
+            }
+
+            onLog?.('success', `✨ Claude Opus 4.5: Found ${result.values?.length || 0} lab values`);
+            onProgress?.(95);
+
+            return {
+                success: true,
+                text: result.rawText || '',
+                values: result.values || [],
+                reportType: result.reportType || 'GENERAL',
+                confidence: result.confidence || 90,
+                source: 'claude_opus_4.5',
+                model: result.model || 'claude-opus-4-20250514'
+            };
+
+        } catch (err) {
+            if (err.name === 'AbortError') {
+                onLog?.('warn', `Claude timeout (${CONFIG.CLAUDE_TIMEOUT / 1000}s) - falling back to Google Vision`);
+            } else {
+                onLog?.('warn', `Claude Vision error: ${err.message} - falling back to Google Vision`);
+            }
+            return null;
+        }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // LEGACY CLAUDE TEXT PARSING (kept for compatibility)
     // ═══════════════════════════════════════════════════════════════════════
     const parseWithClaude = async (ocrText, callbacks = {}) => {
         const { onProgress, onStage, onLog } = callbacks;
@@ -431,19 +500,51 @@
     // ═══════════════════════════════════════════════════════════════════════
     const runOCR = async (imageSource, callbacks = {}) => {
         const { onProgress, onStage, onLog } = callbacks;
-        
+
         try {
             let dataUrl = imageSource;
-            
+
             // Compress if File
             if (imageSource instanceof File) {
                 onStage?.('Compressing image...');
                 onProgress?.(5);
                 dataUrl = await compressImage(imageSource);
             }
-            
-            // Step 1: OCR with Vision API
-            const ocrResult = await callVisionAPI(dataUrl, callbacks);
+
+            // Step 1: Try Claude Opus 4.5 Vision first (GPT-5 level)
+            let ocrResult = null;
+            let parseResult = null;
+
+            if (CONFIG.USE_CLAUDE_VISION) {
+                const claudeResult = await callClaudeVision(dataUrl, callbacks);
+
+                if (claudeResult && claudeResult.success) {
+                    // Claude Vision succeeded and already parsed the values!
+                    onLog?.('success', `✨ Claude Opus 4.5 complete: ${claudeResult.values.length} values extracted`);
+                    onProgress?.(100);
+                    onStage?.('Complete');
+
+                    return {
+                        text: claudeResult.text,
+                        values: claudeResult.values,
+                        labType: claudeResult.reportType || 'General',
+                        reportType: claudeResult.reportType || 'Laboratory',
+                        confidence: claudeResult.confidence,
+                        source: 'claude_opus_4.5',
+                        model: claudeResult.model,
+                        documentType: 'LABORATORY'
+                    };
+                }
+            }
+
+            // Step 2: Fallback to Google Vision if Claude not used or failed
+            if (CONFIG.USE_CLAUDE_FALLBACK || !CONFIG.USE_CLAUDE_VISION) {
+                onLog?.('info', 'Using Google Cloud Vision...');
+                ocrResult = await callVisionAPI(dataUrl, callbacks);
+            } else {
+                onLog?.('error', 'Claude Vision failed and fallback disabled');
+                throw new Error('OCR failed - Claude Vision unavailable and fallback disabled');
+            }
 
             if (!ocrResult.text || ocrResult.text.length < 10) {
                 return {
@@ -568,10 +669,11 @@
     // EXPOSE GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '4.2',
+        version: '5.0',  // Updated to v5.0 - Claude Opus 4.5 Vision (GPT-5 level)
         runOCR,
         compressImage,
         callVisionAPI,
+        callClaudeVision,
         parseWithClaude,
         parseWithRegex,
         preprocessOCRText,
@@ -579,10 +681,15 @@
         config: CONFIG,
         isReady: true,
 
-        // Allow toggling Claude parsing
-        enableClaudeParsing: () => { CONFIG.USE_CLAUDE_PARSING = true; },
-        disableClaudeParsing: () => { CONFIG.USE_CLAUDE_PARSING = false; }
+        // Configuration toggles
+        enableClaudeVision: () => { CONFIG.USE_CLAUDE_VISION = true; },
+        disableClaudeVision: () => { CONFIG.USE_CLAUDE_VISION = false; },
+        enableClaudeFallback: () => { CONFIG.USE_CLAUDE_FALLBACK = true; },
+        disableClaudeFallback: () => { CONFIG.USE_CLAUDE_FALLBACK = false; },
+
+        // Get current config
+        getConfig: () => ({ ...CONFIG })
     };
 
-    console.log('[OCREngine v4.2] Intelligent Clinical Report Parser with Minimal Filtering loaded');
+    console.log('[OCREngine v5.0] 🚀 GPT-5 Level AI Powered by Claude Opus 4.5 Vision loaded');
 })();
