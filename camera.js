@@ -1,815 +1,1226 @@
 /**
- * Camera Module for Unit E Ward Rounds
- * Handles camera input, file compression, and image capture functionality
- * Version: 2.1.0 - Fixed race conditions and iOS compatibility
+ * ╔══════════════════════════════════════════════════════════════════════════════╗
+ * ║  ADVANCED CAMERA MODULE v3.0                                                  ║
+ * ║  Professional Medical Imaging with Layout Options                             ║
+ * ╠══════════════════════════════════════════════════════════════════════════════╣
+ * ║  Features:                                                                    ║
+ * ║  • Multiple Layout Options (Full, Square, Document, Portrait)                ║
+ * ║  • Grid Overlay for Alignment                                                 ║
+ * ║  • Zoom Controls                                                              ║
+ * ║  • Flash Toggle                                                               ║
+ * ║  • Timer Mode                                                                 ║
+ * ║  • Quality Settings                                                           ║
+ * ║  • Enhanced iOS/Android Compatibility                                         ║
+ * ╚══════════════════════════════════════════════════════════════════════════════╝
  */
 
 (function(window) {
     'use strict';
 
-    /**
-     * Camera Module
-     * Provides camera capture functionality for medical imaging
-     */
-    const CameraModule = {
-        // Configuration
+    const AdvancedCameraModule = {
+        // ═══════════════════════════════════════════════════════════════════════
+        // CONFIGURATION
+        // ═══════════════════════════════════════════════════════════════════════
+        
         config: {
-            maxWidth: 1600,
-            quality: 0.95,
-            acceptedTypes: ['image/jpeg', 'image/png', 'image/jpg', 'image/webp'],
-            captureMode: 'environment', // Use back camera by default on mobile devices
-            preferNativeCamera: true, // Prefer getUserMedia over file input
-            previewEnabled: true // Show preview modal before capture
+            // Image settings
+            maxWidth: 1920,
+            maxHeight: 1080,
+            quality: 0.92,
+            format: 'image/jpeg',
+            
+            // Camera settings
+            defaultFacingMode: 'environment',
+            enableZoom: true,
+            enableFlash: true,
+            enableTimer: true,
+            enableGrid: true,
+            
+            // Layout options
+            defaultLayout: 'full',
+            availableLayouts: {
+                full: { name: 'Full Screen', aspectRatio: null, icon: '📱' },
+                square: { name: 'Square (1:1)', aspectRatio: 1, icon: '⬜' },
+                document: { name: 'Document (4:3)', aspectRatio: 4/3, icon: '📄' },
+                portrait: { name: 'Portrait (3:4)', aspectRatio: 3/4, icon: '🖼️' },
+                wide: { name: 'Wide (16:9)', aspectRatio: 16/9, icon: '🎬' },
+                lab: { name: 'Lab Report', aspectRatio: 0.7, icon: '🧪' }
+            },
+            
+            // Timer options
+            timerOptions: [0, 3, 5, 10],
+            
+            // Grid options
+            gridTypes: ['none', 'thirds', 'golden', 'center']
         },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // STATE
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        state: {
+            isOpen: false,
+            stream: null,
+            videoElement: null,
+            currentFacingMode: 'environment',
+            currentLayout: 'full',
+            currentZoom: 1,
+            maxZoom: 4,
+            flashMode: 'off',
+            timerSeconds: 0,
+            gridType: 'none',
+            isCapturing: false,
+            capabilities: null
+        },
+        
+        // Callbacks
+        _onCapture: null,
+        _onClose: null,
+        _onError: null,
+        
+        // DOM Elements
+        _modal: null,
+        _video: null,
+        _canvas: null,
+        _overlay: null,
 
-        // Internal state
-        _cameraInput: null,
-        _fileCallback: null,
-        _debugCallback: null,
-        _stream: null,
-        _videoElement: null,
-        _previewModal: null,
-        _currentFacingMode: 'environment',
-        _isCapturing: false, // Prevent double captures
-
-        /**
-         * Initialize the camera module
-         * @param {Object} options - Configuration options
-         * @param {Function} options.onFileSelected - Callback when file is selected
-         * @param {Function} options.onDebug - Optional debug logging callback
-         */
-        init: function(options = {}) {
-            this._fileCallback = options.onFileSelected || null;
-            this._debugCallback = options.onDebug || console.log;
-
-            this._log('info', 'Camera module initialized');
-
-            // Create hidden camera input if not exists
-            if (!this._cameraInput) {
-                this._createCameraInput();
+        // ═══════════════════════════════════════════════════════════════════════
+        // INITIALIZATION
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        init(options = {}) {
+            this._onCapture = options.onCapture || null;
+            this._onClose = options.onClose || null;
+            this._onError = options.onError || console.error;
+            
+            // Merge config
+            if (options.config) {
+                this.config = { ...this.config, ...options.config };
             }
-
+            
+            this.state.currentLayout = this.config.defaultLayout;
+            this.state.currentFacingMode = this.config.defaultFacingMode;
+            
+            console.log('[AdvancedCamera] Initialized');
             return this;
         },
 
-        /**
-         * Create hidden camera input element
-         * @private
-         */
-        _createCameraInput: function() {
-            // Check if input already exists
-            let existingInput = document.getElementById('camera-input-hidden');
-            if (existingInput) {
-                this._cameraInput = existingInput;
-                this._log('info', 'Using existing camera input element');
-                return;
-            }
-
-            // Create new input element
-            const input = document.createElement('input');
-            input.id = 'camera-input-hidden';
-            input.type = 'file';
-            input.accept = 'image/*';
-            input.capture = this.config.captureMode;
-            input.style.display = 'none';
-
-            // Add change event listener
-            input.addEventListener('change', (e) => this._handleInputChange(e));
-
-            // Append to body
-            document.body.appendChild(input);
-            this._cameraInput = input;
-
-            this._log('info', 'Camera input element created and attached');
-        },
-
-        /**
-         * Handle file input change event
-         * @private
-         */
-        _handleInputChange: function(e) {
-            const file = e.target.files?.[0];
-
-            if (file) {
-                this._log('info', `File selected: ${file.name} (${file.size} bytes)`);
-
-                if (this._fileCallback) {
-                    this._fileCallback(file);
-                }
-            } else {
-                this._log('warning', 'No file selected');
-            }
-
-            // Reset input value to allow selecting the same file again
-            e.target.value = '';
-        },
-
-        /**
-         * Open camera to capture image
-         * Uses getUserMedia if available and preferred, falls back to file input
-         */
-        openCamera: async function() {
+        // ═══════════════════════════════════════════════════════════════════════
+        // OPEN CAMERA
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        async open(onCapture, onClose) {
+            if (onCapture) this._onCapture = onCapture;
+            if (onClose) this._onClose = onClose;
+            
             try {
-                this._log('info', 'Opening camera...');
-                
-                // Check if getUserMedia is available and preferred
-                if (this.config.preferNativeCamera && this._isGetUserMediaSupported()) {
-                    this._log('info', 'Using getUserMedia API');
-                    return await this._openNativeCamera();
-                } else {
-                    this._log('info', 'Using file input fallback');
-                    return this._openFileInput();
+                // Check support
+                if (!this._isSupported()) {
+                    throw new Error('Camera not supported on this device');
                 }
-            } catch (error) {
-                this._log('error', `Failed to open camera: ${error.message}`);
                 
-                // Fallback to file input if native camera fails
-                if (this.config.preferNativeCamera) {
-                    this._log('info', 'Falling back to file input');
-                    return this._openFileInput();
-                }
-                return false;
-            }
-        },
-
-        /**
-         * Open file input (legacy method)
-         * @private
-         */
-        _openFileInput: function() {
-            if (!this._cameraInput) {
-                this._log('error', 'Camera input not initialized');
-                return false;
-            }
-
-            try {
-                this._cameraInput.click();
+                // Request camera
+                await this._startCamera();
+                
+                // Build and show UI
+                this._buildUI();
+                this.state.isOpen = true;
+                
+                console.log('[AdvancedCamera] Opened');
                 return true;
+                
             } catch (error) {
-                this._log('error', `Failed to open file input: ${error.message}`);
+                console.error('[AdvancedCamera] Open failed:', error);
+                this._handleError(error);
                 return false;
             }
         },
-
-        /**
-         * Open native camera with getUserMedia
-         * @private
-         */
-        _openNativeCamera: async function() {
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // CAMERA CONTROL
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        async _startCamera() {
+            const constraints = {
+                video: {
+                    facingMode: this.state.currentFacingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+            
             try {
-                // Request camera permission
-                await this._requestCameraPermission();
+                this.state.stream = await navigator.mediaDevices.getUserMedia(constraints);
                 
-                // Create and show preview modal
-                if (this.config.previewEnabled) {
-                    await this._showPreviewModal();
-                }
-                
-                return true;
-            } catch (error) {
-                this._log('error', `Native camera failed: ${error.message}`);
-                throw error;
-            }
-        },
-
-        /**
-         * Request camera permission
-         * @private
-         */
-        _requestCameraPermission: async function() {
-            try {
-                // Start with back camera (environment)
-                const constraints = {
-                    video: {
-                        facingMode: this._currentFacingMode,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    },
-                    audio: false
-                };
-
-                this._stream = await navigator.mediaDevices.getUserMedia(constraints);
-                this._log('info', 'Camera permission granted');
-                return this._stream;
-            } catch (error) {
-                // Try without facingMode constraint if it fails (some devices don't support it)
-                if (error.name === 'OverconstrainedError') {
-                    this._log('warning', 'FacingMode constraint failed, trying without it');
-                    try {
-                        this._stream = await navigator.mediaDevices.getUserMedia({
-                            video: { width: { ideal: 1920 }, height: { ideal: 1080 } },
-                            audio: false
-                        });
-                        this._log('info', 'Camera permission granted (without facingMode)');
-                        return this._stream;
-                    } catch (fallbackError) {
-                        this._log('error', `Camera fallback also failed: ${fallbackError.message}`);
+                // Get capabilities
+                const track = this.state.stream.getVideoTracks()[0];
+                if (track.getCapabilities) {
+                    this.state.capabilities = track.getCapabilities();
+                    if (this.state.capabilities.zoom) {
+                        this.state.maxZoom = this.state.capabilities.zoom.max || 4;
                     }
                 }
                 
-                this._log('error', `Camera permission denied: ${error.message}`);
-                this._showErrorMessage('Camera access denied. Please grant camera permissions and try again.');
-                throw error;
+                console.log('[AdvancedCamera] Camera started');
+                
+            } catch (error) {
+                // Try fallback without facingMode
+                if (error.name === 'OverconstrainedError') {
+                    console.log('[AdvancedCamera] Trying fallback constraints');
+                    this.state.stream = await navigator.mediaDevices.getUserMedia({
+                        video: true,
+                        audio: false
+                    });
+                } else {
+                    throw error;
+                }
             }
         },
-
-        /**
-         * Show camera preview modal
-         * @private
-         */
-        _showPreviewModal: async function() {
-            const self = this;
+        
+        async _switchCamera() {
+            this.state.currentFacingMode = this.state.currentFacingMode === 'environment' ? 'user' : 'environment';
             
-            return new Promise((resolve, reject) => {
-                // Prevent multiple modals
-                if (this._previewModal) {
-                    this._log('warning', 'Preview modal already open');
-                    resolve(false);
-                    return;
-                }
-
-                // Create modal overlay
-                const overlay = document.createElement('div');
-                overlay.id = 'camera-preview-modal';
-                overlay.style.cssText = `
+            // Stop current stream
+            this._stopStream();
+            
+            // Start new stream
+            await this._startCamera();
+            
+            // Attach to video
+            if (this._video) {
+                this._video.srcObject = this.state.stream;
+                await this._video.play();
+            }
+            
+            // Update UI
+            this._updateMirrorMode();
+        },
+        
+        _stopStream() {
+            if (this.state.stream) {
+                this.state.stream.getTracks().forEach(track => track.stop());
+                this.state.stream = null;
+            }
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // UI BUILDER
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _buildUI() {
+            // Remove existing modal
+            if (this._modal) {
+                this._modal.remove();
+            }
+            
+            // Create modal container
+            this._modal = document.createElement('div');
+            this._modal.id = 'advanced-camera-modal';
+            this._modal.innerHTML = this._getModalHTML();
+            
+            // Add styles
+            this._addStyles();
+            
+            // Append to body
+            document.body.appendChild(this._modal);
+            
+            // Get references
+            this._video = this._modal.querySelector('#camera-video');
+            this._canvas = this._modal.querySelector('#camera-canvas');
+            this._overlay = this._modal.querySelector('#camera-overlay');
+            
+            // Attach stream
+            this._video.srcObject = this.state.stream;
+            this._video.play();
+            
+            // Setup event listeners
+            this._setupEventListeners();
+            
+            // Apply initial layout
+            this._applyLayout(this.state.currentLayout);
+            
+            // Update mirror mode
+            this._updateMirrorMode();
+        },
+        
+        _getModalHTML() {
+            return `
+                <div class="adv-camera-backdrop">
+                    <div class="adv-camera-container">
+                        <!-- Top Bar -->
+                        <div class="adv-camera-topbar">
+                            <button class="adv-cam-btn adv-cam-close" id="cam-close">✕</button>
+                            <div class="adv-camera-title">📷 Camera</div>
+                            <button class="adv-cam-btn adv-cam-settings" id="cam-settings">⚙️</button>
+                        </div>
+                        
+                        <!-- Video Container -->
+                        <div class="adv-camera-video-wrapper" id="video-wrapper">
+                            <video id="camera-video" autoplay playsinline muted></video>
+                            <canvas id="camera-canvas" style="display:none;"></canvas>
+                            
+                            <!-- Overlay for grid/guides -->
+                            <div id="camera-overlay" class="adv-camera-overlay">
+                                <div class="grid-overlay" id="grid-overlay"></div>
+                                <div class="layout-frame" id="layout-frame"></div>
+                            </div>
+                            
+                            <!-- Timer Display -->
+                            <div class="timer-display" id="timer-display" style="display:none;">
+                                <span id="timer-count">3</span>
+                            </div>
+                            
+                            <!-- Flash Animation -->
+                            <div class="flash-overlay" id="flash-overlay"></div>
+                        </div>
+                        
+                        <!-- Layout Selector -->
+                        <div class="adv-camera-layouts" id="layout-selector">
+                            ${this._getLayoutButtonsHTML()}
+                        </div>
+                        
+                        <!-- Controls Bar -->
+                        <div class="adv-camera-controls">
+                            <div class="controls-row controls-secondary">
+                                <button class="adv-cam-ctrl" id="cam-grid" title="Grid">
+                                    <span class="ctrl-icon">▦</span>
+                                    <span class="ctrl-label">Grid</span>
+                                </button>
+                                <button class="adv-cam-ctrl" id="cam-timer" title="Timer">
+                                    <span class="ctrl-icon">⏱️</span>
+                                    <span class="ctrl-label" id="timer-label">Off</span>
+                                </button>
+                                <button class="adv-cam-ctrl" id="cam-zoom" title="Zoom">
+                                    <span class="ctrl-icon">🔍</span>
+                                    <span class="ctrl-label" id="zoom-label">1x</span>
+                                </button>
+                            </div>
+                            
+                            <div class="controls-row controls-primary">
+                                <button class="adv-cam-action adv-cam-gallery" id="cam-gallery">
+                                    <span>📁</span>
+                                </button>
+                                <button class="adv-cam-capture" id="cam-capture">
+                                    <div class="capture-ring"></div>
+                                    <div class="capture-inner"></div>
+                                </button>
+                                <button class="adv-cam-action adv-cam-switch" id="cam-switch">
+                                    <span>🔄</span>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Settings Panel (Hidden by default) -->
+                        <div class="adv-camera-settings-panel" id="settings-panel" style="display:none;">
+                            <div class="settings-header">
+                                <span>Camera Settings</span>
+                                <button class="settings-close" id="settings-close">✕</button>
+                            </div>
+                            <div class="settings-content">
+                                <div class="setting-item">
+                                    <label>Quality</label>
+                                    <select id="quality-select">
+                                        <option value="0.7">Normal (70%)</option>
+                                        <option value="0.85">High (85%)</option>
+                                        <option value="0.92" selected>Very High (92%)</option>
+                                        <option value="1.0">Maximum (100%)</option>
+                                    </select>
+                                </div>
+                                <div class="setting-item">
+                                    <label>Resolution</label>
+                                    <select id="resolution-select">
+                                        <option value="1280">HD (1280px)</option>
+                                        <option value="1920" selected>Full HD (1920px)</option>
+                                        <option value="2560">QHD (2560px)</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+        },
+        
+        _getLayoutButtonsHTML() {
+            let html = '';
+            for (const [key, layout] of Object.entries(this.config.availableLayouts)) {
+                const isActive = key === this.state.currentLayout ? 'active' : '';
+                html += `
+                    <button class="layout-btn ${isActive}" data-layout="${key}" title="${layout.name}">
+                        <span class="layout-icon">${layout.icon}</span>
+                        <span class="layout-name">${layout.name}</span>
+                    </button>
+                `;
+            }
+            return html;
+        },
+        
+        _addStyles() {
+            if (document.getElementById('adv-camera-styles')) return;
+            
+            const styles = document.createElement('style');
+            styles.id = 'adv-camera-styles';
+            styles.textContent = `
+                /* ═══════════════════════════════════════════════════════════════════ */
+                /* ADVANCED CAMERA STYLES                                              */
+                /* ═══════════════════════════════════════════════════════════════════ */
+                
+                .adv-camera-backdrop {
                     position: fixed;
                     top: 0;
                     left: 0;
                     right: 0;
                     bottom: 0;
-                    background: rgba(0, 0, 0, 0.95);
-                    z-index: 10000;
+                    background: #000;
+                    z-index: 99999;
+                    display: flex;
+                    flex-direction: column;
+                }
+                
+                .adv-camera-container {
+                    flex: 1;
+                    display: flex;
+                    flex-direction: column;
+                    max-width: 100%;
+                    max-height: 100%;
+                    overflow: hidden;
+                }
+                
+                /* Top Bar */
+                .adv-camera-topbar {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    padding: 12px 16px;
+                    background: rgba(0,0,0,0.8);
+                    color: white;
+                    z-index: 10;
+                }
+                
+                .adv-camera-title {
+                    font-size: 16px;
+                    font-weight: 600;
+                }
+                
+                .adv-cam-btn {
+                    background: rgba(255,255,255,0.1);
+                    border: none;
+                    color: white;
+                    width: 40px;
+                    height: 40px;
+                    border-radius: 50%;
+                    font-size: 18px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                
+                .adv-cam-btn:hover {
+                    background: rgba(255,255,255,0.2);
+                }
+                
+                /* Video Wrapper */
+                .adv-camera-video-wrapper {
+                    flex: 1;
+                    position: relative;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    background: #111;
+                    overflow: hidden;
+                }
+                
+                #camera-video {
+                    max-width: 100%;
+                    max-height: 100%;
+                    object-fit: contain;
+                    transition: transform 0.3s;
+                }
+                
+                #camera-video.mirror {
+                    transform: scaleX(-1);
+                }
+                
+                /* Overlay */
+                .adv-camera-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    pointer-events: none;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                /* Grid Overlay */
+                .grid-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                }
+                
+                .grid-overlay.thirds {
+                    background-image: 
+                        linear-gradient(rgba(255,255,255,0.3) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,0.3) 1px, transparent 1px);
+                    background-size: 33.33% 33.33%;
+                }
+                
+                .grid-overlay.golden {
+                    background-image: 
+                        linear-gradient(rgba(255,215,0,0.4) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,215,0,0.4) 1px, transparent 1px);
+                    background-size: 38.2% 38.2%;
+                    background-position: 30.9% 30.9%;
+                }
+                
+                .grid-overlay.center {
+                    background-image: 
+                        linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px);
+                    background-size: 50% 50%;
+                    background-position: center;
+                }
+                
+                /* Layout Frame */
+                .layout-frame {
+                    position: absolute;
+                    border: 3px solid rgba(255,255,255,0.8);
+                    border-radius: 8px;
+                    box-shadow: 0 0 0 9999px rgba(0,0,0,0.5);
+                    transition: all 0.3s ease;
+                }
+                
+                .layout-frame.hidden {
+                    display: none;
+                }
+                
+                /* Timer Display */
+                .timer-display {
+                    position: absolute;
+                    top: 50%;
+                    left: 50%;
+                    transform: translate(-50%, -50%);
+                    font-size: 120px;
+                    font-weight: bold;
+                    color: white;
+                    text-shadow: 0 0 30px rgba(0,0,0,0.8);
+                    z-index: 100;
+                    animation: timerPulse 1s ease-in-out infinite;
+                }
+                
+                @keyframes timerPulse {
+                    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+                    50% { transform: translate(-50%, -50%) scale(1.1); opacity: 0.8; }
+                }
+                
+                /* Flash Overlay */
+                .flash-overlay {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    background: white;
+                    opacity: 0;
+                    pointer-events: none;
+                    transition: opacity 0.1s;
+                }
+                
+                .flash-overlay.flash {
+                    animation: flashAnimation 0.2s ease-out;
+                }
+                
+                @keyframes flashAnimation {
+                    0% { opacity: 0.8; }
+                    100% { opacity: 0; }
+                }
+                
+                /* Layout Selector */
+                .adv-camera-layouts {
+                    display: flex;
+                    gap: 8px;
+                    padding: 12px 16px;
+                    background: rgba(0,0,0,0.9);
+                    overflow-x: auto;
+                    scrollbar-width: none;
+                    -ms-overflow-style: none;
+                }
+                
+                .adv-camera-layouts::-webkit-scrollbar {
+                    display: none;
+                }
+                
+                .layout-btn {
                     display: flex;
                     flex-direction: column;
                     align-items: center;
-                    justify-content: center;
-                `;
-
-                // Create video element
-                const video = document.createElement('video');
-                video.autoplay = true;
-                video.playsInline = true; // Critical for iOS
-                video.muted = true; // Required for autoplay on iOS
-                video.setAttribute('playsinline', ''); // iOS Safari
-                video.setAttribute('webkit-playsinline', ''); // Older iOS
-                video.style.cssText = `
-                    max-width: 90%;
-                    max-height: 70vh;
+                    gap: 4px;
+                    padding: 8px 12px;
+                    background: rgba(255,255,255,0.1);
+                    border: 2px solid transparent;
                     border-radius: 12px;
-                    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
-                    transform: ${self._currentFacingMode === 'user' ? 'scaleX(-1)' : 'none'};
-                `;
-
-                // Create controls container
-                const controls = document.createElement('div');
-                controls.style.cssText = `
-                    display: flex;
-                    gap: 16px;
-                    margin-top: 24px;
-                    flex-wrap: wrap;
-                    justify-content: center;
-                    padding: 0 16px;
-                `;
-
-                // Create buttons with enhanced styling
-                const buttonStyle = `
-                    padding: 14px 28px;
-                    border: none;
-                    border-radius: 50px;
-                    font-size: 16px;
-                    font-weight: 600;
+                    color: white;
                     cursor: pointer;
-                    transition: all 0.3s;
-                    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-                    touch-action: manipulation;
-                    -webkit-tap-highlight-color: transparent;
-                `;
-
-                const captureBtn = document.createElement('button');
-                captureBtn.innerHTML = '📸 Capture';
-                captureBtn.style.cssText = buttonStyle + `
-                    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
-                    color: white;
-                `;
-
-                const switchBtn = document.createElement('button');
-                switchBtn.innerHTML = '🔄 Switch Camera';
-                switchBtn.style.cssText = buttonStyle + `
-                    background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
-                    color: white;
-                `;
-
-                const cancelBtn = document.createElement('button');
-                cancelBtn.innerHTML = '✕ Cancel';
-                cancelBtn.style.cssText = buttonStyle + `
-                    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-                    color: white;
-                `;
-
-                // Add hover effects
-                [captureBtn, switchBtn, cancelBtn].forEach(btn => {
-                    btn.addEventListener('mouseenter', () => {
-                        btn.style.transform = 'translateY(-2px)';
-                        btn.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.4)';
-                    });
-                    btn.addEventListener('mouseleave', () => {
-                        btn.style.transform = 'translateY(0)';
-                        btn.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.3)';
-                    });
-                });
-
-                // Attach stream to video
-                video.srcObject = self._stream;
-                self._videoElement = video;
-
-                // Explicitly play video (required for iOS)
-                video.play().catch(err => {
-                    self._log('warning', `Video autoplay failed: ${err.message}`);
-                });
-
-                // Button handlers
-                captureBtn.onclick = async () => {
-                    if (self._isCapturing) return; // Prevent double capture
-                    self._isCapturing = true;
-                    captureBtn.disabled = true;
-                    captureBtn.innerHTML = '⏳ Processing...';
-                    
-                    try {
-                        const imageData = await self._captureFromVideo(video);
-                        self._cleanup();
-                        if (overlay.parentNode) {
-                            document.body.removeChild(overlay);
-                        }
-                        
-                        // Convert to file and trigger callback
-                        if (self._fileCallback && imageData) {
-                            const file = await self._dataURLtoFile(imageData, `camera-capture-${Date.now()}.jpg`);
-                            self._fileCallback(file);
-                        }
-                        
-                        self._isCapturing = false;
-                        resolve(true);
-                    } catch (error) {
-                        self._log('error', `Capture failed: ${error.message}`);
-                        self._isCapturing = false;
-                        captureBtn.disabled = false;
-                        captureBtn.innerHTML = '📸 Capture';
-                        self._showErrorMessage('Failed to capture photo. Please try again.');
-                    }
-                };
-
-                switchBtn.onclick = async () => {
-                    try {
-                        switchBtn.disabled = true;
-                        switchBtn.innerHTML = '⏳ Switching...';
-                        await self._switchCamera(video);
-                        // Update video mirror transform for front camera
-                        video.style.transform = self._currentFacingMode === 'user' ? 'scaleX(-1)' : 'none';
-                        switchBtn.disabled = false;
-                        switchBtn.innerHTML = '🔄 Switch Camera';
-                    } catch (error) {
-                        self._log('error', `Switch camera failed: ${error.message}`);
-                        switchBtn.disabled = false;
-                        switchBtn.innerHTML = '🔄 Switch Camera';
-                    }
-                };
-
-                cancelBtn.onclick = () => {
-                    self._cleanup();
-                    if (overlay.parentNode) {
-                        document.body.removeChild(overlay);
-                    }
-                    resolve(false);
-                };
-
-                // Assemble modal
-                controls.appendChild(captureBtn);
-                controls.appendChild(switchBtn);
-                controls.appendChild(cancelBtn);
-                overlay.appendChild(video);
-                overlay.appendChild(controls);
-
-                // Add status text for iOS
-                if (self._isIOS()) {
-                    const statusText = document.createElement('div');
-                    statusText.style.cssText = `
-                        color: white;
-                        text-align: center;
-                        margin-top: 16px;
-                        font-size: 14px;
-                        opacity: 0.8;
-                    `;
-                    statusText.textContent = 'iOS detected - optimized camera handling enabled';
-                    overlay.appendChild(statusText);
+                    transition: all 0.2s;
+                    min-width: 70px;
+                    flex-shrink: 0;
                 }
-
-                document.body.appendChild(overlay);
-                self._previewModal = overlay;
+                
+                .layout-btn:hover {
+                    background: rgba(255,255,255,0.2);
+                }
+                
+                .layout-btn.active {
+                    background: rgba(16, 185, 129, 0.3);
+                    border-color: #10b981;
+                }
+                
+                .layout-icon {
+                    font-size: 20px;
+                }
+                
+                .layout-name {
+                    font-size: 10px;
+                    white-space: nowrap;
+                }
+                
+                /* Controls */
+                .adv-camera-controls {
+                    padding: 16px;
+                    background: rgba(0,0,0,0.95);
+                }
+                
+                .controls-row {
+                    display: flex;
+                    justify-content: center;
+                    align-items: center;
+                    gap: 16px;
+                }
+                
+                .controls-secondary {
+                    margin-bottom: 20px;
+                }
+                
+                .adv-cam-ctrl {
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    gap: 4px;
+                    padding: 8px 16px;
+                    background: rgba(255,255,255,0.1);
+                    border: none;
+                    border-radius: 12px;
+                    color: white;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                }
+                
+                .adv-cam-ctrl:hover {
+                    background: rgba(255,255,255,0.2);
+                }
+                
+                .adv-cam-ctrl.active {
+                    background: rgba(16, 185, 129, 0.3);
+                    color: #10b981;
+                }
+                
+                .ctrl-icon {
+                    font-size: 18px;
+                }
+                
+                .ctrl-label {
+                    font-size: 11px;
+                }
+                
+                /* Capture Button */
+                .adv-cam-capture {
+                    position: relative;
+                    width: 72px;
+                    height: 72px;
+                    background: none;
+                    border: none;
+                    cursor: pointer;
+                    padding: 0;
+                }
+                
+                .capture-ring {
+                    position: absolute;
+                    top: 0;
+                    left: 0;
+                    right: 0;
+                    bottom: 0;
+                    border: 4px solid white;
+                    border-radius: 50%;
+                    transition: all 0.2s;
+                }
+                
+                .capture-inner {
+                    position: absolute;
+                    top: 6px;
+                    left: 6px;
+                    right: 6px;
+                    bottom: 6px;
+                    background: white;
+                    border-radius: 50%;
+                    transition: all 0.2s;
+                }
+                
+                .adv-cam-capture:hover .capture-inner {
+                    background: #10b981;
+                }
+                
+                .adv-cam-capture:active .capture-inner {
+                    transform: scale(0.9);
+                }
+                
+                .adv-cam-capture.capturing .capture-inner {
+                    background: #ef4444;
+                    animation: capturePulse 0.5s ease-in-out infinite;
+                }
+                
+                @keyframes capturePulse {
+                    0%, 100% { transform: scale(1); }
+                    50% { transform: scale(0.95); }
+                }
+                
+                /* Action Buttons */
+                .adv-cam-action {
+                    width: 50px;
+                    height: 50px;
+                    background: rgba(255,255,255,0.1);
+                    border: none;
+                    border-radius: 50%;
+                    color: white;
+                    font-size: 22px;
+                    cursor: pointer;
+                    transition: all 0.2s;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                }
+                
+                .adv-cam-action:hover {
+                    background: rgba(255,255,255,0.2);
+                    transform: scale(1.1);
+                }
+                
+                /* Settings Panel */
+                .adv-camera-settings-panel {
+                    position: absolute;
+                    top: 60px;
+                    right: 16px;
+                    background: rgba(30,30,30,0.98);
+                    border-radius: 16px;
+                    padding: 16px;
+                    min-width: 250px;
+                    z-index: 100;
+                    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+                }
+                
+                .settings-header {
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: center;
+                    color: white;
+                    font-weight: 600;
+                    margin-bottom: 16px;
+                    padding-bottom: 12px;
+                    border-bottom: 1px solid rgba(255,255,255,0.1);
+                }
+                
+                .settings-close {
+                    background: none;
+                    border: none;
+                    color: white;
+                    font-size: 18px;
+                    cursor: pointer;
+                    padding: 4px 8px;
+                }
+                
+                .setting-item {
+                    margin-bottom: 12px;
+                }
+                
+                .setting-item label {
+                    display: block;
+                    color: rgba(255,255,255,0.7);
+                    font-size: 12px;
+                    margin-bottom: 6px;
+                }
+                
+                .setting-item select {
+                    width: 100%;
+                    padding: 10px 12px;
+                    background: rgba(255,255,255,0.1);
+                    border: 1px solid rgba(255,255,255,0.2);
+                    border-radius: 8px;
+                    color: white;
+                    font-size: 14px;
+                }
+                
+                .setting-item select option {
+                    background: #333;
+                    color: white;
+                }
+                
+                /* Mobile Optimizations */
+                @media (max-width: 480px) {
+                    .adv-camera-layouts {
+                        padding: 8px 12px;
+                    }
+                    
+                    .layout-btn {
+                        padding: 6px 10px;
+                        min-width: 60px;
+                    }
+                    
+                    .layout-name {
+                        font-size: 9px;
+                    }
+                    
+                    .adv-cam-capture {
+                        width: 64px;
+                        height: 64px;
+                    }
+                    
+                    .adv-cam-action {
+                        width: 44px;
+                        height: 44px;
+                        font-size: 18px;
+                    }
+                }
+            `;
+            
+            document.head.appendChild(styles);
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // EVENT LISTENERS
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _setupEventListeners() {
+            // Close button
+            this._modal.querySelector('#cam-close').addEventListener('click', () => this.close());
+            
+            // Capture button
+            this._modal.querySelector('#cam-capture').addEventListener('click', () => this._handleCapture());
+            
+            // Switch camera
+            this._modal.querySelector('#cam-switch').addEventListener('click', () => this._switchCamera());
+            
+            // Gallery (fallback to file input)
+            this._modal.querySelector('#cam-gallery').addEventListener('click', () => this._openGallery());
+            
+            // Grid toggle
+            this._modal.querySelector('#cam-grid').addEventListener('click', () => this._toggleGrid());
+            
+            // Timer toggle
+            this._modal.querySelector('#cam-timer').addEventListener('click', () => this._toggleTimer());
+            
+            // Zoom toggle
+            this._modal.querySelector('#cam-zoom').addEventListener('click', () => this._toggleZoom());
+            
+            // Settings
+            this._modal.querySelector('#cam-settings').addEventListener('click', () => this._toggleSettings());
+            this._modal.querySelector('#settings-close').addEventListener('click', () => this._toggleSettings());
+            
+            // Quality change
+            this._modal.querySelector('#quality-select').addEventListener('change', (e) => {
+                this.config.quality = parseFloat(e.target.value);
+            });
+            
+            // Resolution change
+            this._modal.querySelector('#resolution-select').addEventListener('change', (e) => {
+                this.config.maxWidth = parseInt(e.target.value);
+            });
+            
+            // Layout buttons
+            this._modal.querySelectorAll('.layout-btn').forEach(btn => {
+                btn.addEventListener('click', () => {
+                    const layout = btn.dataset.layout;
+                    this._applyLayout(layout);
+                    
+                    // Update active state
+                    this._modal.querySelectorAll('.layout-btn').forEach(b => b.classList.remove('active'));
+                    btn.classList.add('active');
+                });
+            });
+            
+            // Pinch zoom (mobile)
+            this._setupPinchZoom();
+        },
+        
+        _setupPinchZoom() {
+            let initialDistance = 0;
+            let initialZoom = 1;
+            
+            const videoWrapper = this._modal.querySelector('#video-wrapper');
+            
+            videoWrapper.addEventListener('touchstart', (e) => {
+                if (e.touches.length === 2) {
+                    initialDistance = this._getDistance(e.touches[0], e.touches[1]);
+                    initialZoom = this.state.currentZoom;
+                }
+            });
+            
+            videoWrapper.addEventListener('touchmove', (e) => {
+                if (e.touches.length === 2) {
+                    e.preventDefault();
+                    const currentDistance = this._getDistance(e.touches[0], e.touches[1]);
+                    const scale = currentDistance / initialDistance;
+                    const newZoom = Math.min(this.state.maxZoom, Math.max(1, initialZoom * scale));
+                    this._setZoom(newZoom);
+                }
             });
         },
-
-        /**
-         * Capture image from video element
-         * @private
-         */
-        _captureFromVideo: async function(video) {
-            // Wait for video to be ready
-            if (video.readyState < 2) {
-                await new Promise(resolve => {
-                    video.onloadeddata = resolve;
-                    setTimeout(resolve, 1000); // Fallback timeout
-                });
+        
+        _getDistance(touch1, touch2) {
+            const dx = touch1.clientX - touch2.clientX;
+            const dy = touch1.clientY - touch2.clientY;
+            return Math.sqrt(dx * dx + dy * dy);
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // LAYOUT MANAGEMENT
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _applyLayout(layoutKey) {
+            this.state.currentLayout = layoutKey;
+            const layout = this.config.availableLayouts[layoutKey];
+            const frame = this._modal.querySelector('#layout-frame');
+            const wrapper = this._modal.querySelector('#video-wrapper');
+            
+            if (!layout.aspectRatio || layoutKey === 'full') {
+                frame.classList.add('hidden');
+                return;
             }
-
-            const canvas = document.createElement('canvas');
-            canvas.width = video.videoWidth || 1920;
-            canvas.height = video.videoHeight || 1080;
-
+            
+            frame.classList.remove('hidden');
+            
+            // Calculate frame size based on wrapper dimensions
+            const wrapperRect = wrapper.getBoundingClientRect();
+            const wrapperAspect = wrapperRect.width / wrapperRect.height;
+            
+            let frameWidth, frameHeight;
+            
+            if (layout.aspectRatio > wrapperAspect) {
+                // Width-constrained
+                frameWidth = wrapperRect.width * 0.9;
+                frameHeight = frameWidth / layout.aspectRatio;
+            } else {
+                // Height-constrained
+                frameHeight = wrapperRect.height * 0.9;
+                frameWidth = frameHeight * layout.aspectRatio;
+            }
+            
+            frame.style.width = `${frameWidth}px`;
+            frame.style.height = `${frameHeight}px`;
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // GRID MANAGEMENT
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _toggleGrid() {
+            const gridTypes = this.config.gridTypes;
+            const currentIndex = gridTypes.indexOf(this.state.gridType);
+            const nextIndex = (currentIndex + 1) % gridTypes.length;
+            this.state.gridType = gridTypes[nextIndex];
+            
+            const gridOverlay = this._modal.querySelector('#grid-overlay');
+            gridOverlay.className = 'grid-overlay';
+            
+            if (this.state.gridType !== 'none') {
+                gridOverlay.classList.add(this.state.gridType);
+            }
+            
+            // Update button state
+            const gridBtn = this._modal.querySelector('#cam-grid');
+            gridBtn.classList.toggle('active', this.state.gridType !== 'none');
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // TIMER MANAGEMENT
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _toggleTimer() {
+            const options = this.config.timerOptions;
+            const currentIndex = options.indexOf(this.state.timerSeconds);
+            const nextIndex = (currentIndex + 1) % options.length;
+            this.state.timerSeconds = options[nextIndex];
+            
+            // Update label
+            const label = this._modal.querySelector('#timer-label');
+            label.textContent = this.state.timerSeconds === 0 ? 'Off' : `${this.state.timerSeconds}s`;
+            
+            // Update button state
+            const timerBtn = this._modal.querySelector('#cam-timer');
+            timerBtn.classList.toggle('active', this.state.timerSeconds > 0);
+        },
+        
+        async _runTimer() {
+            const display = this._modal.querySelector('#timer-display');
+            const count = this._modal.querySelector('#timer-count');
+            
+            display.style.display = 'block';
+            
+            for (let i = this.state.timerSeconds; i > 0; i--) {
+                count.textContent = i;
+                await this._sleep(1000);
+            }
+            
+            display.style.display = 'none';
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // ZOOM MANAGEMENT
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _toggleZoom() {
+            const zoomLevels = [1, 1.5, 2, 3];
+            const currentIndex = zoomLevels.indexOf(this.state.currentZoom);
+            const nextIndex = (currentIndex + 1) % zoomLevels.length;
+            this._setZoom(zoomLevels[nextIndex]);
+        },
+        
+        _setZoom(zoom) {
+            this.state.currentZoom = zoom;
+            
+            // Apply zoom via CSS transform
+            this._video.style.transform = `scale(${zoom})${this.state.currentFacingMode === 'user' ? ' scaleX(-1)' : ''}`;
+            
+            // Update label
+            const label = this._modal.querySelector('#zoom-label');
+            label.textContent = `${zoom}x`;
+            
+            // Try hardware zoom if supported
+            if (this.state.stream && this.state.capabilities?.zoom) {
+                const track = this.state.stream.getVideoTracks()[0];
+                track.applyConstraints({ advanced: [{ zoom: zoom }] }).catch(() => {});
+            }
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // CAPTURE
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        async _handleCapture() {
+            if (this.state.isCapturing) return;
+            this.state.isCapturing = true;
+            
+            const captureBtn = this._modal.querySelector('#cam-capture');
+            captureBtn.classList.add('capturing');
+            
+            try {
+                // Run timer if set
+                if (this.state.timerSeconds > 0) {
+                    await this._runTimer();
+                }
+                
+                // Flash effect
+                this._flashEffect();
+                
+                // Capture image
+                const imageData = await this._captureImage();
+                
+                // Convert to file
+                const file = await this._dataURLtoFile(imageData, `capture-${Date.now()}.jpg`);
+                
+                // Callback
+                if (this._onCapture) {
+                    this._onCapture(file);
+                }
+                
+                // Close after capture
+                this.close();
+                
+            } catch (error) {
+                console.error('[AdvancedCamera] Capture error:', error);
+                this._handleError(error);
+            } finally {
+                this.state.isCapturing = false;
+                captureBtn.classList.remove('capturing');
+            }
+        },
+        
+        async _captureImage() {
+            const video = this._video;
+            const canvas = this._canvas;
+            const layout = this.config.availableLayouts[this.state.currentLayout];
+            
+            // Get video dimensions
+            let sourceWidth = video.videoWidth;
+            let sourceHeight = video.videoHeight;
+            
+            // Calculate crop if layout has aspect ratio
+            let sx = 0, sy = 0, sw = sourceWidth, sh = sourceHeight;
+            
+            if (layout.aspectRatio) {
+                const videoAspect = sourceWidth / sourceHeight;
+                
+                if (layout.aspectRatio > videoAspect) {
+                    // Crop top and bottom
+                    sh = sourceWidth / layout.aspectRatio;
+                    sy = (sourceHeight - sh) / 2;
+                } else {
+                    // Crop left and right
+                    sw = sourceHeight * layout.aspectRatio;
+                    sx = (sourceWidth - sw) / 2;
+                }
+            }
+            
+            // Set canvas size
+            let outputWidth = sw;
+            let outputHeight = sh;
+            
+            if (outputWidth > this.config.maxWidth) {
+                const scale = this.config.maxWidth / outputWidth;
+                outputWidth = this.config.maxWidth;
+                outputHeight *= scale;
+            }
+            
+            canvas.width = outputWidth;
+            canvas.height = outputHeight;
+            
+            // Draw
             const ctx = canvas.getContext('2d');
             
-            // If using front camera, flip the image
-            if (this._currentFacingMode === 'user') {
+            // Handle mirror for front camera
+            if (this.state.currentFacingMode === 'user') {
                 ctx.translate(canvas.width, 0);
                 ctx.scale(-1, 1);
             }
             
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-
-            return canvas.toDataURL('image/jpeg', this.config.quality);
+            ctx.drawImage(video, sx, sy, sw, sh, 0, 0, outputWidth, outputHeight);
+            
+            return canvas.toDataURL(this.config.format, this.config.quality);
         },
-
-        /**
-         * Switch between front and back camera
-         * @private
-         */
-        _switchCamera: async function(video) {
-            try {
-                // Stop current stream
-                if (this._stream) {
-                    this._stream.getTracks().forEach(track => track.stop());
-                }
-
-                // Toggle facing mode
-                this._currentFacingMode = this._currentFacingMode === 'environment' ? 'user' : 'environment';
-
-                // Request new stream
-                const constraints = {
-                    video: {
-                        facingMode: this._currentFacingMode,
-                        width: { ideal: 1920 },
-                        height: { ideal: 1080 }
-                    },
-                    audio: false
-                };
-
-                try {
-                    this._stream = await navigator.mediaDevices.getUserMedia(constraints);
-                } catch (constraintError) {
-                    // Fallback without facingMode if not supported
-                    this._log('warning', 'FacingMode switch failed, trying without constraint');
-                    this._stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
-                }
-                
-                video.srcObject = this._stream;
-                await video.play();
-
-                this._log('info', `Switched to ${this._currentFacingMode} camera`);
-            } catch (error) {
-                this._log('error', `Failed to switch camera: ${error.message}`);
-                this._showErrorMessage('Unable to switch camera. Your device may only have one camera.');
-                throw error;
+        
+        _flashEffect() {
+            const flash = this._modal.querySelector('#flash-overlay');
+            flash.classList.add('flash');
+            setTimeout(() => flash.classList.remove('flash'), 200);
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // UTILITIES
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        _updateMirrorMode() {
+            if (this._video) {
+                this._video.classList.toggle('mirror', this.state.currentFacingMode === 'user');
             }
         },
-
-        /**
-         * Convert data URL to File object
-         * @private
-         */
-        _dataURLtoFile: async function(dataurl, filename) {
+        
+        _toggleSettings() {
+            const panel = this._modal.querySelector('#settings-panel');
+            panel.style.display = panel.style.display === 'none' ? 'block' : 'none';
+        },
+        
+        _openGallery() {
+            // Create hidden file input
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = async (e) => {
+                const file = e.target.files?.[0];
+                if (file && this._onCapture) {
+                    this._onCapture(file);
+                    this.close();
+                }
+            };
+            input.click();
+        },
+        
+        async _dataURLtoFile(dataurl, filename) {
             const arr = dataurl.split(',');
             const mime = arr[0].match(/:(.*?);/)[1];
             const bstr = atob(arr[1]);
             let n = bstr.length;
             const u8arr = new Uint8Array(n);
-            
-            while (n--) {
-                u8arr[n] = bstr.charCodeAt(n);
-            }
-            
+            while (n--) u8arr[n] = bstr.charCodeAt(n);
             return new File([u8arr], filename, { type: mime });
         },
-
-        /**
-         * Cleanup camera resources
-         * @private
-         */
-        _cleanup: function() {
-            if (this._stream) {
-                this._stream.getTracks().forEach(track => track.stop());
-                this._stream = null;
-            }
-            if (this._videoElement) {
-                this._videoElement.srcObject = null;
-                this._videoElement = null;
-            }
-            this._previewModal = null;
-            this._isCapturing = false;
-            this._log('info', 'Camera resources cleaned up');
+        
+        _sleep(ms) {
+            return new Promise(resolve => setTimeout(resolve, ms));
         },
-
-        /**
-         * Check if getUserMedia is supported
-         * @private
-         */
-        _isGetUserMediaSupported: function() {
+        
+        _isSupported() {
             return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia);
         },
-
-        /**
-         * Check if running on iOS
-         * @private
-         */
-        _isIOS: function() {
-            return /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-        },
-
-        /**
-         * Show error message to user
-         * @private
-         */
-        _showErrorMessage: function(message) {
-            // Try to use toast notification if available
-            if (window.showToast) {
-                window.showToast('❌ ' + message);
+        
+        _handleError(error) {
+            let message = 'Camera error occurred';
+            
+            if (error.name === 'NotAllowedError') {
+                message = 'Camera access denied. Please grant permission.';
+            } else if (error.name === 'NotFoundError') {
+                message = 'No camera found on this device.';
+            } else if (error.name === 'NotReadableError') {
+                message = 'Camera is in use by another application.';
+            }
+            
+            if (this._onError) {
+                this._onError(message);
             } else {
                 alert(message);
             }
         },
-
-        /**
-         * Compress image file
-         * @param {File} file - Image file to compress
-         * @param {Number} maxWidth - Maximum width (optional)
-         * @returns {Promise<String>} - Base64 encoded compressed image
-         */
-        compressImage: async function(file, maxWidth = null) {
-            maxWidth = maxWidth || this.config.maxWidth;
-
-            return new Promise((resolve, reject) => {
-                // Validate file type
-                if (!file || !file.type.startsWith('image/')) {
-                    reject(new Error('Invalid file type. Please select an image.'));
-                    return;
-                }
-
-                this._log('info', `Compressing image: ${file.name}`);
-
-                const reader = new FileReader();
-
-                reader.onload = (e) => {
-                    const img = new Image();
-
-                    img.onload = () => {
-                        try {
-                            // Get EXIF orientation
-                            this._getOrientation(file, (orientation) => {
-                                const canvas = document.createElement('canvas');
-                                let width = img.width;
-                                let height = img.height;
-
-                                // Calculate new dimensions while maintaining aspect ratio
-                                if (width > maxWidth) {
-                                    height = Math.round((height * maxWidth) / width);
-                                    width = maxWidth;
-                                }
-
-                                // Handle orientation
-                                if (orientation > 4 && orientation < 9) {
-                                    canvas.width = height;
-                                    canvas.height = width;
-                                } else {
-                                    canvas.width = width;
-                                    canvas.height = height;
-                                }
-
-                                // Get context with optimized settings
-                                const ctx = canvas.getContext('2d', { alpha: false });
-
-                                // White background for medical imaging consistency
-                                ctx.fillStyle = '#FFFFFF';
-                                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                                // Transform canvas based on EXIF orientation
-                                switch (orientation) {
-                                    case 2:
-                                        ctx.transform(-1, 0, 0, 1, width, 0);
-                                        break;
-                                    case 3:
-                                        ctx.transform(-1, 0, 0, -1, width, height);
-                                        break;
-                                    case 4:
-                                        ctx.transform(1, 0, 0, -1, 0, height);
-                                        break;
-                                    case 5:
-                                        ctx.transform(0, 1, 1, 0, 0, 0);
-                                        break;
-                                    case 6:
-                                        ctx.transform(0, 1, -1, 0, height, 0);
-                                        break;
-                                    case 7:
-                                        ctx.transform(0, -1, -1, 0, height, width);
-                                        break;
-                                    case 8:
-                                        ctx.transform(0, -1, 1, 0, 0, width);
-                                        break;
-                                    default:
-                                        break;
-                                }
-
-                                // Draw image with high quality
-                                ctx.imageSmoothingEnabled = true;
-                                ctx.imageSmoothingQuality = 'high';
-                                ctx.drawImage(img, 0, 0, width, height);
-
-                                // Convert to base64 with high quality
-                                const compressed = canvas.toDataURL('image/jpeg', this.config.quality);
-
-                                this._log('info', `Image compressed successfully: ${canvas.width}x${canvas.height}, orientation: ${orientation}`);
-                                resolve(compressed);
-                            });
-
-                        } catch (error) {
-                            this._log('error', `Compression failed: ${error.message}`);
-                            reject(error);
-                        }
-                    };
-
-                    img.onerror = () => {
-                        const error = new Error('Failed to load image');
-                        this._log('error', error.message);
-                        reject(error);
-                    };
-
-                    img.src = e.target.result;
-                };
-
-                reader.onerror = () => {
-                    const error = new Error('Failed to read file');
-                    this._log('error', error.message);
-                    reject(error);
-                };
-
-                reader.readAsDataURL(file);
-            });
-        },
-
-        /**
-         * Get EXIF orientation from image file
-         * @private
-         */
-        _getOrientation: function(file, callback) {
-            const reader = new FileReader();
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // CLOSE
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        close() {
+            this._stopStream();
             
-            reader.onload = (e) => {
-                const view = new DataView(e.target.result);
-                
-                if (view.getUint16(0, false) !== 0xFFD8) {
-                    callback(-2);
-                    return;
-                }
-                
-                const length = view.byteLength;
-                let offset = 2;
-                
-                while (offset < length) {
-                    if (view.getUint16(offset + 2, false) <= 8) {
-                        callback(-1);
-                        return;
-                    }
-                    
-                    const marker = view.getUint16(offset, false);
-                    offset += 2;
-                    
-                    if (marker === 0xFFE1) {
-                        if (view.getUint32(offset += 2, false) !== 0x45786966) {
-                            callback(-1);
-                            return;
-                        }
-                        
-                        const little = view.getUint16(offset += 6, false) === 0x4949;
-                        offset += view.getUint32(offset + 4, little);
-                        const tags = view.getUint16(offset, little);
-                        offset += 2;
-                        
-                        for (let i = 0; i < tags; i++) {
-                            if (view.getUint16(offset + (i * 12), little) === 0x0112) {
-                                callback(view.getUint16(offset + (i * 12) + 8, little));
-                                return;
-                            }
-                        }
-                    } else if ((marker & 0xFF00) !== 0xFF00) {
-                        break;
-                    } else {
-                        offset += view.getUint16(offset, false);
-                    }
-                }
-                
-                callback(-1);
-            };
-            
-            reader.readAsArrayBuffer(file.slice(0, 64 * 1024));
-        },
-
-        /**
-         * Check if camera is supported
-         * @returns {Boolean}
-         */
-        isCameraSupported: function() {
-            // Check if getUserMedia API is available
-            const hasGetUserMedia = !!(
-                navigator.mediaDevices &&
-                navigator.mediaDevices.getUserMedia
-            );
-
-            // Check if file input with capture is supported
-            const input = document.createElement('input');
-            const hasCapture = 'capture' in input;
-
-            return hasGetUserMedia || hasCapture;
-        },
-
-        /**
-         * Get camera status information
-         * @returns {Object}
-         */
-        getStatus: function() {
-            return {
-                initialized: !!this._cameraInput,
-                supported: this.isCameraSupported(),
-                inputElement: !!this._cameraInput,
-                captureMode: this.config.captureMode,
-                hasGetUserMedia: this._isGetUserMediaSupported(),
-                isIOS: this._isIOS()
-            };
-        },
-
-        /**
-         * Update configuration
-         * @param {Object} newConfig - New configuration options
-         */
-        updateConfig: function(newConfig) {
-            this.config = { ...this.config, ...newConfig };
-            this._log('info', 'Configuration updated', this.config);
-        },
-
-        /**
-         * Internal logging method
-         * @private
-         */
-        _log: function(type, message, data = null) {
-            const logMessage = `[Camera Module] ${message}`;
-
-            if (this._debugCallback) {
-                this._debugCallback(type, logMessage, data);
-            }
-
-            // Also log to console
-            if (type === 'error') {
-                console.error(logMessage, data || '');
-            } else if (type === 'warning') {
-                console.warn(logMessage, data || '');
-            } else {
-                console.log(logMessage, data || '');
-            }
-        },
-
-        /**
-         * Destroy camera module and clean up
-         */
-        destroy: function() {
-            // Cleanup camera resources
-            this._cleanup();
-            
-            // Remove input element
-            if (this._cameraInput && this._cameraInput.parentNode) {
-                this._cameraInput.parentNode.removeChild(this._cameraInput);
+            if (this._modal) {
+                this._modal.remove();
+                this._modal = null;
             }
             
-            this._cameraInput = null;
-            this._fileCallback = null;
-            this._debugCallback = null;
-            this._log('info', 'Camera module destroyed');
+            this.state.isOpen = false;
+            
+            if (this._onClose) {
+                this._onClose();
+            }
+            
+            console.log('[AdvancedCamera] Closed');
+        },
+        
+        // ═══════════════════════════════════════════════════════════════════════
+        // PUBLIC API
+        // ═══════════════════════════════════════════════════════════════════════
+        
+        isOpen() {
+            return this.state.isOpen;
+        },
+        
+        getState() {
+            return { ...this.state };
+        },
+        
+        setLayout(layoutKey) {
+            if (this.config.availableLayouts[layoutKey]) {
+                this._applyLayout(layoutKey);
+            }
+        },
+        
+        getAvailableLayouts() {
+            return Object.keys(this.config.availableLayouts);
         }
     };
-
-    // Export to window
-    window.CameraModule = CameraModule;
-
-    // Auto-initialize on DOM ready if config exists
-    if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('[Camera Module] Ready for initialization');
-        });
-    }
-
+    
+    // Export
+    window.AdvancedCameraModule = AdvancedCameraModule;
+    window.CameraModule = AdvancedCameraModule; // Backwards compatibility
+    
+    console.log('✅ Advanced Camera Module v3.0 loaded');
+    
 })(window);
