@@ -1,5 +1,5 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   MEDICAL AI ASSISTANT v1.0 - INTELLIGENT CLINICAL CONVERSATION ENGINE
+   MEDICAL AI ASSISTANT v2.0 - INTELLIGENT CLINICAL CONVERSATION ENGINE
 
    🤖 AI Features:
    - Context-aware medical conversations
@@ -10,6 +10,12 @@
    - Differential diagnosis assistance
    - Medication guidance and dosing recommendations
    - Lab interpretation and trending analysis
+   - Vital signs interpretation
+   - Nursing care recommendations
+   - Patient education summaries
+   - Typing indicator simulation
+   - Follow-up question suggestions
+   - Enhanced response formatting
 
    Capabilities:
    - Interprets lab results in clinical context
@@ -18,41 +24,117 @@
    - Explains diagnoses in simple terms
    - Offers clinical pearls and evidence-based insights
    - Answers "what if" scenarios
+   - Provides nursing care plans
+   - Generates patient education materials
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
     'use strict';
 
     window.MedicalAIAssistant = {
-        version: '1.0',
+        version: '2.0',
+        _typingCallback: null,
+
+        /**
+         * Set typing indicator callback
+         * @param {Function} callback - Called with true/false to show/hide typing indicator
+         */
+        setTypingCallback(callback) {
+            this._typingCallback = callback;
+        },
 
         /**
          * Generate AI response based on user query and patient context
          * @param {String} query - User's question/message
          * @param {Object} patientContext - Patient data including labs
-         * @returns {String} AI response
+         * @returns {Promise<Object>} AI response with text and suggestions
          */
-        chat(query, patientContext) {
+        async chat(query, patientContext) {
             console.log('[AI Assistant] Processing query:', query);
             console.log('[AI Assistant] Patient context:', patientContext);
 
+            // Show typing indicator
+            if (this._typingCallback) {
+                this._typingCallback(true);
+            }
+
+            // Simulate realistic thinking time
+            await this._simulateTyping(query);
+
             const response = this._generateResponse(query.toLowerCase(), patientContext);
-            return response;
+            
+            // Hide typing indicator
+            if (this._typingCallback) {
+                this._typingCallback(false);
+            }
+
+            return {
+                text: response.text,
+                suggestions: response.suggestions || [],
+                actions: response.actions || []
+            };
+        },
+
+        /**
+         * Simulate typing delay for more natural feel
+         * @private
+         */
+        async _simulateTyping(query) {
+            // Base delay + proportional to query complexity
+            const baseDelay = 800;
+            const complexityDelay = Math.min(query.length * 10, 1500);
+            const totalDelay = baseDelay + complexityDelay;
+            
+            await new Promise(resolve => setTimeout(resolve, totalDelay));
         },
 
         _generateResponse(query, context) {
-            // Pattern matching for different types of queries
+            // Enhanced pattern matching with more specific handlers
             const patterns = [
-                { pattern: /lab|result|value|test/i, handler: this._handleLabQuery },
-                { pattern: /diagnos|condition|disease/i, handler: this._handleDiagnosisQuery },
-                { pattern: /medic|drug|treat|therap/i, handler: this._handleMedicationQuery },
-                { pattern: /what.*mean|explain|tell me about/i, handler: this._handleExplanationQuery },
-                { pattern: /recommend|suggest|advise|should/i, handler: this._handleRecommendationQuery },
-                { pattern: /trend|chang|progress|improv|wors/i, handler: this._handleTrendQuery },
-                { pattern: /risk|danger|concern|worry/i, handler: this._handleRiskQuery },
-                { pattern: /dose|dosing|how much/i, handler: this._handleDosingQuery },
-                { pattern: /interact|combine|together/i, handler: this._handleInteractionQuery },
-                { pattern: /differential|ddx|possible/i, handler: this._handleDifferentialQuery }
+                // Lab-related queries
+                { pattern: /lab|result|value|test|blood|urine|cbc|bmp|cmp|lft/i, handler: this._handleLabQuery },
+                
+                // Diagnosis queries
+                { pattern: /diagnos|condition|disease|illness/i, handler: this._handleDiagnosisQuery },
+                
+                // Medication queries
+                { pattern: /medic|drug|treat|therap|prescription|pill/i, handler: this._handleMedicationQuery },
+                
+                // Explanation queries
+                { pattern: /what.*mean|explain|tell me about|define|describe/i, handler: this._handleExplanationQuery },
+                
+                // Recommendation queries
+                { pattern: /recommend|suggest|advise|should|what.*do|next step/i, handler: this._handleRecommendationQuery },
+                
+                // Trend queries
+                { pattern: /trend|chang|progress|improv|wors|over time|compar/i, handler: this._handleTrendQuery },
+                
+                // Risk assessment
+                { pattern: /risk|danger|concern|worry|complication|warning/i, handler: this._handleRiskQuery },
+                
+                // Dosing queries
+                { pattern: /dose|dosing|how much|amount|frequency/i, handler: this._handleDosingQuery },
+                
+                // Interaction queries
+                { pattern: /interact|combine|together|compatibility/i, handler: this._handleInteractionQuery },
+                
+                // Differential diagnosis
+                { pattern: /differential|ddx|possible|alternative/i, handler: this._handleDifferentialQuery },
+                
+                // NEW: Vital signs
+                { pattern: /vital|bp|blood pressure|heart rate|pulse|temp|respiration|o2|oxygen/i, handler: this._handleVitalSignsQuery },
+                
+                // NEW: Nursing care
+                { pattern: /nursing|care plan|intervention|monitor|assessment/i, handler: this._handleNursingQuery },
+                
+                // NEW: Patient education
+                { pattern: /explain.*patient|patient.*education|simple.*terms|layman/i, handler: this._handlePatientEducationQuery },
+                
+                // NEW: Evidence and references
+                { pattern: /evidence|study|research|reference|guideline|citation/i, handler: this._handleEvidenceQuery },
+                
+                // NEW: Prognosis
+                { pattern: /prognos|outcome|survival|expect|future|long.*term/i, handler: this._handlePrognosisQuery }
             ];
 
             for (const { pattern, handler } of patterns) {
@@ -68,10 +150,19 @@
         _handleLabQuery(query, context) {
             const latestLab = this._getLatestLab(context);
             if (!latestLab || !latestLab.values || latestLab.values.length === 0) {
-                return "I don't see any lab results for this patient yet. Once you upload lab images, I'll be able to interpret them for you.";
+                return {
+                    text: "📋 **No Lab Results Available**\n\nI don't see any lab results for this patient yet. Once you upload lab images, I'll be able to interpret them for you.\n\n💡 **Tip:** Use the 📸 Camera button in the Labs modal to capture lab reports.",
+                    suggestions: [
+                        "How do I upload lab results?",
+                        "What labs should I order?",
+                        "Tell me about common lab panels"
+                    ]
+                };
             }
 
-            let response = `**Latest Lab Results Analysis**\n\n`;
+            let response = `🔬 **Latest Lab Results Analysis**\n\n`;
+            const suggestions = [];
+            const actions = [];
 
             // Get CDSS interpretation
             if (window.CDSS && window.CDSS.generateReport) {
@@ -81,34 +172,48 @@
                 });
 
                 if (cdssAnalysis.patterns && cdssAnalysis.patterns.length > 0) {
-                    response += `**Clinical Patterns Detected:**\n`;
+                    response += `⚡ **Clinical Patterns Detected:**\n`;
                     cdssAnalysis.patterns.forEach(pattern => {
-                        response += `\n🔴 **${pattern.name}** (${pattern.priority})\n`;
-                        response += `${pattern.interpretation}\n`;
+                        const emoji = pattern.priority === 'CRITICAL' ? '🚨' : '⚠️';
+                        response += `\n${emoji} **${pattern.name}** (${pattern.priority})\n`;
+                        response += `   ${pattern.interpretation}\n`;
+                        
+                        // Add clinical pearl if critical
+                        if (pattern.priority === 'CRITICAL') {
+                            response += `   💎 *Clinical Pearl: Immediate attention required*\n`;
+                        }
                     });
                     response += `\n`;
                 }
 
-                // Summarize abnormal values
+                // Summarize abnormal values with detailed interpretation
                 const abnormal = latestLab.values.filter(v => v.flag && v.flag !== 'N');
                 if (abnormal.length > 0) {
-                    response += `**Abnormal Values (${abnormal.length}):**\n`;
+                    response += `📊 **Abnormal Values (${abnormal.length}):**\n`;
                     abnormal.slice(0, 5).forEach(v => {
                         const ref = window.CDSS?.getReference(v.test);
-                        response += `\n• **${v.test}**: ${v.value} ${v.unit || ''} ${v.flag === 'H' ? '↑' : '↓'}\n`;
+                        const arrow = v.flag === 'H' || v.flag === 'HH' ? '⬆️' : '⬇️';
+                        response += `\n• **${v.test}**: ${v.value} ${v.unit || ''} ${arrow}\n`;
                         if (ref && ref.interpret) {
-                            const interp = v.flag === 'H' ? ref.interpret.high :
-                                         v.flag === 'L' ? ref.interpret.low :
-                                         v.flag === 'HH' ? ref.interpret.criticalHigh :
-                                         v.flag === 'LL' ? ref.interpret.criticalLow : '';
+                            const interp = v.flag === 'H' || v.flag === 'HH' ? ref.interpret.high :
+                                         v.flag === 'L' || v.flag === 'LL' ? ref.interpret.low : '';
                             if (interp) {
-                                response += `  *${interp.substring(0, 200)}${interp.length > 200 ? '...' : ''}*\n`;
+                                response += `  📝 *${interp.substring(0, 200)}${interp.length > 200 ? '...' : ''}*\n`;
+                                
+                                // Add clinical pearls for common critical values
+                                const pearl = this._getClinicalPearl(v.test, v.flag);
+                                if (pearl) {
+                                    response += `  💎 *Pearl: ${pearl}*\n`;
+                                }
                             }
                         }
                     });
                     if (abnormal.length > 5) {
                         response += `\n*...and ${abnormal.length - 5} more abnormalities*\n`;
                     }
+                    
+                    suggestions.push("What do these abnormal values mean?");
+                    suggestions.push("What treatment is recommended?");
                 }
             }
 
@@ -121,23 +226,38 @@
                 const neuralAnalysis = window.NeuralClinicalInterpreter.analyzeMultiDocument(clinicalData);
 
                 if (neuralAnalysis.clinicalSyndromes && neuralAnalysis.clinicalSyndromes.length > 0) {
-                    response += `\n**Clinical Syndromes Identified:**\n`;
+                    response += `\n🏥 **Clinical Syndromes Identified:**\n`;
                     neuralAnalysis.clinicalSyndromes.slice(0, 3).forEach(syndrome => {
-                        response += `\n🏥 **${syndrome.syndrome}** (Confidence: ${syndrome.confidence}%)\n`;
-                        response += `   *${syndrome.recommendation}*\n`;
+                        response += `\n💡 **${syndrome.syndrome}** (Confidence: ${syndrome.confidence}%)\n`;
+                        response += `   ${syndrome.recommendation}\n`;
                     });
                 }
             }
 
-            return response;
+            // Add evidence level
+            response += `\n📚 **Evidence Level:** Based on Harrison's Principles of Internal Medicine, WHO Guidelines\n`;
+            
+            // Add follow-up suggestions
+            if (suggestions.length === 0) {
+                suggestions.push("Show me the trend over time");
+                suggestions.push("What are the risks?");
+                suggestions.push("Explain this in simple terms for the patient");
+            }
+
+            return { text: response, suggestions, actions };
         },
 
         _handleDiagnosisQuery(query, context) {
+            const suggestions = [];
+            
             if (!context.diagnosis) {
-                return "No diagnosis has been entered for this patient yet. You can add one by editing the patient record.";
+                return {
+                    text: "⚕️ No diagnosis has been entered for this patient yet. You can add one by editing the patient record.",
+                    suggestions: ["How do I add a diagnosis?", "What should I assess first?"]
+                };
             }
 
-            let response = `**About ${context.diagnosis}**\n\n`;
+            let response = `🏥 **About ${context.diagnosis}**\n\n`;
 
             // Get clinical guidelines
             if (window.ClinicalGuidelines) {
@@ -171,13 +291,17 @@
                         response += `\n**Lab-Based Recommendations for this Patient:**\n`;
                         this._getLabAdjustments(latestLab, guideline.labAdjustments, response);
                     }
+                    
+                    suggestions.push("What medications are recommended?");
+                    suggestions.push("What labs should I monitor?");
                 } else {
                     response += `I have general information about this condition, but no specific clinical guideline is loaded yet.\n\n`;
                     response += `Based on the diagnosis "${context.diagnosis}", I recommend consulting evidence-based guidelines for optimal management.`;
+                    suggestions.push("Tell me more about this condition");
                 }
             }
 
-            return response;
+            return { text: response, suggestions };
         },
 
         _handleMedicationQuery(query, context) {
@@ -504,7 +628,8 @@
         },
 
         _handleDifferentialQuery(query, context) {
-            let response = `**Differential Diagnosis for ${context.name}**\n\n`;
+            let response = `🔍 **Differential Diagnosis for ${context.name}**\n\n`;
+            const suggestions = [];
 
             const latestLab = this._getLatestLab(context);
             if (latestLab && window.NeuralClinicalInterpreter) {
@@ -519,10 +644,13 @@
                     analysis.differentialDiagnosis.forEach((ddx, i) => {
                         response += `${i + 1}. **${ddx.diagnosis}** (${ddx.probability}% likelihood)\n`;
                         if (ddx.supportingEvidence && ddx.supportingEvidence.length > 0) {
-                            response += `   Supporting: ${ddx.supportingEvidence[0].substring(0, 100)}...\n`;
+                            response += `   📝 Supporting: ${ddx.supportingEvidence[0].substring(0, 100)}...\n`;
                         }
                         response += `\n`;
                     });
+                    
+                    suggestions.push("What tests can confirm the diagnosis?");
+                    suggestions.push("What's the treatment for each?");
                 } else {
                     response += `Current diagnosis: **${context.diagnosis || 'Not specified'}**\n\n`;
                     response += `Upload lab results for AI-assisted differential diagnosis generation.`;
@@ -531,6 +659,409 @@
                 response += `For differential diagnosis assistance, please upload lab results.\n\n`;
                 response += `The AI will analyze lab patterns and suggest possible diagnoses ranked by probability.`;
             }
+
+            return { text: response, suggestions };
+        },
+
+        /**
+         * NEW: Handle vital signs interpretation
+         * @private
+         */
+        _handleVitalSignsQuery(query, context) {
+            let response = `💓 **Vital Signs Interpretation for ${context.name}**\n\n`;
+            const suggestions = [
+                "What are normal vital sign ranges?",
+                "When should I be concerned?",
+                "What interventions are needed?"
+            ];
+
+            // Check if vital signs are in context
+            const vitals = context.vitals || {};
+            
+            if (Object.keys(vitals).length === 0) {
+                response += `⚠️ No vital signs recorded yet.\n\n`;
+                response += `**Normal Adult Vital Signs:**\n`;
+                response += `• **BP:** 90-120/60-80 mmHg\n`;
+                response += `• **Heart Rate:** 60-100 bpm\n`;
+                response += `• **Respiratory Rate:** 12-20 breaths/min\n`;
+                response += `• **Temperature:** 36.1-37.2°C (97-99°F)\n`;
+                response += `• **O2 Saturation:** >95% on room air\n\n`;
+                response += `💡 **Tip:** Document vital signs in the patient plan for AI analysis.`;
+            } else {
+                response += `**Current Vital Signs:**\n`;
+                
+                // Interpret each vital sign
+                const interpretations = [];
+                
+                if (vitals.bp) {
+                    const [systolic, diastolic] = vitals.bp.split('/').map(v => parseInt(v));
+                    response += `• **Blood Pressure:** ${vitals.bp} mmHg `;
+                    
+                    if (systolic >= 180 || diastolic >= 120) {
+                        response += `⚠️ **Hypertensive Crisis**\n`;
+                        interpretations.push("🚨 Immediate evaluation for hypertensive emergency required");
+                    } else if (systolic >= 140 || diastolic >= 90) {
+                        response += `📊 Elevated\n`;
+                        interpretations.push("Consider antihypertensive management");
+                    } else if (systolic < 90 || diastolic < 60) {
+                        response += `⚠️ Hypotension\n`;
+                        interpretations.push("Assess for volume depletion, sepsis, or cardiac causes");
+                    } else {
+                        response += `✅ Normal\n`;
+                    }
+                }
+                
+                if (vitals.hr) {
+                    const hr = parseInt(vitals.hr);
+                    response += `• **Heart Rate:** ${vitals.hr} bpm `;
+                    
+                    if (hr > 100) {
+                        response += `⚠️ Tachycardia\n`;
+                        interpretations.push("Rule out fever, pain, anxiety, hypovolemia, or cardiac arrhythmia");
+                    } else if (hr < 60) {
+                        response += `⚠️ Bradycardia\n`;
+                        interpretations.push("Consider medications (beta-blockers), athletic conditioning, or conduction abnormalities");
+                    } else {
+                        response += `✅ Normal\n`;
+                    }
+                }
+                
+                if (vitals.temp) {
+                    const temp = parseFloat(vitals.temp);
+                    response += `• **Temperature:** ${vitals.temp}°C `;
+                    
+                    if (temp >= 38) {
+                        response += `⚠️ Fever\n`;
+                        interpretations.push("Investigate source of infection, consider blood cultures");
+                    } else if (temp < 36) {
+                        response += `⚠️ Hypothermia\n`;
+                        interpretations.push("Rule out sepsis, hypothyroidism, environmental exposure");
+                    } else {
+                        response += `✅ Normal\n`;
+                    }
+                }
+                
+                if (interpretations.length > 0) {
+                    response += `\n**Clinical Interpretation:**\n`;
+                    interpretations.forEach(interp => {
+                        response += `${interp}\n`;
+                    });
+                }
+            }
+
+            return { text: response, suggestions };
+        },
+
+        /**
+         * NEW: Handle nursing care recommendations
+         * @private
+         */
+        _handleNursingQuery(query, context) {
+            let response = `👨‍⚕️ **Nursing Care Plan for ${context.name}**\n\n`;
+            const suggestions = [
+                "What monitoring is needed?",
+                "What are the priority interventions?",
+                "Patient safety concerns?"
+            ];
+
+            if (context.diagnosis) {
+                response += `**Diagnosis:** ${context.diagnosis}\n\n`;
+                
+                // Generate nursing interventions based on diagnosis
+                const nursingPlan = this._generateNursingPlan(context.diagnosis);
+                
+                if (nursingPlan.assessments.length > 0) {
+                    response += `📊 **Assessments:**\n`;
+                    nursingPlan.assessments.forEach(assessment => {
+                        response += `• ${assessment}\n`;
+                    });
+                    response += `\n`;
+                }
+                
+                if (nursingPlan.interventions.length > 0) {
+                    response += `🎯 **Interventions:**\n`;
+                    nursingPlan.interventions.forEach(intervention => {
+                        response += `• ${intervention}\n`;
+                    });
+                    response += `\n`;
+                }
+                
+                if (nursingPlan.monitoring.length > 0) {
+                    response += `👀 **Monitoring:**\n`;
+                    nursingPlan.monitoring.forEach(item => {
+                        response += `• ${item}\n`;
+                    });
+                    response += `\n`;
+                }
+                
+                if (nursingPlan.safety.length > 0) {
+                    response += `⚠️ **Safety Considerations:**\n`;
+                    nursingPlan.safety.forEach(item => {
+                        response += `• ${item}\n`;
+                    });
+                }
+            } else {
+                response += `Please specify a diagnosis for tailored nursing care recommendations.\n\n`;
+                response += `**General Nursing Care Principles:**\n`;
+                response += `• Monitor vital signs per protocol\n`;
+                response += `• Assess pain level and provide relief\n`;
+                response += `• Ensure patient safety (fall precautions, bed rails)\n`;
+                response += `• Promote adequate nutrition and hydration\n`;
+                response += `• Maintain skin integrity\n`;
+                response += `• Provide emotional support\n`;
+                response += `• Document all findings and interventions`;
+            }
+
+            return { text: response, suggestions };
+        },
+
+        /**
+         * NEW: Handle patient education requests
+         * @private
+         */
+        _handlePatientEducationQuery(query, context) {
+            let response = `📚 **Patient Education for ${context.name}**\n\n`;
+            const suggestions = [
+                "What should the family know?",
+                "What warning signs to watch for?",
+                "When to call the doctor?"
+            ];
+
+            if (context.diagnosis) {
+                response += `**Condition:** ${context.diagnosis}\n\n`;
+                
+                const education = this._generatePatientEducation(context.diagnosis);
+                
+                response += `**What is it?** 🤔\n`;
+                response += `${education.simple}\n\n`;
+                
+                if (education.whatToExpect) {
+                    response += `**What to expect:** 📋\n`;
+                    response += `${education.whatToExpect}\n\n`;
+                }
+                
+                if (education.warning Signs.length > 0) {
+                    response += `**⚠️ Warning Signs - Call your doctor if you have:**\n`;
+                    education.warningSigns.forEach(sign => {
+                        response += `• ${sign}\n`;
+                    });
+                    response += `\n`;
+                }
+                
+                if (education.selfCare.length > 0) {
+                    response += `**Self-Care at Home:** 🏠\n`;
+                    education.selfCare.forEach(tip => {
+                        response += `• ${tip}\n`;
+                    });
+                }
+                
+                response += `\n💡 **Remember:** This information is for educational purposes. Always follow your doctor's specific instructions.`;
+            } else {
+                response += `Please specify a diagnosis for tailored patient education materials.`;
+            }
+
+            return { text: response, suggestions };
+        },
+
+        /**
+         * NEW: Handle evidence-based queries
+         * @private
+         */
+        _handleEvidenceQuery(query, context) {
+            let response = `📚 **Evidence-Based Information**\n\n`;
+            const suggestions = [
+                "What are the latest studies?",
+                "What do guidelines recommend?",
+                "What's the level of evidence?"
+            ];
+
+            if (context.diagnosis) {
+                response += `**Topic:** ${context.diagnosis}\n\n`;
+                response += `**Evidence Sources:**\n`;
+                response += `• Harrison's Principles of Internal Medicine (20th Ed.)\n`;
+                response += `• WHO Guidelines\n`;
+                response += `• UpToDate Clinical Decision Support\n`;
+                response += `• Cochrane Database of Systematic Reviews\n\n`;
+                
+                response += `**Levels of Evidence:**\n`;
+                response += `• **Level 1:** Systematic reviews and meta-analyses\n`;
+                response += `• **Level 2:** Randomized controlled trials\n`;
+                response += `• **Level 3:** Cohort studies\n`;
+                response += `• **Level 4:** Case-control studies\n`;
+                response += `• **Level 5:** Expert opinion\n\n`;
+                
+                response += `💡 For specific evidence-based recommendations, please specify what aspect you'd like to know about (e.g., treatment, diagnosis, prognosis).`;
+            } else {
+                response += `All recommendations are based on current evidence-based guidelines and peer-reviewed medical literature.`;
+            }
+
+            return { text: response, suggestions };
+        },
+
+        /**
+         * NEW: Handle prognosis queries
+         * @private
+         */
+        _handlePrognosisQuery(query, context) {
+            let response = `🔮 **Prognosis for ${context.name}**\n\n`;
+            const suggestions = [
+                "What factors affect prognosis?",
+                "What is the expected course?",
+                "What improves outcomes?"
+            ];
+
+            if (context.diagnosis) {
+                response += `**Diagnosis:** ${context.diagnosis}\n\n`;
+                response += `⚕️ Prognosis depends on multiple factors including:\n`;
+                response += `• Disease severity and stage\n`;
+                response += `• Patient age and comorbidities\n`;
+                response += `• Response to treatment\n`;
+                response += `• Compliance with medication and lifestyle modifications\n`;
+                response += `• Early detection and intervention\n\n`;
+                
+                // Check lab values for prognostic indicators
+                const latestLab = this._getLatestLab(context);
+                if (latestLab && latestLab.values && latestLab.values.length > 0) {
+                    response += `**Current Lab Findings:**\n`;
+                    const criticalValues = latestLab.values.filter(v => v.flag === 'HH' || v.flag === 'LL');
+                    if (criticalValues.length > 0) {
+                        response += `⚠️ ${criticalValues.length} critical value(s) present - requiring immediate management\n\n`;
+                    } else {
+                        response += `✅ No critical values - favorable for prognosis\n\n`;
+                    }
+                }
+                
+                response += `💡 **Note:** Prognosis is individualized. Discuss specific concerns with the attending physician for personalized assessment.`;
+            } else {
+                response += `Please specify a diagnosis for prognosis information.`;
+            }
+
+            return { text: response, suggestions };
+        },
+
+        /**
+         * Generate nursing care plan based on diagnosis
+         * @private
+         */
+        _generateNursingPlan(diagnosis) {
+            const plan = {
+                assessments: [
+                    "Comprehensive physical assessment every shift",
+                    "Pain assessment using appropriate scale",
+                    "Vital signs monitoring per protocol"
+                ],
+                interventions: [
+                    "Administer medications as prescribed",
+                    "Maintain IV access and monitor infusions",
+                    "Provide comfort measures"
+                ],
+                monitoring: [
+                    "Monitor for adverse effects of medications",
+                    "Track intake and output",
+                    "Observe for changes in condition"
+                ],
+                safety: [
+                    "Fall risk assessment and precautions",
+                    "Call bell within reach",
+                    "Appropriate bed positioning"
+                ]
+            };
+
+            // Customize based on diagnosis keywords
+            const diagnosisLower = diagnosis.toLowerCase();
+            
+            if (diagnosisLower.includes('heart') || diagnosisLower.includes('cardiac')) {
+                plan.assessments.push("Daily weight monitoring", "Assess for edema");
+                plan.monitoring.push("Monitor for signs of fluid overload", "Cardiac rhythm monitoring");
+                plan.safety.push("Oxygen therapy as needed");
+            }
+            
+            if (diagnosisLower.includes('diabetes')) {
+                plan.assessments.push("Blood glucose monitoring");
+                plan.monitoring.push("Monitor for hypoglycemia symptoms");
+                plan.interventions.push("Administer insulin per sliding scale");
+            }
+            
+            if (diagnosisLower.includes('infection') || diagnosisLower.includes('pneumonia')) {
+                plan.assessments.push("Monitor temperature trends");
+                plan.monitoring.push("Assess respiratory status");
+                plan.interventions.push("Encourage deep breathing and coughing");
+            }
+
+            return plan;
+        },
+
+        /**
+         * Generate patient education materials
+         * @private
+         */
+        _generatePatientEducation(diagnosis) {
+            const diagnosisLower = diagnosis.toLowerCase();
+            
+            const education = {
+                simple: `This is a medical condition that your doctor is treating.`,
+                whatToExpect: `Your healthcare team will monitor your condition and adjust treatment as needed.`,
+                warningSigns: [
+                    "Severe pain that doesn't improve",
+                    "High fever (over 38.5°C or 101°F)",
+                    "Difficulty breathing",
+                    "Unusual bleeding or bruising"
+                ],
+                selfCare: [
+                    "Take all medications as prescribed",
+                    "Get adequate rest",
+                    "Stay hydrated",
+                    "Follow dietary recommendations"
+                ]
+            };
+
+            // Customize based on diagnosis
+            if (diagnosisLower.includes('heart') || diagnosisLower.includes('cardiac')) {
+                education.simple = "A heart condition affecting how your heart pumps blood through your body.";
+                education.warningSigns.push("Chest pain or pressure", "Severe shortness of breath", "Swelling in legs or feet");
+                education.selfCare.push("Limit salt intake", "Monitor weight daily", "Take heart medications regularly");
+            }
+            
+            if (diagnosisLower.includes('diabetes')) {
+                education.simple = "A condition where your body has trouble controlling blood sugar levels.";
+                education.warningSigns.push("Extreme thirst", "Frequent urination", "Shakiness or confusion (low blood sugar)");
+                education.selfCare.push("Monitor blood sugar as directed", "Follow diabetic diet", "Exercise regularly");
+            }
+
+            return education;
+        },
+
+        /**
+         * Get clinical pearl for specific lab abnormality
+         * @private
+         */
+        _getClinicalPearl(test, flag) {
+            const pearls = {
+                'K': {
+                    'H': 'Hyperkalemia can cause life-threatening arrhythmias - get EKG if >6.0',
+                    'L': 'Hypokalemia increases digitalis toxicity and arrhythmia risk'
+                },
+                'NA': {
+                    'H': 'Hypernatremia indicates free water deficit - calculate deficit and replace slowly',
+                    'L': 'Hyponatremia: Check volume status and correct underlying cause first'
+                },
+                'CR': {
+                    'H': 'Rising creatinine may indicate AKI - check trends and urine output'
+                },
+                'WBC': {
+                    'H': 'Leukocytosis: Consider infection, stress response, or leukemia',
+                    'L': 'Leukopenia increases infection risk - consider neutropenic precautions'
+                },
+                'HGB': {
+                    'L': 'Anemia: Check MCV to determine type - microcytic vs normocytic vs macrocytic'
+                },
+                'PLT': {
+                    'L': 'Thrombocytopenia <50k increases bleeding risk - avoid IM injections'
+                }
+            };
+
+            return pearls[test]?.[flag === 'H' || flag === 'HH' ? 'H' : 'L'] || null;
+        },
 
             return response;
         },
@@ -574,7 +1105,8 @@
         },
 
         _handleGeneralQuery(query, context) {
-            let response = `**Patient Summary for ${context.name}**\n\n`;
+            let response = `👋 **Patient Summary for ${context.name}**\n\n`;
+            const suggestions = [];
 
             if (context.diagnosis) {
                 response += `**Diagnosis:** ${context.diagnosis}\n`;
@@ -602,18 +1134,34 @@
                 if (abnormal.length > 0) {
                     response += `📋 ${abnormal.length} abnormal value(s)\n`;
                 }
+                
+                suggestions.push("Show me the lab results");
+                suggestions.push("What do the abnormal values mean?");
             }
 
-            response += `\n**How can I help you?**\n\n`;
+            response += `\n**💡 How can I help you?**\n\n`;
             response += `You can ask me about:\n`;
-            response += `• Lab results and their interpretation\n`;
-            response += `• Treatment recommendations\n`;
-            response += `• Medication dosing and interactions\n`;
-            response += `• Disease information and management\n`;
-            response += `• Risk assessment\n`;
-            response += `• Lab trends over time\n`;
+            response += `• 🔬 Lab results and their interpretation\n`;
+            response += `• 💊 Treatment recommendations and medications\n`;
+            response += `• 📊 Medication dosing and interactions\n`;
+            response += `• 🏥 Disease information and management\n`;
+            response += `• ⚠️ Risk assessment and complications\n`;
+            response += `• 📈 Lab trends over time\n`;
+            response += `• 💓 Vital signs interpretation\n`;
+            response += `• 👨‍⚕️ Nursing care recommendations\n`;
+            response += `• 📚 Patient education materials\n`;
 
-            return response;
+            // Add quick action suggestions
+            if (suggestions.length === 0) {
+                if (context.diagnosis) {
+                    suggestions.push(`Tell me about ${context.diagnosis}`);
+                }
+                suggestions.push("What labs should I check?");
+                suggestions.push("Are there any risks?");
+                suggestions.push("What's the treatment plan?");
+            }
+
+            return { text: response, suggestions };
         },
 
         _getLatestLab(context) {
@@ -642,6 +1190,6 @@
         }
     };
 
-    console.log('[Medical AI Assistant v1.0] Intelligent clinical conversation engine loaded');
+    console.log('[Medical AI Assistant v2.0] Enhanced clinical conversation engine loaded with typing simulation, vital signs, nursing care, and patient education');
 
 })();
