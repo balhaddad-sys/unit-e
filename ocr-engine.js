@@ -175,6 +175,87 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
+    // TEXT PREPROCESSING - FILTER UNNECESSARY CONTENT
+    // ═══════════════════════════════════════════════════════════════════════
+    const preprocessOCRText = (text) => {
+        // Remove common headers, footers, and non-data content
+        const linesToRemove = [
+            /^page\s*\d+/i,                          // Page numbers
+            /^hospital|clinic|medical center/i,       // Hospital names
+            /^patient\s*name/i,                      // Patient info headers
+            /^date\s*of\s*birth/i,
+            /^mrn|^medical\s*record/i,
+            /^collected|collection\s*date/i,
+            /^received|report\s*date/i,
+            /^provider|physician|doctor/i,
+            /^account\s*#|^accession/i,
+            /^laboratory|^lab\s*name/i,
+            /^confidential|^for\s*authorized/i,
+            /^end\s*of\s*report/i,
+            /^\s*-+\s*$/,                            // Separator lines
+            /^\s*=+\s*$/,
+            /^\s*\*+\s*$/,
+            /^printed\s*on|^printed\s*at/i,
+            /^fax|^phone|^address/i,
+            /^copyright|^\(c\)/i
+        ];
+
+        // Keep only lines that are likely to contain lab data
+        const lines = text.split('\n');
+        const filteredLines = lines.filter(line => {
+            const trimmed = line.trim();
+
+            // Skip empty lines
+            if (!trimmed) return false;
+
+            // Skip lines matching removal patterns
+            for (const pattern of linesToRemove) {
+                if (pattern.test(trimmed)) return false;
+            }
+
+            // Keep lines with numbers (likely lab values)
+            if (/\d/.test(trimmed)) return true;
+
+            // Keep lines with lab test keywords
+            const labKeywords = [
+                'wbc', 'rbc', 'hemoglobin', 'hgb', 'hct', 'platelet', 'plt',
+                'sodium', 'potassium', 'chloride', 'glucose', 'creatinine',
+                'bun', 'calcium', 'magnesium', 'phosphorus',
+                'ast', 'alt', 'alkaline', 'bilirubin', 'albumin', 'protein',
+                'pt', 'inr', 'ptt', 'aptt',
+                'tsh', 'troponin', 'bnp', 'lactate',
+                'reference', 'range', 'normal', 'abnormal', 'flag'
+            ];
+
+            const lowerLine = trimmed.toLowerCase();
+            if (labKeywords.some(kw => lowerLine.includes(kw))) return true;
+
+            // Skip lines that are too short (likely headers)
+            if (trimmed.length < 3) return false;
+
+            // Skip lines that are all uppercase and no numbers (likely section headers)
+            if (trimmed === trimmed.toUpperCase() && !/\d/.test(trimmed)) {
+                // But keep important section headers
+                if (/test|result|value|lab|impression|finding|diagnosis/i.test(trimmed)) {
+                    return true;
+                }
+                return false;
+            }
+
+            return true;
+        });
+
+        // Rejoin filtered lines
+        let cleanedText = filteredLines.join('\n');
+
+        // Remove excessive whitespace
+        cleanedText = cleanedText.replace(/\n{3,}/g, '\n\n');
+        cleanedText = cleanedText.replace(/[ \t]+/g, ' ');
+
+        return cleanedText.trim();
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
     // NEURAL DOCUMENT TYPE DETECTION
     // ═══════════════════════════════════════════════════════════════════════
     const detectDocumentType = (text) => {
@@ -401,22 +482,34 @@
             
             // Step 1: OCR with Vision API
             const ocrResult = await callVisionAPI(dataUrl, callbacks);
-            
+
             if (!ocrResult.text || ocrResult.text.length < 10) {
-                return { 
-                    text: ocrResult.text, 
-                    values: [], 
+                return {
+                    text: ocrResult.text,
+                    values: [],
                     labType: 'Unknown',
                     reportType: 'Unknown',
                     confidence: 0,
                     source: 'google_vision'
                 };
             }
-            
+
+            // Step 1.5: Preprocess OCR text to remove unnecessary content
+            onStage?.('Filtering unnecessary text...');
+            onProgress?.(52);
+            const rawText = ocrResult.text;
+            const cleanedText = preprocessOCRText(rawText);
+            const reductionPercent = Math.round((1 - cleanedText.length / rawText.length) * 100);
+            onLog?.('info', `Text preprocessing: removed ${reductionPercent}% of non-lab content (${rawText.length} → ${cleanedText.length} chars)`);
+
+            // Update OCR result with cleaned text
+            ocrResult.text = cleanedText;
+            ocrResult.rawText = rawText; // Keep original for reference
+
             // Step 2: Neural Document Type Detection
             onStage?.('Detecting document type...');
             onProgress?.(55);
-            const docType = detectDocumentType(ocrResult.text);
+            const docType = detectDocumentType(cleanedText);
             onLog?.('info', `Neural detection: ${docType} document`);
 
             let parseResult;
@@ -513,19 +606,21 @@
     // EXPOSE GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '4.0',
+        version: '4.1',
         runOCR,
         compressImage,
         callVisionAPI,
         parseWithClaude,
         parseWithRegex,
+        preprocessOCRText,
+        detectDocumentType,
         config: CONFIG,
         isReady: true,
-        
+
         // Allow toggling Claude parsing
         enableClaudeParsing: () => { CONFIG.USE_CLAUDE_PARSING = true; },
         disableClaudeParsing: () => { CONFIG.USE_CLAUDE_PARSING = false; }
     };
 
-    console.log('[OCREngine v4.0] Intelligent Clinical Report Parser loaded');
+    console.log('[OCREngine v4.1] Intelligent Clinical Report Parser with Text Filtering loaded');
 })();

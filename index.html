@@ -1055,14 +1055,50 @@
 
         @media (max-width: 768px) {
             .modalOverlay {
-                padding: var(--space-sm);
+                padding: 0;
+                align-items: flex-end; /* Slide up from bottom */
+                background: rgba(15, 23, 42, 0.6); /* Lighter overlay to show it's clickable */
             }
             .modal {
-                max-height: 90vh;
-                border-radius: var(--radius-lg);
+                max-height: 80vh; /* Reduced from 90vh to show more background */
+                border-radius: var(--radius-xl) var(--radius-xl) 0 0; /* Round only top corners */
+                margin-bottom: 0;
+                width: 100%;
+                position: relative;
             }
-            .modal-head, .modal-body, .modal-foot {
+            /* Add drag handle indicator at top of modal */
+            .modal::before {
+                content: '';
+                position: absolute;
+                top: 8px;
+                left: 50%;
+                transform: translateX(-50%);
+                width: 40px;
+                height: 4px;
+                background: rgba(148, 163, 184, 0.4);
+                border-radius: 2px;
+                z-index: 30;
+            }
+            .modal-head {
                 padding: var(--space-md);
+                padding-top: 20px; /* Extra space for drag handle */
+                position: sticky;
+                top: 0;
+                z-index: 20; /* Ensure header stays above content */
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+            }
+            .modal-body {
+                padding: var(--space-md);
+            }
+            .modal-foot {
+                padding: var(--space-md);
+                gap: var(--space-sm);
+                flex-direction: column-reverse;
+                position: sticky;
+                bottom: 0;
+                background: white;
+                z-index: 20;
+                box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
             }
         }
         /* ═══════════════════════════════════════════════════════════════
@@ -2294,13 +2330,24 @@
                 -webkit-overflow-scrolling: touch;
                 display: flex;
                 gap: var(--space-xs);
-                padding-bottom: var(--space-xs);
+                padding: 12px 12px 8px;
+                position: sticky;
+                top: 0;
+                z-index: 15; /* Higher than modal content */
+                background: linear-gradient(to bottom, #f8fafc 0%, #ffffff 100%);
+                box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
             }
 
             .tab {
                 white-space: nowrap;
-                min-height: 44px;
-                padding: 10px 16px;
+                min-height: 48px; /* Larger touch target */
+                padding: 12px 18px;
+                font-size: 13px;
+                flex-shrink: 0; /* Prevent tabs from shrinking */
+            }
+
+            .tab.active {
+                box-shadow: 0 4px 8px -1px rgba(16, 185, 129, 0.4);
             }
         }
 
