@@ -5509,7 +5509,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                 </div>
                                             </div>
                                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                                <span className={`pill ${isVision ? 'vision' : 'tesseract'}`}>{isVision ? '🌐 Vision' : '📱 Tesseract'}</span>
+                                                <span className="pill vision">🌐 Cloud Vision</span>
                                                 <span className={`pill ${confClass}-conf`}>{Math.round(item.avgValueConfidence || item.confidence)}%</span>
                                                 <span className="pill">{hasVals ? `${item.values.length} values` : "—"}</span>
                                                 <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>{showRawText === item.id ? '🔼' : '🔽'} Raw</button>
