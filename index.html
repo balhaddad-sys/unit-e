@@ -5422,12 +5422,30 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
 
+    // Prevent modal from closing during upload or OCR
+    const handleOverlayClick = () => {
+        if (uploading || ocrBusyId) {
+            addDebugLog('info', 'Please wait for upload/OCR to complete');
+            return;
+        }
+        onClose();
+    };
+
     return (
-        <div className="modalOverlay" onClick={onClose}>
+        <div className="modalOverlay" onClick={handleOverlayClick}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-head">
                     <span>🧪 Labs - {patient.name}</span>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
+                    <button
+                        onClick={() => {
+                            if (uploading || ocrBusyId) {
+                                addDebugLog('info', 'Please wait for upload/OCR to complete');
+                                return;
+                            }
+                            onClose();
+                        }}
+                        style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}
+                    >×</button>
                 </div>
                 <div className="modal-body">
                     <div className="tabs">
@@ -6006,7 +6024,16 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     )}
                 </div>
                 <div className="modal-foot">
-                    <button className="btn btn-white" onClick={onClose}>Cancel</button>
+                    <button
+                        className="btn btn-white"
+                        onClick={() => {
+                            if (uploading || ocrBusyId) {
+                                addDebugLog('info', 'Please wait for upload/OCR to complete');
+                                return;
+                            }
+                            onClose();
+                        }}
+                    >Cancel</button>
                     <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
                         {labImages.length === 0 ? 'Clear All' : 'Save (' + labImages.length + ')'}
                     </button>
@@ -6019,7 +6046,8 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="fab-container">
                     <button
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.stopPropagation(); // Prevent click from bubbling to modal overlay
                             if (!uploading && fileRef.current) {
                                 addDebugLog('info', 'Upload button clicked');
                                 fileRef.current.click();
