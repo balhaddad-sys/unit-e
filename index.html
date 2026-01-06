@@ -1268,6 +1268,131 @@
         .add-lab-icon { font-size: 32px; margin-bottom: 8px; }
         .add-lab-text { font-weight: 600; color: var(--purple); margin-bottom: 4px; }
         .add-lab-hint { font-size: 12px; color: #a855f7; }
+
+        /* ═══════════════════════════════════════════════════════════════
+           FLOATING ACTION BUTTON (FAB) - Compact Lab Upload UI
+           ═══════════════════════════════════════════════════════════════ */
+        .fab-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            z-index: 1000;
+            display: flex;
+            flex-direction: column;
+            align-items: flex-end;
+            gap: 12px;
+        }
+
+        .fab-button {
+            width: 56px;
+            height: 56px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%);
+            color: white;
+            border: none;
+            font-size: 24px;
+            cursor: pointer;
+            box-shadow: 0 4px 12px rgba(126, 34, 206, 0.3), 0 2px 6px rgba(0, 0, 0, 0.15);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            outline: none;
+        }
+
+        .fab-button:hover {
+            transform: scale(1.1);
+            box-shadow: 0 6px 16px rgba(126, 34, 206, 0.4), 0 3px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        .fab-button:active {
+            transform: scale(0.95);
+        }
+
+        .fab-button.uploading {
+            background: linear-gradient(135deg, #f59e0b 0%, #fbbf24 100%);
+            animation: pulse 1.5s ease-in-out infinite;
+            cursor: not-allowed;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .fab-menu {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: white;
+            border-radius: 12px;
+            padding: 8px;
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12), 0 2px 6px rgba(0, 0, 0, 0.08);
+            min-width: 160px;
+            animation: fadeIn 0.2s ease-out;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(-10px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .fab-menu-item {
+            padding: 12px 16px;
+            background: #f8fafc;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 14px;
+            font-weight: 600;
+            color: #475569;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-align: left;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .fab-menu-item:hover {
+            background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%);
+            color: white;
+            border-color: #7e22ce;
+            transform: translateX(-4px);
+        }
+
+        .fab-menu-item:active {
+            transform: translateX(-2px) scale(0.98);
+        }
+
+        /* Mobile responsiveness for FAB */
+        @media (max-width: 640px) {
+            .fab-container {
+                bottom: 16px;
+                right: 16px;
+            }
+
+            .fab-button {
+                width: 48px;
+                height: 48px;
+                font-size: 20px;
+            }
+
+            .fab-menu {
+                min-width: 140px;
+            }
+
+            .fab-menu-item {
+                padding: 10px 12px;
+                font-size: 13px;
+            }
+        }
+
         .lab-values-card { border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
         .lab-values-head {
             padding: 10px 12px;
@@ -4732,21 +4857,18 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {tab !== "Debug" && (
                         <>
-                            <div style={{ fontSize: 12, color: '#64748b', background: '#f0f9ff', padding: 10, borderRadius: 8, marginBottom: 8 }}>
-                                🧠 <strong>Auto-Detect:</strong> Just upload any lab image - the system automatically identifies tests and corrects values.
-                                {detectedLabType && <span style={{ marginLeft: 8, color: '#0d9488', fontWeight: 700 }}>Last: {detectedLabType}</span>}
-                            </div>
-
-                            <div className={`add-lab-area ${dragging ? 'dragging' : ''}`} onClick={() => fileRef.current?.click()} onDragOver={e => { e.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={handleDrop}>
-                                {uploading ? (<><div className="add-lab-icon">⏳</div><div className="add-lab-text">Processing...</div></>) : (<><div className="add-lab-icon">📷</div><div className="add-lab-text">Add Lab Image</div><div className="add-lab-hint">Tap to scan</div></>)}
-                            </div>
-                            <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-                                <button className="btn btn-blue" onClick={() => cameraRef.current?.click()}>📸 Camera</button>
-                                <button className="btn btn-white" onClick={() => fileRef.current?.click()}>📁 Gallery</button>
-                            </div>
+                            {/* Hidden file inputs */}
                             <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
                             <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
 
+                            {/* Compact auto-detect hint - only show if there's a detected lab type */}
+                            {detectedLabType && (
+                                <div style={{ fontSize: 11, color: '#0d9488', background: '#f0f9ff', padding: 6, borderRadius: 6, marginBottom: 8, textAlign: 'center' }}>
+                                    Last detected: <strong>{detectedLabType}</strong>
+                                </div>
+                            )}
+
+                            {/* OCR Error and Progress indicators */}
                             {ocrError && <div className="ocr-error">⚠ {ocrError}</div>}
                             {ocrBusyId && (
                                 <div className="ocr-progress vision">
@@ -5549,6 +5671,47 @@ const App = () => {
             {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
             {confirmDialog && <ConfirmDialog {...confirmDialog} />}
             {toast && <div className="toast">{toast}</div>}
+
+            {/* Floating Action Button (FAB) for Lab Upload - Only show when LabModal is open */}
+            {labModal && tab !== "Debug" && (
+                <div className="fab-container">
+                    <button
+                        className={`fab-button ${uploading ? 'uploading' : ''}`}
+                        onClick={() => {
+                            if (!uploading) {
+                                // Show menu options
+                                const menu = document.getElementById('fab-menu');
+                                if (menu) {
+                                    menu.style.display = menu.style.display === 'flex' ? 'none' : 'flex';
+                                }
+                            }
+                        }}
+                        disabled={uploading}
+                    >
+                        {uploading ? '⏳' : '📷'}
+                    </button>
+                    <div id="fab-menu" className="fab-menu" style={{ display: 'none' }}>
+                        <button
+                            className="fab-menu-item"
+                            onClick={() => {
+                                cameraRef.current?.click();
+                                document.getElementById('fab-menu').style.display = 'none';
+                            }}
+                        >
+                            📸 Camera
+                        </button>
+                        <button
+                            className="fab-menu-item"
+                            onClick={() => {
+                                fileRef.current?.click();
+                                document.getElementById('fab-menu').style.display = 'none';
+                            }}
+                        >
+                            📁 Gallery
+                        </button>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };
