@@ -2017,28 +2017,108 @@
     }
 
     /**
+     * Clean and normalize medical query terms before searching
+     * Handles punctuation, case normalization, and common medical abbreviations
+     */
+    function cleanQuery(query) {
+        if (!query || typeof query !== 'string') {
+            return '';
+        }
+
+        // Trim and remove leading/trailing whitespace
+        let cleaned = query.trim();
+
+        // Strip trailing punctuation (?, !, ., ,, -, etc.)
+        cleaned = cleaned.replace(/[?!.,;\-:]+$/g, '');
+
+        // Remove special characters that break medical searches
+        cleaned = cleaned.replace(/[()[\]{}]/g, '');
+
+        // Trim again after punctuation removal
+        cleaned = cleaned.trim();
+
+        // Common medical abbreviation mappings (for fuzzy matching)
+        const medicalAbbreviations = {
+            'acs': 'Acute Coronary Syndrome',
+            'mi': 'Myocardial Infarction',
+            'chf': 'Congestive Heart Failure',
+            'hf': 'Heart Failure',
+            'htn': 'Hypertension',
+            'dm': 'Diabetes Mellitus',
+            'copd': 'Chronic Obstructive Pulmonary Disease',
+            'ckd': 'Chronic Kidney Disease',
+            'cva': 'Cerebrovascular Accident',
+            'afib': 'Atrial Fibrillation',
+            'dvt': 'Deep Vein Thrombosis',
+            'pe': 'Pulmonary Embolism',
+            'uti': 'Urinary Tract Infection',
+            'gerd': 'Gastroesophageal Reflux Disease',
+            'cabg': 'Coronary Artery Bypass Graft',
+            'stemi': 'ST-Elevation Myocardial Infarction',
+            'nstemi': 'Non-ST-Elevation Myocardial Infarction'
+        };
+
+        // Check if it's a known abbreviation (case-insensitive)
+        const lowerCleaned = cleaned.toLowerCase();
+        if (medicalAbbreviations[lowerCleaned]) {
+            return medicalAbbreviations[lowerCleaned];
+        }
+
+        // If it's a short string (likely an acronym), uppercase it
+        // Otherwise, use proper case (first letter uppercase)
+        if (cleaned.length <= 6 && /^[A-Za-z]+$/.test(cleaned)) {
+            return cleaned.toUpperCase();
+        }
+
+        // For longer terms, preserve the original case (might be proper medical terminology)
+        return cleaned;
+    }
+
+    /**
      * Fetch and analyze guidelines from online sources to extract clinical pearls
      */
     async function fetchClinicalPearls(condition) {
-        // Check cache first
-        const cached = getCachedPearls(condition);
+        // Clean and normalize the query first
+        const cleanedCondition = cleanQuery(condition);
+
+        if (!cleanedCondition) {
+            console.warn('[ClinicalGuidelines] Empty condition after cleaning:', condition);
+            return {
+                pearls: {
+                    condition: condition,
+                    pearls: [{
+                        pearl: 'Invalid search query. Please provide a valid medical condition.',
+                        category: 'system',
+                        priority: 'moderate'
+                    }],
+                    fetchedAt: new Date().toISOString(),
+                    sources: ['System']
+                },
+                source: 'error'
+            };
+        }
+
+        console.log(`[ClinicalGuidelines] Query sanitized: "${condition}" → "${cleanedCondition}"`);
+
+        // Check cache first (use cleaned condition for cache lookup)
+        const cached = getCachedPearls(cleanedCondition);
         if (cached) {
             console.log(`[ClinicalGuidelines] Using cached clinical pearls for: ${condition}`);
             return { pearls: cached, source: 'cache' };
         }
 
-        console.log(`[ClinicalGuidelines] Fetching clinical pearls for: ${condition}`);
+        console.log(`[ClinicalGuidelines] Fetching clinical pearls for: ${cleanedCondition}`);
 
         try {
-            // Try multiple sources for best results
+            // Try multiple sources for best results (use cleaned condition)
             const sources = [
                 {
                     name: 'PubMed',
-                    url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(condition)}+guidelines+treatment`
+                    url: `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(cleanedCondition)}+guidelines+treatment`
                 },
                 {
                     name: 'NICE Guidelines',
-                    url: `https://www.nice.org.uk/guidance?q=${encodeURIComponent(condition)}`
+                    url: `https://www.nice.org.uk/guidance?q=${encodeURIComponent(cleanedCondition)}`
                 }
             ];
 
@@ -2047,7 +2127,7 @@
             // Fetch from primary source (PubMed)
             if (window.WebFetch) {
                 try {
-                    const prompt = `Analyze this medical guideline content for ${condition}. Extract 5-10 KEY CLINICAL PEARLS - the most important, actionable takeaways for clinicians. Format as a JSON array of objects with: { "pearl": "concise clinical pearl", "category": "diagnosis/treatment/monitoring/prevention", "priority": "critical/high/moderate" }. Focus on: 1) First-line treatments, 2) Key diagnostic criteria, 3) Important drug interactions or contraindications, 4) Monitoring parameters, 5) Critical clinical warnings. Be concise and actionable.`;
+                    const prompt = `Analyze this medical guideline content for ${cleanedCondition}. Extract 5-10 KEY CLINICAL PEARLS - the most important, actionable takeaways for clinicians. Format as a JSON array of objects with: { "pearl": "concise clinical pearl", "category": "diagnosis/treatment/monitoring/prevention", "priority": "critical/high/moderate" }. Focus on: 1) First-line treatments, 2) Key diagnostic criteria, 3) Important drug interactions or contraindications, 4) Monitoring parameters, 5) Critical clinical warnings. Be concise and actionable.`;
 
                     const result = await window.WebFetch(sources[0].url, prompt);
 
@@ -2062,14 +2142,14 @@
             // If we got pearls, structure and cache them
             if (allPearls.length > 0) {
                 const structuredPearls = {
-                    condition: condition,
+                    condition: cleanedCondition,
                     pearls: allPearls,
                     fetchedAt: new Date().toISOString(),
                     sources: sources.map(s => s.name)
                 };
 
-                // Save to cache
-                await savePearlsToCache(condition, structuredPearls);
+                // Save to cache (use cleaned condition for consistency)
+                await savePearlsToCache(cleanedCondition, structuredPearls);
 
                 return { pearls: structuredPearls, source: 'online' };
             }
@@ -2077,10 +2157,10 @@
             // If fetching fails, return placeholder pearls
             return {
                 pearls: {
-                    condition: condition,
+                    condition: cleanedCondition,
                     pearls: [
                         {
-                            pearl: `Unable to fetch live guidelines for ${condition}. Using built-in knowledge base.`,
+                            pearl: `Unable to fetch live guidelines for ${cleanedCondition}. Using built-in knowledge base.`,
                             category: 'system',
                             priority: 'moderate'
                         },
@@ -2100,7 +2180,7 @@
             console.error('[ClinicalGuidelines] Error fetching clinical pearls:', error);
             return {
                 pearls: {
-                    condition: condition,
+                    condition: cleanedCondition,
                     pearls: [
                         {
                             pearl: `Error fetching guidelines: ${error.message}`,
