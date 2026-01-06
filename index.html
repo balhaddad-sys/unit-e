@@ -4542,37 +4542,67 @@ const AIConsultModal = ({ patient, onClose }) => {
         setUserInput('');
         setLoading(true);
 
+        // Add user message to conversation
+        setConversation(prev => [...prev, {
+            role: 'user',
+            content: message,
+            timestamp: Date.now()
+        }]);
+
         try {
-            // Check if AIMedicalConsultant is available
-            if (!window.AIMedicalConsultant) {
-                setConversation(prev => [...prev, {
-                    role: 'assistant',
-                    content: '⚠️ AI Medical Consultant module is not loaded. Please refresh the page.',
-                    timestamp: Date.now()
-                }]);
-                setLoading(false);
-                return;
-            }
+            // Retry logic for AIMedicalConsultant
+            let retryCount = 0;
+            const maxRetries = 3;
+            const retryDelay = 500;
 
-            // Get AI response - include labImages in patient context
-            const patientWithLabs = {
-                ...patient,
-                labImages: labImages
+            const tryConsultant = async () => {
+                if (window.AIMedicalConsultant) {
+                    // Get AI response - include labImages in patient context
+                    const patientWithLabs = {
+                        ...patient,
+                        labImages: labImages
+                    };
+                    const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patientWithLabs);
+
+                    if (result.success) {
+                        // Update conversation
+                        const updatedConversation = window.AIMedicalConsultant.getHistory(patient.id);
+                        setConversation(updatedConversation);
+                    } else {
+                        // Show error
+                        setConversation(prev => [...prev, {
+                            role: 'assistant',
+                            content: '⚠️ Error: ' + (result.error || 'Unknown error occurred'),
+                            timestamp: Date.now()
+                        }]);
+                    }
+                    setLoading(false);
+                } else if (retryCount < maxRetries) {
+                    retryCount++;
+                    // Show loading message
+                    setConversation(prev => [...prev, {
+                        role: 'assistant',
+                        content: '⏳ AI Medical Consultant is loading, please wait...',
+                        timestamp: Date.now()
+                    }]);
+                    
+                    setTimeout(() => {
+                        // Remove loading message
+                        setConversation(prev => prev.slice(0, -1));
+                        tryConsultant();
+                    }, retryDelay);
+                } else {
+                    setConversation(prev => [...prev, {
+                        role: 'assistant',
+                        content: '⚠️ AI Medical Consultant module did not load after multiple attempts. Please refresh the page to retry.',
+                        timestamp: Date.now()
+                    }]);
+                    setLoading(false);
+                }
             };
-            const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patientWithLabs);
 
-            if (result.success) {
-                // Update conversation
-                const updatedConversation = window.AIMedicalConsultant.getHistory(patient.id);
-                setConversation(updatedConversation);
-            } else {
-                // Show error
-                setConversation(prev => [...prev, {
-                    role: 'assistant',
-                    content: '⚠️ Error: ' + (result.error || 'Unknown error occurred'),
-                    timestamp: Date.now()
-                }]);
-            }
+            await tryConsultant();
+
         } catch (error) {
             console.error('AI Consultation Error:', error);
             setConversation(prev => [...prev, {
@@ -4580,7 +4610,6 @@ const AIConsultModal = ({ patient, onClose }) => {
                 content: '⚠️ An error occurred while processing your query. Please try again or contact support.',
                 timestamp: Date.now()
             }]);
-        } finally {
             setLoading(false);
         }
     };
@@ -5205,20 +5234,32 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
     // Initialize Camera Module after handleFile is defined
     useEffect(() => {
-        if (window.CameraModule) {
-            window.CameraModule.init({
-                onFileSelected: (file) => {
-                    addDebugLog('info', `Camera captured file: ${file.name}`);
-                    handleFile(file);
-                },
-                onDebug: (type, message) => {
-                    addDebugLog(type, message);
-                }
-            });
-            addDebugLog('success', 'Camera Module initialized');
-        } else {
-            addDebugLog('warn', 'Camera Module not loaded - using fallback');
-        }
+        let retryCount = 0;
+        const maxRetries = 3;
+        const retryDelay = 500;
+
+        const initializeCameraModule = () => {
+            if (window.CameraModule) {
+                window.CameraModule.init({
+                    onFileSelected: (file) => {
+                        addDebugLog('info', `Camera captured file: ${file.name}`);
+                        handleFile(file);
+                    },
+                    onDebug: (type, message) => {
+                        addDebugLog(type, message);
+                    }
+                });
+                addDebugLog('success', 'Camera Module initialized');
+            } else if (retryCount < maxRetries) {
+                retryCount++;
+                addDebugLog('info', `Camera Module not ready, retrying... (${retryCount}/${maxRetries})`);
+                setTimeout(initializeCameraModule, retryDelay);
+            } else {
+                addDebugLog('warn', 'Camera Module not loaded - using fallback');
+            }
+        };
+
+        initializeCameraModule();
 
         return () => {
             if (window.CameraModule && window.CameraModule.destroy) {
@@ -5240,17 +5281,39 @@ const LabModal = ({ patient, onClose, onSave }) => {
             labImages: labImages
         };
 
-        // Get AI response
-        setTimeout(() => {
+        // Get AI response with retry logic
+        let retryCount = 0;
+        const maxRetries = 3;
+        const retryDelay = 500;
+
+        const getAIResponse = () => {
             if (window.MedicalAIAssistant) {
                 const aiResponse = window.MedicalAIAssistant.chat(message, patientContext);
                 setChatMessages(prev => [...prev, { role: 'assistant', content: aiResponse, timestamp: Date.now() }]);
                 // Auto-scroll to bottom
                 setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+            } else if (retryCount < maxRetries) {
+                retryCount++;
+                setChatMessages(prev => [...prev, { 
+                    role: 'assistant', 
+                    content: '⏳ AI Assistant is loading, please wait...', 
+                    timestamp: Date.now() 
+                }]);
+                setTimeout(() => {
+                    // Remove loading message
+                    setChatMessages(prev => prev.slice(0, -1));
+                    getAIResponse();
+                }, retryDelay);
             } else {
-                setChatMessages(prev => [...prev, { role: 'assistant', content: 'AI Assistant is loading... Please try again in a moment.', timestamp: Date.now() }]);
+                setChatMessages(prev => [...prev, { 
+                    role: 'assistant', 
+                    content: '⚠️ AI Assistant module did not load. Please refresh the page to retry.', 
+                    timestamp: Date.now() 
+                }]);
             }
-        }, 500);
+        };
+
+        setTimeout(getAIResponse, 500);
     };
     const updateNote = (id, note) => updateLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
     const deleteImage = async (id) => { 
