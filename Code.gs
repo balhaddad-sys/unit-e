@@ -81,7 +81,8 @@ function doGet(e) {
             h1 { color: #15803d; }
             .status { background: #d1fae5; padding: 15px; border-radius: 8px; margin: 20px 0; }
             .endpoint { background: #f1f5f9; padding: 10px; margin: 10px 0; border-left: 4px solid #15803d; }
-            code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; }
+            code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
+            .library { background: #fef3c7; padding: 10px; margin: 10px 0; border-left: 4px solid #f59e0b; }
           </style>
         </head>
         <body>
@@ -91,18 +92,24 @@ function doGet(e) {
             <strong>Version:</strong> ${SCRIPT_VERSION}<br>
             <strong>Timestamp:</strong> ${new Date().toISOString()}
           </div>
-          
+
           <h2>📋 Available Endpoints</h2>
-          
+
           <div class="endpoint">
             <strong>POST /exec</strong> - Main API endpoint<br>
             Actions: <code>runOCR</code>, <code>claudeVision</code>, <code>claudeConsult</code>, <code>saveLabs</code>, <code>loadLabs</code>, <code>syncSheet</code>
           </div>
-          
+
           <div class="endpoint">
             <strong>GET /exec?action=health</strong> - Health check
           </div>
-          
+
+          <h2>📚 Library Reference</h2>
+          <div class="library">
+            <strong>Script Library:</strong><br>
+            <code>https://script.google.com/macros/library/d/1onlqbHtDy_6Xcl1kMX8d6QMHql629lktFcicVqb5br2qJFBzhvGZZVOn/12</code>
+          </div>
+
           <h2>🔧 Setup Required</h2>
           <p>Configure Script Properties with your credentials:
             <ul>
