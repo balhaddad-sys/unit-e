@@ -558,6 +558,7 @@
             let parseResult = null;
 
             if (CONFIG.USE_CLAUDE_VISION) {
+                onLog?.('info', '🚀 Trying Claude Opus 4.5 Vision first...');
                 const claudeResult = await callClaudeVision(dataUrl, callbacks);
 
                 if (claudeResult && claudeResult.success) {
@@ -576,13 +577,23 @@
                         model: claudeResult.model,
                         documentType: 'LABORATORY'
                     };
+                } else {
+                    onLog?.('warn', '⚠️ Claude Vision failed - using Google Vision fallback');
                 }
             }
 
             // Step 2: Fallback to Google Vision if Claude not used or failed
             if (CONFIG.USE_CLAUDE_FALLBACK || !CONFIG.USE_CLAUDE_VISION) {
-                onLog?.('info', 'Using Google Cloud Vision...');
-                ocrResult = await callVisionAPI(dataUrl, callbacks);
+                onLog?.('info', '📸 Using Google Cloud Vision...');
+                try {
+                    ocrResult = await callVisionAPI(dataUrl, callbacks);
+                    onLog?.('success', `✓ Google Vision OCR complete: ${ocrResult.text?.length || 0} characters`);
+                } catch (visionError) {
+                    onLog?.('error', `❌ BOTH APIs FAILED - Claude Vision & Google Vision both failed!`);
+                    onLog?.('error', `Google Vision error: ${visionError.message}`);
+                    console.error('[OCR] Vision API error details:', visionError);
+                    throw new Error(`OCR completely failed. Google Vision error: ${visionError.message}. Check Debug tab for details.`);
+                }
             } else {
                 onLog?.('error', 'Claude Vision failed and fallback disabled');
                 throw new Error('OCR failed - Claude Vision unavailable and fallback disabled');
