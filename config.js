@@ -14,7 +14,7 @@ const CONFIG = {
     },
     
     // Google Apps Script Proxy URL
-    visionApiUrl: 'https://script.google.com/macros/s/AKfycbwT0sjHKwhPmFk5lgtLkHVUrJBXlmFbhLqfEn5My_rEMwNf4QaJhFqrqxVw9_cFo30/exec',
+    visionApiUrl: 'https://script.google.com/macros/s/AKfycbz_2zC2ztoesY0XBd7_M9YzddWzRolYjqnjXF3xr_jM0Ry4nDzqoXOpFgQZJRl1zPdU/exec',
     
     // Google Sheet URL
     sheetUrl: 'https://docs.google.com/spreadsheets/d/1X1Dy5P3S_WPAi-SGKO8ZUwPLl1k4lZwJE6Gk_M62u9o/edit',
