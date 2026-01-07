@@ -1,5 +1,6 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// UNIT E WARD ROUNDS - CONFIGURATION
+// UNIT E WARD ROUNDS - CONFIGURATION v2.0
+// ASCLEPIUS-ULTRA Enhanced Configuration
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
@@ -13,8 +14,8 @@ const CONFIG = {
         appId: "1:811476183925:web:c3fe741cf3613fb4940ab6"
     },
     
-    // Google Apps Script Proxy URL
-    visionApiUrl: 'https://script.google.com/macros/s/AKfycbz_2zC2ztoesY0XBd7_M9YzddWzRolYjqnjXF3xr_jM0Ry4nDzqoXOpFgQZJRl1zPdU/exec',
+    // Google Apps Script Proxy URL (ASCLEPIUS-ULTRA v2.0)
+    visionApiUrl: 'https://script.google.com/macros/s/AKfycbz3SuvptqcgljpuxenGWkJFsra9e9DYM8rnh3rgxEqtnGsy_UYu-Ya6CHwzWQz3yE-6BQ/exec',
     
     // Google Sheet URL
     sheetUrl: 'https://docs.google.com/spreadsheets/d/1X1Dy5P3S_WPAi-SGKO8ZUwPLl1k4lZwJE6Gk_M62u9o/edit',
@@ -49,6 +50,27 @@ const CONFIG = {
     
     // Toast duration (ms)
     toastDuration: 3000,
+
+    // Clinical Scoring Systems available
+    clinicalScores: [
+        'CHA2DS2-VASc',
+        'HAS-BLED', 
+        'CURB-65',
+        'Wells-PE',
+        'SOFA',
+        'qSOFA',
+        'GCS',
+        'APACHE-II',
+        'MELD',
+        'Child-Pugh'
+    ],
+
+    // AI Configuration
+    ai: {
+        useExtendedThinking: true,  // Enable extended thinking for complex queries
+        timeout: 60000,              // API timeout in ms
+        maxRetries: 3
+    }
 };
 
 // Initialize Firebase
@@ -144,59 +166,133 @@ const Utils = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// API FUNCTIONS
+// API FUNCTIONS (Enhanced for ASCLEPIUS-ULTRA v2.0)
 // ═══════════════════════════════════════════════════════════════════════════
 
 const API = {
+    // Base fetch with retry logic
+    _fetch: async (payload, retries = CONFIG.ai.maxRetries) => {
+        let lastError;
+        for (let i = 0; i < retries; i++) {
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), CONFIG.ai.timeout);
+                
+                const response = await fetch(CONFIG.visionApiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+                
+                clearTimeout(timeoutId);
+                
+                const responseText = await response.text();
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 300)}`);
+                }
+                
+                return JSON.parse(responseText);
+            } catch (error) {
+                lastError = error;
+                console.warn(`[API] Attempt ${i + 1}/${retries} failed:`, error.message);
+                if (i < retries - 1) {
+                    await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                }
+            }
+        }
+        throw lastError;
+    },
+
     // Sync with Google Sheets
-    syncSheets: async () => {
+    syncSheets: async (patients) => {
         try {
-            await fetch(CONFIG.visionApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'syncSheet' })
+            const result = await API._fetch({ 
+                action: 'syncSheet',
+                patients: patients
             });
-            console.log('[Sync] Sheet synced successfully');
-            return true;
+            console.log('[Sync] Sheet synced successfully:', result);
+            return result;
         } catch (error) {
             console.error('[Sync] Failed:', error.message);
-            return false;
+            return { success: false, error: error.message };
         }
     },
     
-    // Process image with OCR
+    // Process image with Google Vision OCR
     processOCR: async (base64Image) => {
         try {
-            // Try OCR Engine first
+            // Try local OCR Engine first
             if (window.OCREngine?.isReady) {
                 return await window.OCREngine.processImage(base64Image);
             }
 
-            // Fallback to direct API
-            console.log('[API] Sending OCR request to:', CONFIG.visionApiUrl);
-            const response = await fetch(CONFIG.visionApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'ocr', image: base64Image })
+            console.log('[API] Sending OCR request (Google Vision)');
+            return await API._fetch({ 
+                action: 'runOCR', 
+                image: base64Image 
             });
-
-            console.log('[API] OCR Response Status:', response.status, response.statusText);
-            const responseText = await response.text();
-            console.log('[API] OCR Response (first 500 chars):', responseText.substring(0, 500));
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 300)}`);
-            }
-
-            return JSON.parse(responseText);
         } catch (error) {
             console.error('[OCR] Failed:', error.message);
-            console.error('[OCR] Full error:', error);
             throw error;
         }
     },
+
+    // Process image with Claude Vision (AI-powered OCR)
+    processClaudeVision: async (base64Image, patientId = null) => {
+        try {
+            console.log('[API] Sending Claude Vision OCR request');
+            return await API._fetch({ 
+                action: 'claudeVision', 
+                image: base64Image,
+                patientId: patientId
+            });
+        } catch (error) {
+            console.error('[Claude Vision] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // AI Medical Consultation (Standard)
+    claudeConsult: async (query, patientContext = null, labValues = [], medications = [], allergies = []) => {
+        try {
+            console.log('[API] Sending Claude consultation request');
+            return await API._fetch({ 
+                action: 'claudeConsult', 
+                query: query,
+                patientContext: patientContext,
+                labValues: labValues,
+                medications: medications,
+                allergies: allergies
+            });
+        } catch (error) {
+            console.error('[Claude Consult] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // AI Medical Consultation with Extended Thinking (Complex Cases)
+    claudeConsultExtended: async (query, patientContext = null, labValues = [], medications = [], allergies = []) => {
+        try {
+            console.log('[API] Sending Claude EXTENDED consultation request');
+            return await API._fetch({ 
+                action: 'claudeConsultExtended', 
+                query: query,
+                patientContext: patientContext,
+                labValues: labValues,
+                medications: medications,
+                allergies: allergies
+            });
+        } catch (error) {
+            console.error('[Claude Extended] Failed:', error.message);
+            // Fallback to standard consultation
+            console.log('[API] Falling back to standard consultation');
+            return API.claudeConsult(query, patientContext, labValues, medications, allergies);
+        }
+    },
     
-    // Parse lab results
+    // Parse lab results (local)
     parseLabs: (text) => {
         if (window.LabParser?.isReady && text) {
             return window.LabParser.parse(text);
@@ -205,71 +301,294 @@ const API = {
     },
     
     // Save labs to Google Drive
-    saveLabs: async (patientId, patientName, labData) => {
+    saveLabs: async (patientId, patientName, labData, metadata = {}) => {
         try {
-            console.log('[API] Sending Save Labs request to:', CONFIG.visionApiUrl);
-            const response = await fetch(CONFIG.visionApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
-                    action: 'saveLabs',
-                    patientId,
-                    patientName,
-                    labData
-                })
+            console.log('[API] Saving labs for patient:', patientId);
+            return await API._fetch({
+                action: 'saveLabs',
+                patientId: patientId,
+                patientName: patientName,
+                labData: labData,
+                metadata: metadata
             });
-
-            console.log('[API] Save Labs Response Status:', response.status, response.statusText);
-            const responseText = await response.text();
-            console.log('[API] Save Labs Response:', responseText.substring(0, 500));
-
-            if (!response.ok) {
-                throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 300)}`);
-            }
-
-            return JSON.parse(responseText);
         } catch (error) {
             console.error('[Save Labs] Failed:', error.message);
-            console.error('[Save Labs] Full error:', error);
+            throw error;
+        }
+    },
+
+    // Load labs from Google Drive
+    loadLabs: async (patientId) => {
+        try {
+            console.log('[API] Loading labs for patient:', patientId);
+            return await API._fetch({
+                action: 'loadLabs',
+                patientId: patientId
+            });
+        } catch (error) {
+            console.error('[Load Labs] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Load lab history for trending
+    loadLabHistory: async (patientId, limit = 10) => {
+        try {
+            console.log('[API] Loading lab history for patient:', patientId);
+            return await API._fetch({
+                action: 'loadLabHistory',
+                patientId: patientId,
+                limit: limit
+            });
+        } catch (error) {
+            console.error('[Lab History] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Analyze lab trends with optional AI interpretation
+    analyzeLabTrends: async (patientId, tests = null, includeAI = true, patientContext = null) => {
+        try {
+            console.log('[API] Analyzing lab trends for patient:', patientId);
+            return await API._fetch({
+                action: 'analyzeLabTrends',
+                patientId: patientId,
+                tests: tests,
+                includeAI: includeAI,
+                patientContext: patientContext
+            });
+        } catch (error) {
+            console.error('[Trend Analysis] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Check for critical lab values
+    checkCriticalValues: async (labData, patientId = null, patientName = null) => {
+        try {
+            return await API._fetch({
+                action: 'checkCriticalValues',
+                labData: labData,
+                patientId: patientId,
+                patientName: patientName
+            });
+        } catch (error) {
+            console.error('[Critical Values] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Export patient report to Google Sheets
+    exportReport: async (patientId, patientName = null) => {
+        try {
+            console.log('[API] Exporting report for patient:', patientId);
+            return await API._fetch({
+                action: 'exportReport',
+                patientId: patientId,
+                patientName: patientName
+            });
+        } catch (error) {
+            console.error('[Export Report] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Calculate clinical score
+    calculateScore: async (scoreType, parameters) => {
+        try {
+            console.log('[API] Calculating', scoreType, 'score');
+            return await API._fetch({
+                action: 'calculateScore',
+                scoreType: scoreType,
+                parameters: parameters
+            });
+        } catch (error) {
+            console.error('[Calculate Score] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Check drug interactions
+    getDrugInteractions: async (drugs) => {
+        try {
+            console.log('[API] Checking drug interactions for:', drugs);
+            return await API._fetch({
+                action: 'getDrugInteractions',
+                drugs: drugs
+            });
+        } catch (error) {
+            console.error('[Drug Interactions] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Generate differential diagnosis
+    getDifferentialDiagnosis: async (symptoms, signs = [], labFindings = null, patientContext = null) => {
+        try {
+            console.log('[API] Generating differential diagnosis');
+            return await API._fetch({
+                action: 'getDifferentialDiagnosis',
+                symptoms: symptoms,
+                signs: signs,
+                labFindings: labFindings,
+                patientContext: patientContext
+            });
+        } catch (error) {
+            console.error('[Differential Diagnosis] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Batch OCR processing
+    batchOCR: async (images) => {
+        try {
+            console.log('[API] Processing batch OCR:', images.length, 'images');
+            return await API._fetch({
+                action: 'batchOCR',
+                images: images
+            });
+        } catch (error) {
+            console.error('[Batch OCR] Failed:', error.message);
+            throw error;
+        }
+    },
+
+    // Batch consultations
+    batchConsult: async (consultations) => {
+        try {
+            console.log('[API] Processing batch consultations:', consultations.length);
+            return await API._fetch({
+                action: 'batchConsult',
+                consultations: consultations
+            });
+        } catch (error) {
+            console.error('[Batch Consult] Failed:', error.message);
             throw error;
         }
     },
 
     // Test API connection
     testAPI: async () => {
-        console.log('=== API Connection Test ===');
+        console.log('=== API Connection Test (ASCLEPIUS-ULTRA v2.0) ===');
         console.log('API URL:', CONFIG.visionApiUrl);
 
         try {
             console.log('Sending test request...');
-            const response = await fetch(CONFIG.visionApiUrl, {
-                method: 'POST',
-                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'test' })
-            });
-
-            console.log('Response Status:', response.status, response.statusText);
-            console.log('Response Headers:', [...response.headers.entries()]);
-
-            const responseText = await response.text();
-            console.log('Response Body:', responseText);
-
-            if (!response.ok) {
-                console.error('❌ API Test FAILED - HTTP Error:', response.status);
-                return { success: false, error: `HTTP ${response.status}`, response: responseText };
-            }
-
-            const result = JSON.parse(responseText);
+            const result = await API._fetch({ action: 'test' });
             console.log('✅ API Test SUCCESS:', result);
             return { success: true, result };
-
         } catch (error) {
-            console.error('❌ API Test FAILED - Network Error:', error);
+            console.error('❌ API Test FAILED:', error);
             return { success: false, error: error.message, details: error };
+        }
+    },
+
+    // Health check
+    healthCheck: async () => {
+        try {
+            const response = await fetch(CONFIG.visionApiUrl + '?action=health');
+            return await response.json();
+        } catch (error) {
+            console.error('[Health Check] Failed:', error.message);
+            return { status: 'error', error: error.message };
+        }
+    },
+
+    // Get API configuration
+    getConfig: async () => {
+        try {
+            const response = await fetch(CONFIG.visionApiUrl + '?action=config');
+            return await response.json();
+        } catch (error) {
+            console.error('[Get Config] Failed:', error.message);
+            return null;
+        }
+    },
+
+    // Get critical value thresholds
+    getCriticalThresholds: async () => {
+        try {
+            const response = await fetch(CONFIG.visionApiUrl + '?action=criticalThresholds');
+            return await response.json();
+        } catch (error) {
+            console.error('[Get Thresholds] Failed:', error.message);
+            return null;
         }
     }
 };
 
-console.log('[Config] Unit E configuration loaded');
+// ═══════════════════════════════════════════════════════════════════════════
+// CLINICAL SCORE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ClinicalScores = {
+    // CHA2DS2-VASc Calculator
+    CHA2DS2VASc: async (params) => {
+        return API.calculateScore('CHA2DS2-VASc', params);
+    },
+
+    // HAS-BLED Calculator
+    HASBLED: async (params) => {
+        return API.calculateScore('HAS-BLED', params);
+    },
+
+    // CURB-65 Calculator
+    CURB65: async (params) => {
+        return API.calculateScore('CURB-65', params);
+    },
+
+    // Wells PE Score
+    WellsPE: async (params) => {
+        return API.calculateScore('Wells-PE', params);
+    },
+
+    // SOFA Score
+    SOFA: async (params) => {
+        return API.calculateScore('SOFA', params);
+    },
+
+    // qSOFA Score
+    qSOFA: async (params) => {
+        return API.calculateScore('qSOFA', params);
+    },
+
+    // GCS Score
+    GCS: async (params) => {
+        return API.calculateScore('GCS', params);
+    },
+
+    // MELD Score
+    MELD: async (params) => {
+        return API.calculateScore('MELD', params);
+    },
+
+    // Child-Pugh Score
+    ChildPugh: async (params) => {
+        return API.calculateScore('Child-Pugh', params);
+    }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// INITIALIZATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+console.log('[Config] Unit E Ward Rounds v2.0 (ASCLEPIUS-ULTRA) loaded');
 console.log('[Config] Wards:', CONFIG.wards.length);
 console.log('[Config] Firebase initialized');
+console.log('[Config] API URL:', CONFIG.visionApiUrl);
+console.log('[Config] Clinical Scores Available:', CONFIG.clinicalScores.join(', '));
+
+// Auto health check on load
+(async () => {
+    try {
+        const health = await API.healthCheck();
+        if (health.status === 'healthy') {
+            console.log('[Config] ✅ Backend connected - Version:', health.version, health.codename || '');
+            console.log('[Config] Services:', JSON.stringify(health.services));
+        } else {
+            console.warn('[Config] ⚠️ Backend health check returned:', health);
+        }
+    } catch (e) {
+        console.warn('[Config] ⚠️ Backend health check failed:', e.message);
+    }
+})();
