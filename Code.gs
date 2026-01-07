@@ -134,10 +134,43 @@ function doGet(e) {
  */
 function doPost(e) {
   try {
+    Logger.log('=== doPost START ===');
+    Logger.log('e parameter exists: ' + !!e);
+    Logger.log('e.postData exists: ' + !!e.postData);
+    Logger.log('e.postData.contents exists: ' + !!(e.postData && e.postData.contents));
+
+    if (!e || !e.postData || !e.postData.contents) {
+      Logger.log('ERROR: Missing post data');
+      Logger.log('e: ' + JSON.stringify(e));
+      return createJsonResponse({
+        error: 'No post data received',
+        received: e ? Object.keys(e) : 'e is null',
+        postData: e && e.postData ? Object.keys(e.postData) : 'postData is null'
+      }, 400);
+    }
+
+    Logger.log('Raw post data: ' + e.postData.contents.substring(0, 200));
+    Logger.log('Post data type: ' + e.postData.type);
+    Logger.log('Post data length: ' + e.postData.length);
+
     // Parse request body
-    const requestData = JSON.parse(e.postData.contents);
+    let requestData;
+    try {
+      requestData = JSON.parse(e.postData.contents);
+      Logger.log('Parsed request data successfully');
+      Logger.log('Request action: ' + requestData.action);
+    } catch (parseError) {
+      Logger.log('ERROR: Failed to parse JSON');
+      Logger.log('Parse error: ' + parseError.toString());
+      Logger.log('Raw contents: ' + e.postData.contents);
+      return createJsonResponse({
+        error: 'Invalid JSON in request body',
+        parseError: parseError.toString(),
+        receivedData: e.postData.contents.substring(0, 500)
+      }, 400);
+    }
+
     const action = requestData.action;
-    
     Logger.log('Received POST request - Action: ' + action);
     
     // Route to appropriate handler
@@ -639,6 +672,14 @@ function createJWT(claim, privateKey) {
 function handleClaudeVision(requestData) {
   try {
     Logger.log('=== handleClaudeVision START ===');
+    Logger.log('requestData exists: ' + !!requestData);
+    Logger.log('requestData type: ' + typeof requestData);
+
+    if (!requestData) {
+      Logger.log('ERROR: requestData is null or undefined');
+      throw new Error('Request data is missing - this indicates a problem with request parsing in doPost');
+    }
+
     Logger.log('Request data keys: ' + Object.keys(requestData).join(', '));
 
     if (!requestData.image) {
