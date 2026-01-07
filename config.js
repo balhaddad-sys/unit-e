@@ -171,16 +171,27 @@ const API = {
             if (window.OCREngine?.isReady) {
                 return await window.OCREngine.processImage(base64Image);
             }
-            
+
             // Fallback to direct API
+            console.log('[API] Sending OCR request to:', CONFIG.visionApiUrl);
             const response = await fetch(CONFIG.visionApiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'ocr', image: base64Image })
             });
-            return await response.json();
+
+            console.log('[API] OCR Response Status:', response.status, response.statusText);
+            const responseText = await response.text();
+            console.log('[API] OCR Response (first 500 chars):', responseText.substring(0, 500));
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 300)}`);
+            }
+
+            return JSON.parse(responseText);
         } catch (error) {
-            console.error('[OCR] Failed:', error);
+            console.error('[OCR] Failed:', error.message);
+            console.error('[OCR] Full error:', error);
             throw error;
         }
     },
@@ -196,6 +207,7 @@ const API = {
     // Save labs to Google Drive
     saveLabs: async (patientId, patientName, labData) => {
         try {
+            console.log('[API] Sending Save Labs request to:', CONFIG.visionApiUrl);
             const response = await fetch(CONFIG.visionApiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -206,10 +218,54 @@ const API = {
                     labData
                 })
             });
-            return await response.json();
+
+            console.log('[API] Save Labs Response Status:', response.status, response.statusText);
+            const responseText = await response.text();
+            console.log('[API] Save Labs Response:', responseText.substring(0, 500));
+
+            if (!response.ok) {
+                throw new Error(`HTTP ${response.status}: ${responseText.substring(0, 300)}`);
+            }
+
+            return JSON.parse(responseText);
         } catch (error) {
-            console.error('[Save Labs] Failed:', error);
+            console.error('[Save Labs] Failed:', error.message);
+            console.error('[Save Labs] Full error:', error);
             throw error;
+        }
+    },
+
+    // Test API connection
+    testAPI: async () => {
+        console.log('=== API Connection Test ===');
+        console.log('API URL:', CONFIG.visionApiUrl);
+
+        try {
+            console.log('Sending test request...');
+            const response = await fetch(CONFIG.visionApiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({ action: 'test' })
+            });
+
+            console.log('Response Status:', response.status, response.statusText);
+            console.log('Response Headers:', [...response.headers.entries()]);
+
+            const responseText = await response.text();
+            console.log('Response Body:', responseText);
+
+            if (!response.ok) {
+                console.error('❌ API Test FAILED - HTTP Error:', response.status);
+                return { success: false, error: `HTTP ${response.status}`, response: responseText };
+            }
+
+            const result = JSON.parse(responseText);
+            console.log('✅ API Test SUCCESS:', result);
+            return { success: true, result };
+
+        } catch (error) {
+            console.error('❌ API Test FAILED - Network Error:', error);
+            return { success: false, error: error.message, details: error };
         }
     }
 };

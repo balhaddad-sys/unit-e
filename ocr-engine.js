@@ -89,22 +89,43 @@
 
             clearTimeout(timeoutId);
             onProgress?.(50);
-            
+
+            // Log response status for debugging
+            console.log('[OCR-Engine] Response Status:', response.status, response.statusText);
+            console.log('[OCR-Engine] API URL:', CONFIG.VISION_API_URL);
+
             const responseText = await response.text();
-            
+            console.log('[OCR-Engine] Response (first 500 chars):', responseText.substring(0, 500));
+
+            if (!response.ok) {
+                const errorMsg = `API Error: HTTP ${response.status} ${response.statusText}\nResponse: ${responseText.substring(0, 300)}`;
+                console.error('[OCR-Engine] API Error:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
+            }
+
             if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-                throw new Error('Got HTML instead of JSON - Apps Script may need redeployment');
+                const errorMsg = 'Got HTML instead of JSON - Apps Script may need redeployment\nResponse: ' + responseText.substring(0, 300);
+                console.error('[OCR-Engine] HTML Response:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
             }
-            
+
             let result;
-            try { 
-                result = JSON.parse(responseText); 
-            } catch (parseErr) { 
-                throw new Error('Failed to parse Vision API response'); 
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseErr) {
+                const errorMsg = 'Failed to parse Vision API response: ' + parseErr.message + '\nResponse: ' + responseText.substring(0, 300);
+                console.error('[OCR-Engine] Parse Error:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
             }
-            
+
             if (result.error) {
-                throw new Error(result.error);
+                const errorMsg = 'API returned error: ' + result.error;
+                console.error('[OCR-Engine] API Error:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
             }
             
             onLog?.('success', `OCR extracted ${result.text?.length || 0} characters`);
@@ -153,21 +174,42 @@
             clearTimeout(timeoutId);
             onProgress?.(70);
 
+            // Log response status for debugging
+            console.log('[Claude-Vision] Response Status:', response.status, response.statusText);
+            console.log('[Claude-Vision] API URL:', CONFIG.VISION_API_URL);
+
             const responseText = await response.text();
+            console.log('[Claude-Vision] Response (first 500 chars):', responseText.substring(0, 500));
+
+            if (!response.ok) {
+                const errorMsg = `API Error: HTTP ${response.status} ${response.statusText}\nResponse: ${responseText.substring(0, 300)}`;
+                console.error('[Claude-Vision] API Error:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
+            }
 
             if (responseText.trim().startsWith('<!DOCTYPE') || responseText.trim().startsWith('<html')) {
-                throw new Error('Got HTML instead of JSON - Apps Script may need redeployment or ANTHROPIC_API_KEY not configured');
+                const errorMsg = 'Got HTML instead of JSON - Apps Script may need redeployment or ANTHROPIC_API_KEY not configured\nResponse: ' + responseText.substring(0, 300);
+                console.error('[Claude-Vision] HTML Response:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
             }
 
             let result;
             try {
                 result = JSON.parse(responseText);
             } catch (parseErr) {
-                throw new Error('Invalid JSON response: ' + responseText.substring(0, 200));
+                const errorMsg = 'Invalid JSON response: ' + parseErr.message + '\nResponse: ' + responseText.substring(0, 300);
+                console.error('[Claude-Vision] Parse Error:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
             }
 
             if (result.error) {
-                throw new Error(result.error);
+                const errorMsg = 'Claude API returned error: ' + result.error;
+                console.error('[Claude-Vision] API Error:', errorMsg);
+                onLog?.('error', errorMsg);
+                throw new Error(errorMsg);
             }
 
             onLog?.('success', `✨ Claude Opus 4.5: Found ${result.values?.length || 0} lab values`);
