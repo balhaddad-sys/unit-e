@@ -194,39 +194,69 @@ function doPost(e) {
  */
 function handleRunOCR(requestData) {
   try {
+    Logger.log('=== handleRunOCR START ===');
+    Logger.log('Request data keys: ' + Object.keys(requestData).join(', '));
+
     if (!requestData.image) {
+      Logger.log('ERROR: No image data provided');
       throw new Error('No image data provided');
     }
-    
+
+    Logger.log('Image data length: ' + requestData.image.length);
+    Logger.log('Image data prefix: ' + requestData.image.substring(0, 50));
+
     if (!CONFIG.visionApiKey && !CONFIG.serviceAccountKey) {
-      throw new Error('Vision API credentials not configured');
+      Logger.log('ERROR: Vision API credentials not configured');
+      Logger.log('visionApiKey exists: ' + !!CONFIG.visionApiKey);
+      Logger.log('serviceAccountKey exists: ' + !!CONFIG.serviceAccountKey);
+      throw new Error('Vision API credentials not configured. Please set VISION_API_KEY in Script Properties.');
     }
-    
+
+    Logger.log('Vision API Key (first 20 chars): ' + CONFIG.visionApiKey.substring(0, 20));
+    Logger.log('USE_SERVICE_ACCOUNT: ' + USE_SERVICE_ACCOUNT);
     Logger.log('Processing OCR request...');
-    
+
     // Extract base64 image data
     const imageData = requestData.image.replace(/^data:image\/\w+;base64,/, '');
-    
+    Logger.log('Cleaned image data length: ' + imageData.length);
+
     // Call Vision API
-    const ocrResult = USE_SERVICE_ACCOUNT 
+    Logger.log('Calling Vision API...');
+    const ocrResult = USE_SERVICE_ACCOUNT
       ? callVisionAPIWithServiceAccount(imageData)
       : callVisionAPIWithKey(imageData);
-    
+
     Logger.log('OCR completed successfully - Text length: ' + ocrResult.text.length);
-    
-    return createJsonResponse({
+    Logger.log('OCR confidence: ' + ocrResult.confidence);
+    Logger.log('OCR text preview: ' + ocrResult.text.substring(0, 100));
+
+    const response = {
       success: true,
       text: ocrResult.text,
       confidence: ocrResult.confidence,
       source: 'google_vision',
       timestamp: new Date().toISOString()
-    });
-    
+    };
+
+    Logger.log('Returning success response');
+    return createJsonResponse(response);
+
   } catch (error) {
-    Logger.log('OCR Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'OCR failed: ' + error.toString()
-    }, 500);
+    Logger.log('=== OCR ERROR ===');
+    Logger.log('Error message: ' + error.toString());
+    Logger.log('Error stack: ' + error.stack);
+    Logger.log('Error name: ' + error.name);
+
+    const errorResponse = {
+      error: 'Google Vision OCR failed: ' + error.toString(),
+      errorType: error.name,
+      timestamp: new Date().toISOString(),
+      apiKeyConfigured: !!CONFIG.visionApiKey,
+      debugInfo: 'Check Apps Script logs for details'
+    };
+
+    Logger.log('Returning error response: ' + JSON.stringify(errorResponse));
+    return createJsonResponse(errorResponse, 500);
   }
 }
 
@@ -432,8 +462,12 @@ function handleSyncSheet(requestData) {
  * Call Vision API with API Key
  */
 function callVisionAPIWithKey(imageBase64) {
+  Logger.log('=== callVisionAPIWithKey START ===');
+  Logger.log('Image base64 length: ' + imageBase64.length);
+
   const url = 'https://vision.googleapis.com/v1/images:annotate?key=' + CONFIG.visionApiKey;
-  
+  Logger.log('Vision API URL: ' + url.substring(0, 70) + '...');
+
   const payload = {
     requests: [{
       image: {
@@ -445,23 +479,32 @@ function callVisionAPIWithKey(imageBase64) {
       }]
     }]
   };
-  
+
+  Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
+
   const options = {
     method: 'post',
     contentType: 'application/json',
     payload: JSON.stringify(payload),
     muteHttpExceptions: true
   };
-  
+
+  Logger.log('Calling Google Vision API...');
   const response = UrlFetchApp.fetch(url, options);
   const responseCode = response.getResponseCode();
   const responseText = response.getContentText();
-  
+
+  Logger.log('Vision API response code: ' + responseCode);
+  Logger.log('Vision API response length: ' + responseText.length);
+
   if (responseCode !== 200) {
-    throw new Error('Vision API error: ' + responseCode + ' - ' + responseText);
+    Logger.log('Vision API ERROR response: ' + responseText.substring(0, 500));
+    throw new Error('Vision API error: ' + responseCode + ' - ' + responseText.substring(0, 300));
   }
-  
+
+  Logger.log('Vision API response preview: ' + responseText.substring(0, 200));
   const result = JSON.parse(responseText);
+  Logger.log('Vision API response parsed successfully');
   
   if (result.responses && result.responses[0]) {
     const annotations = result.responses[0].textAnnotations;
@@ -595,14 +638,23 @@ function createJWT(claim, privateKey) {
  */
 function handleClaudeVision(requestData) {
   try {
+    Logger.log('=== handleClaudeVision START ===');
+    Logger.log('Request data keys: ' + Object.keys(requestData).join(', '));
+
     if (!requestData.image) {
+      Logger.log('ERROR: No image data provided');
       throw new Error('No image data provided');
     }
 
+    Logger.log('Image data length: ' + requestData.image.length);
+
     if (!CONFIG.anthropicApiKey) {
+      Logger.log('ERROR: Anthropic API key not configured');
+      Logger.log('anthropicApiKey exists: ' + !!CONFIG.anthropicApiKey);
       throw new Error('Anthropic API key not configured. Please add ANTHROPIC_API_KEY to Script Properties.');
     }
 
+    Logger.log('Anthropic API Key (first 20 chars): ' + CONFIG.anthropicApiKey.substring(0, 20));
     Logger.log('Processing Claude Vision OCR request...');
 
     // Extract base64 image data
@@ -679,15 +731,25 @@ function handleClaudeVision(requestData) {
       muteHttpExceptions: true
     };
 
+    Logger.log('Calling Claude API at: ' + url);
+    Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
+    Logger.log('Media type: ' + fullMediaType);
+
     var response = UrlFetchApp.fetch(url, options);
     var responseCode = response.getResponseCode();
     var responseText = response.getContentText();
 
+    Logger.log('Claude API response code: ' + responseCode);
+    Logger.log('Claude API response length: ' + responseText.length);
+
     if (responseCode !== 200) {
-      throw new Error('Claude API error: ' + responseCode + ' - ' + responseText);
+      Logger.log('Claude API ERROR response: ' + responseText.substring(0, 500));
+      throw new Error('Claude API error: ' + responseCode + ' - ' + responseText.substring(0, 300));
     }
 
+    Logger.log('Claude API response preview: ' + responseText.substring(0, 200));
     var result = JSON.parse(responseText);
+    Logger.log('Claude API response parsed successfully');
 
     // Extract text content from Claude's response
     var content = result.content && result.content[0] && result.content[0].text;
@@ -735,10 +797,21 @@ function handleClaudeVision(requestData) {
     return createJsonResponse(responseData);
 
   } catch (error) {
-    Logger.log('Claude Vision Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Claude Vision failed: ' + error.toString()
-    }, 500);
+    Logger.log('=== CLAUDE VISION ERROR ===');
+    Logger.log('Error message: ' + error.toString());
+    Logger.log('Error stack: ' + error.stack);
+    Logger.log('Error name: ' + error.name);
+
+    const errorResponse = {
+      error: 'Claude Vision failed: ' + error.toString(),
+      errorType: error.name,
+      timestamp: new Date().toISOString(),
+      apiKeyConfigured: !!CONFIG.anthropicApiKey,
+      debugInfo: 'Check Apps Script logs for details'
+    };
+
+    Logger.log('Returning error response: ' + JSON.stringify(errorResponse));
+    return createJsonResponse(errorResponse, 500);
   }
 }
 
