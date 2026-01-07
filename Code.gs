@@ -187,6 +187,10 @@ function doPost(e) {
  */
 function handleRunOCR(requestData) {
   try {
+    if (!requestData) {
+      throw new Error('No request data received');
+    }
+
     if (!requestData.image) {
       throw new Error('No image data provided');
     }
@@ -196,12 +200,20 @@ function handleRunOCR(requestData) {
     }
     
     Logger.log('Processing OCR request...');
-    
+    Logger.log('Image data length: ' + requestData.image.length);
+
     // Extract base64 image data
     const imageData = requestData.image.replace(/^data:image\/\w+;base64,/, '');
-    
+
+    // Validate image data
+    if (!imageData || imageData.length < 100) {
+      throw new Error('Invalid or empty image data after processing');
+    }
+
+    Logger.log('Base64 data length: ' + imageData.length);
+
     // Call Vision API
-    const ocrResult = USE_SERVICE_ACCOUNT 
+    const ocrResult = USE_SERVICE_ACCOUNT
       ? callVisionAPIWithServiceAccount(imageData)
       : callVisionAPIWithKey(imageData);
     
@@ -588,6 +600,10 @@ function createJWT(claim, privateKey) {
  */
 function handleClaudeVision(requestData) {
   try {
+    if (!requestData) {
+      throw new Error('No request data received');
+    }
+
     if (!requestData.image) {
       throw new Error('No image data provided');
     }
@@ -741,6 +757,10 @@ function handleClaudeVision(requestData) {
  */
 function handleClaudeConsult(requestData) {
   try {
+    if (!requestData) {
+      throw new Error('No request data received');
+    }
+
     if (!requestData.query) {
       throw new Error('No query provided');
     }
