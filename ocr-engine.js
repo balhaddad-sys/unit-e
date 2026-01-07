@@ -8,7 +8,7 @@
 
     // Configuration
     const CONFIG = {
-        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbz_2zC2ztoesY0XBd7_M9YzddWzRolYjqnjXF3xr_jM0Ry4nDzqoXOpFgQZJRl1zPdU/exec',
+        VISION_API_URL: 'https://script.google.com/macros/s/AKfycbz3SuvptqcgljpuxenGWkJFsra9e9DYM8rnh3rgxEqtnGsy_UYu-Ya6CHwzWQz3yE-6BQ/exec',
         MAX_IMAGE_WIDTH: 1200,     // Reduced from 1600 for faster upload
         JPEG_QUALITY: 0.88,        // Reduced from 0.92 for smaller file size
         USE_CLAUDE_VISION: true,   // Enable Claude Opus 4.5 Vision (GPT-5 level)
