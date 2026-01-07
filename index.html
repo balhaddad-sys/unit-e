@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -1447,6 +1448,7 @@
         .pill.med-conf { background: #f59e0b; }
         .pill.low-conf { background: #ef4444; }
         .pill.vision { background: #4285f4; }
+        .pill.tesseract { background: #7e22ce; }
         .lab-values-body { padding: 10px 12px; background: white; }
         .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .kv { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
@@ -1655,6 +1657,14 @@
             color: #b91c1c;
             font-size: 13px;
         }
+        .ocr-engine-toggle {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
         .engine-btn {
             flex: 1;
             padding: 10px 12px;
@@ -1678,6 +1688,15 @@
             color: white;
             border-color: #1e40af;
         }
+        .engine-btn.tesseract {
+            background: #faf5ff;
+            color: #6b21a8;
+        }
+        .engine-btn.tesseract.active {
+            background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%);
+            color: white;
+            border-color: #6b21a8;
+        }
         .engine-btn.hybrid {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             color: #92400e;
@@ -1697,6 +1716,7 @@
             font-weight: 800;
         }
         .source-badge.vision { background: #dbeafe; color: #1e40af; }
+        .source-badge.tesseract { background: #f3e8ff; color: #6b21a8; }
         .debug-panel {
             background: #1e293b;
             border-radius: 8px;
@@ -2513,6 +2533,242 @@
                 height: 36px !important;
             }
         }
+
+        /* ═══════════════════════════════════════════════════════════════
+           CAMERA MODAL - Live Camera Preview with getUserMedia
+           ═══════════════════════════════════════════════════════════════ */
+        .camera-modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.95);
+            z-index: 10000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            animation: cameraFadeIn 0.3s ease-out;
+        }
+
+        @keyframes cameraFadeIn {
+            from {
+                opacity: 0;
+            }
+            to {
+                opacity: 1;
+            }
+        }
+
+        .camera-modal-content {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+            height: 100%;
+            padding: var(--space-lg);
+            gap: var(--space-lg);
+        }
+
+        .camera-video-container {
+            position: relative;
+            max-width: 90%;
+            max-height: 70vh;
+            border-radius: var(--radius-xl);
+            overflow: hidden;
+            box-shadow: var(--shadow-2xl);
+            background: #000;
+        }
+
+        .camera-video {
+            display: block;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: var(--radius-xl);
+        }
+
+        .camera-error-message {
+            background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+            border: 2px solid var(--error);
+            border-radius: var(--radius-lg);
+            padding: var(--space-lg);
+            color: #991b1b;
+            text-align: center;
+            max-width: 500px;
+            box-shadow: var(--shadow-lg);
+        }
+
+        .camera-error-icon {
+            font-size: 48px;
+            margin-bottom: var(--space-md);
+        }
+
+        .camera-error-title {
+            font-size: 1.25rem;
+            font-weight: 700;
+            margin-bottom: var(--space-sm);
+        }
+
+        .camera-error-text {
+            font-size: 0.9375rem;
+            line-height: 1.6;
+            margin-bottom: var(--space-md);
+        }
+
+        .camera-controls {
+            display: flex;
+            gap: var(--space-md);
+            flex-wrap: wrap;
+            justify-content: center;
+            padding: 0 var(--space-md);
+        }
+
+        .camera-btn {
+            padding: 14px 28px;
+            border: none;
+            border-radius: var(--radius-full);
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: var(--shadow-lg);
+            display: flex;
+            align-items: center;
+            gap: var(--space-xs);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .camera-btn::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.3);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .camera-btn:hover::before {
+            width: 300px;
+            height: 300px;
+        }
+
+        .camera-btn:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-xl);
+        }
+
+        .camera-btn:active {
+            transform: translateY(-1px);
+            box-shadow: var(--shadow-lg);
+        }
+
+        .camera-btn-capture {
+            background: linear-gradient(135deg, var(--primary) 0%, var(--primary-dark) 100%);
+            color: white;
+            min-width: 160px;
+        }
+
+        .camera-btn-capture:hover {
+            background: linear-gradient(135deg, var(--primary-dark) 0%, var(--primary) 100%);
+        }
+
+        .camera-btn-switch {
+            background: linear-gradient(135deg, var(--secondary) 0%, var(--secondary-dark) 100%);
+            color: white;
+        }
+
+        .camera-btn-switch:hover {
+            background: linear-gradient(135deg, var(--secondary-dark) 0%, var(--secondary) 100%);
+        }
+
+        .camera-btn-cancel {
+            background: linear-gradient(135deg, var(--error) 0%, #dc2626 100%);
+            color: white;
+        }
+
+        .camera-btn-cancel:hover {
+            background: linear-gradient(135deg, #dc2626 0%, var(--error) 100%);
+        }
+
+        .camera-btn-fallback {
+            background: white;
+            color: var(--text-primary);
+            border: 2px solid var(--border);
+        }
+
+        .camera-btn-fallback:hover {
+            background: var(--bg-tertiary);
+            border-color: var(--text-secondary);
+        }
+
+        .camera-status-text {
+            color: white;
+            text-align: center;
+            font-size: 0.875rem;
+            opacity: 0.8;
+            max-width: 400px;
+        }
+
+        /* Mobile optimizations for camera modal */
+        @media (max-width: 768px) {
+            .camera-modal-content {
+                padding: var(--space-md);
+                gap: var(--space-md);
+            }
+
+            .camera-video-container {
+                max-width: 100%;
+                max-height: 60vh;
+                border-radius: var(--radius-lg);
+            }
+
+            .camera-controls {
+                gap: var(--space-sm);
+                width: 100%;
+            }
+
+            .camera-btn {
+                padding: 12px 20px;
+                font-size: 0.9375rem;
+                flex: 1;
+                min-width: 0;
+                justify-content: center;
+            }
+
+            .camera-btn-capture {
+                min-width: 0;
+                flex: 1.5;
+            }
+
+            .camera-error-message {
+                max-width: 90%;
+                padding: var(--space-md);
+            }
+
+            .camera-error-icon {
+                font-size: 36px;
+            }
+
+            .camera-error-title {
+                font-size: 1.125rem;
+            }
+        }
+
+        /* iOS specific fixes */
+        @supports (-webkit-touch-callout: none) {
+            .camera-video {
+                -webkit-transform: translateZ(0);
+                transform: translateZ(0);
+            }
+        }
     </style>
 </head>
 <body>
@@ -3000,7 +3256,7 @@ if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseCon
 const db = firebase.database();
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbxTQNcdm2DH6vjbEMlvUwZYmOJsM_dg10x1UVX2z3JYm8a-vfGxliXvaQxgPIE9AbWG/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
@@ -4516,17 +4772,6 @@ const AIConsultModal = ({ patient, onClose }) => {
         inputRef.current?.focus();
     }, []);
 
-    // Keyboard shortcut: Esc to close
-    useEffect(() => {
-        const handleEsc = (e) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
-        };
-        document.addEventListener('keydown', handleEsc);
-        return () => document.removeEventListener('keydown', handleEsc);
-    }, [onClose]);
-
     const handleSendMessage = async () => {
         if (!userInput.trim() || loading) return;
 
@@ -4640,82 +4885,42 @@ const AIConsultModal = ({ patient, onClose }) => {
     };
 
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: '#ffffff',
-            zIndex: 10000,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-        }}>
-            <div style={{
-                width: '100%',
-                height: '100%',
-                maxWidth: '1200px',
-                margin: '0 auto',
+        <div className="modalOverlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{
+                maxWidth: '900px',
+                maxHeight: '85vh',
+                height: '85vh',
+                borderRadius: 'var(--radius-xl)',
+                overflow: 'hidden',
                 display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden'
+                flexDirection: 'column'
             }}>
-                {/* Header - Claude/ChatGPT Style */}
-                <div style={{
-                    background: '#ffffff',
-                    padding: '16px 24px',
-                    borderBottom: '1px solid #e5e7eb',
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
+                <div className="modal-head" style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+                    padding: '20px 24px',
+                    borderBottom: '3px solid #4338ca',
+                    flexShrink: 0
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.2)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '18px',
-                            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)'
+                            fontSize: '20px'
                         }}>
                             🤖
                         </div>
                         <div>
-                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI Medical Consultant</div>
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                                Powered by Claude Opus 4.5 • {patient.name}
+                            <span style={{ fontSize: '18px', fontWeight: 700 }}>AI Medical Consultation</span>
+                            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
+                                {patient.name} • {patient.diagnosis || 'No diagnosis specified'}
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: '8px',
-                            cursor: 'pointer',
-                            fontSize: '24px',
-                            color: '#9ca3af',
-                            borderRadius: '6px',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                            e.target.style.background = '#f3f4f6';
-                            e.target.style.color = '#111827';
-                        }}
-                        onMouseLeave={e => {
-                            e.target.style.background = 'none';
-                            e.target.style.color = '#9ca3af';
-                        }}
-                        title="Close (Esc)"
-                    >
-                        ×
-                    </button>
                 </div>
 
                 {/* Patient Context Summary */}
@@ -4735,12 +4940,12 @@ const AIConsultModal = ({ patient, onClose }) => {
                     </div>
                 </div>
 
-                {/* Chat Container - Claude/ChatGPT Style */}
+                {/* Chat Container */}
                 <div style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '24px',
-                    background: '#f9fafb'
+                    padding: '20px 24px',
+                    background: '#ffffff'
                 }}>
                     {conversation.length === 0 ? (
                         <div style={{
@@ -4830,38 +5035,19 @@ const AIConsultModal = ({ patient, onClose }) => {
                         <>
                             {conversation.map((msg, idx) => (
                                 <div key={idx} style={{
-                                    marginBottom: '20px',
+                                    marginBottom: '16px',
                                     display: 'flex',
-                                    gap: '12px',
-                                    alignItems: 'flex-start',
-                                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
+                                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
                                 }}>
-                                    {/* Avatar */}
                                     <div style={{
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '8px',
-                                        background: msg.role === 'user' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: '16px',
-                                        flexShrink: 0,
-                                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-                                    }}>
-                                        {msg.role === 'user' ? '👤' : '🤖'}
-                                    </div>
-                                    {/* Message Bubble */}
-                                    <div style={{
-                                        maxWidth: '70%',
-                                        padding: '14px 18px',
+                                        maxWidth: '75%',
+                                        padding: '12px 16px',
                                         borderRadius: '12px',
-                                        background: msg.role === 'user' ? '#ffffff' : '#ffffff',
-                                        color: '#111827',
-                                        fontSize: '14px',
+                                        background: msg.role === 'user' ? '#6366f1' : '#f1f5f9',
+                                        color: msg.role === 'user' ? '#ffffff' : '#0f172a',
+                                        fontSize: '13px',
                                         lineHeight: '1.6',
-                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
-                                        border: '1px solid #e5e7eb'
+                                        boxShadow: msg.role === 'user' ? '0 2px 8px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.05)'
                                     }}>
                                         {msg.role === 'user' ? (
                                             <div>{msg.content}</div>
@@ -4980,6 +5166,270 @@ const AIConsultModal = ({ patient, onClose }) => {
     );
 };
 
+// Camera Modal Component with Live Preview
+const CameraModal = ({ isOpen, onClose, onCapture }) => {
+    const videoRef = useRef(null);
+    const canvasRef = useRef(null);
+    const [stream, setStream] = useState(null);
+    const [facingMode, setFacingMode] = useState('environment'); // Start with back camera
+    const [cameraError, setCameraError] = useState(null);
+    const [isLoading, setIsLoading] = useState(true);
+    const isMountedRef = useRef(true);
+
+    // Start camera when modal opens (only on isOpen change)
+    useEffect(() => {
+        isMountedRef.current = true;
+        if (isOpen) {
+            startCamera();
+        }
+        return () => {
+            isMountedRef.current = false;
+            stopCamera();
+        };
+    }, [isOpen]);
+
+    // Restart camera when facing mode changes (while modal is open)
+    useEffect(() => {
+        if (isOpen && stream) {
+            // Stop current stream before switching
+            stopCamera();
+            startCamera();
+        }
+    }, [facingMode]);
+
+    const startCamera = async () => {
+        try {
+            setIsLoading(true);
+            setCameraError(null);
+
+            // Request camera access
+            const constraints = {
+                video: {
+                    facingMode: facingMode,
+                    width: { ideal: 1920 },
+                    height: { ideal: 1080 }
+                },
+                audio: false
+            };
+
+            const mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+            
+            if (videoRef.current && isMountedRef.current) {
+                videoRef.current.srcObject = mediaStream;
+                // Wait for video to be ready with cleanup
+                const handleMetadata = () => {
+                    if (isMountedRef.current) {
+                        setIsLoading(false);
+                    }
+                };
+                videoRef.current.addEventListener('loadedmetadata', handleMetadata, { once: true });
+            }
+            
+            if (isMountedRef.current) {
+                setStream(mediaStream);
+                console.log('[CameraModal] Camera started successfully');
+            } else {
+                // Component unmounted, clean up the stream
+                mediaStream.getTracks().forEach(track => track.stop());
+            }
+        } catch (err) {
+            console.error('[CameraModal] Camera error:', err);
+            if (isMountedRef.current) {
+                setIsLoading(false);
+                
+                let errorMessage = 'Unable to access camera. ';
+                if (err.name === 'NotAllowedError' || err.name === 'PermissionDeniedError') {
+                    errorMessage += 'Please grant camera permissions in your browser settings and try again.';
+                } else if (err.name === 'NotFoundError' || err.name === 'DevicesNotFoundError') {
+                    errorMessage += 'No camera found on this device.';
+                } else if (err.name === 'NotReadableError' || err.name === 'TrackStartError') {
+                    errorMessage += 'Camera is already in use by another application.';
+                } else {
+                    errorMessage += err.message || 'Unknown error occurred.';
+                }
+                
+                setCameraError(errorMessage);
+            }
+        }
+    };
+
+    const stopCamera = () => {
+        if (stream) {
+            stream.getTracks().forEach(track => {
+                track.stop();
+                console.log('[CameraModal] Camera track stopped');
+            });
+            setStream(null);
+        }
+        if (videoRef.current) {
+            videoRef.current.srcObject = null;
+        }
+    };
+
+    const capturePhoto = async () => {
+        const video = videoRef.current;
+        const canvas = canvasRef.current;
+        
+        if (!video || !canvas) {
+            console.error('[CameraModal] Video or canvas ref not available');
+            return;
+        }
+
+        if (!onCapture) {
+            console.error('[CameraModal] No capture callback provided');
+            return;
+        }
+
+        try {
+            // Set canvas dimensions to match video
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+
+            // Draw video frame to canvas
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Convert to data URL (JPEG with high quality)
+            const imageDataUrl = canvas.toDataURL('image/jpeg', 0.95);
+            
+            console.log('[CameraModal] Photo captured:', canvas.width, 'x', canvas.height);
+
+            // Convert data URL to File object synchronously using manual conversion
+            try {
+                const arr = imageDataUrl.split(',');
+                const mime = arr[0].match(/:(.*?);/)[1];
+                const bstr = atob(arr[1]);
+                let n = bstr.length;
+                const u8arr = new Uint8Array(n);
+                
+                while (n--) {
+                    u8arr[n] = bstr.charCodeAt(n);
+                }
+                
+                const file = new File([u8arr], `camera-capture-${Date.now()}.jpg`, { type: mime });
+                
+                // Stop camera and close modal only after successful conversion
+                stopCamera();
+                onClose();
+                
+                // Pass the file to callback
+                onCapture(file);
+            } catch (convertErr) {
+                console.error('[CameraModal] Failed to convert capture to file:', convertErr);
+                setCameraError('Failed to process captured photo. Please try again.');
+            }
+        } catch (err) {
+            console.error('[CameraModal] Capture failed:', err);
+            setCameraError('Failed to capture photo. Please try again.');
+        }
+    };
+
+    const switchCamera = () => {
+        console.log('[CameraModal] Switching camera from', facingMode);
+        setFacingMode(prev => prev === 'environment' ? 'user' : 'environment');
+    };
+
+    const handleClose = () => {
+        stopCamera();
+        onClose();
+    };
+
+    const handleFallbackToFileInput = () => {
+        stopCamera();
+        onClose();
+        // Note: This function is called from error state, so the file input
+        // should be triggered by parent component via fileRef
+        // We'll just close the modal and let the user try the Gallery option
+    };
+
+    if (!isOpen) return null;
+
+    return (
+        <div className="camera-modal-overlay">
+            <div className="camera-modal-content">
+                {cameraError ? (
+                    // Error state
+                    <div className="camera-error-message">
+                        <div className="camera-error-icon">📷</div>
+                        <div className="camera-error-title">Camera Error</div>
+                        <div className="camera-error-text">{cameraError}</div>
+                        <div className="camera-controls">
+                            <button 
+                                className="camera-btn camera-btn-fallback"
+                                onClick={handleFallbackToFileInput}
+                            >
+                                📁 Choose from Gallery
+                            </button>
+                            <button 
+                                className="camera-btn camera-btn-cancel"
+                                onClick={handleClose}
+                            >
+                                ✕ Close
+                            </button>
+                        </div>
+                    </div>
+                ) : (
+                    // Camera preview state
+                    <>
+                        <div className="camera-video-container">
+                            <video
+                                ref={videoRef}
+                                className="camera-video"
+                                autoPlay
+                                playsInline
+                                muted
+                            />
+                            {isLoading && (
+                                <div style={{
+                                    position: 'absolute',
+                                    top: '50%',
+                                    left: '50%',
+                                    transform: 'translate(-50%, -50%)',
+                                    color: 'white',
+                                    fontSize: '1.25rem',
+                                    fontWeight: 600
+                                }}>
+                                    Loading camera...
+                                </div>
+                            )}
+                        </div>
+
+                        <div className="camera-controls">
+                            <button 
+                                className="camera-btn camera-btn-capture"
+                                onClick={capturePhoto}
+                                disabled={isLoading}
+                            >
+                                📸 Capture
+                            </button>
+                            <button 
+                                className="camera-btn camera-btn-switch"
+                                onClick={switchCamera}
+                                disabled={isLoading}
+                            >
+                                🔄 Switch
+                            </button>
+                            <button 
+                                className="camera-btn camera-btn-cancel"
+                                onClick={handleClose}
+                            >
+                                ✕ Cancel
+                            </button>
+                        </div>
+
+                        <div className="camera-status-text">
+                            {facingMode === 'environment' ? 'Using rear camera' : 'Using front camera'}
+                        </div>
+                    </>
+                )}
+
+                {/* Hidden canvas for capturing frames */}
+                <canvas ref={canvasRef} style={{ display: 'none' }} />
+            </div>
+        </div>
+    );
+};
+
 const LabModal = ({ patient, onClose, onSave }) => {
     const [labImages, setLabImages] = useState([]);
     const [dragging, setDragging] = useState(false);
@@ -4995,9 +5445,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [debugLogs, setDebugLogs] = useState([]);
     const [showInterpretation, setShowInterpretation] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showFabMenu, setShowFabMenu] = useState(false);
+    const [showCameraModal, setShowCameraModal] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const fileRef = useRef(null);
+    const cameraRef = useRef(null);
     const chatEndRef = useRef(null);
     
     const addDebugLog = (type, msg) => {
@@ -5169,21 +5622,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
         setOcrStage("Starting...");
         setOcrError(null);
         addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
-
+        
         try {
-            // Check if OCR Engine is loaded with retry logic
+            // Check if OCR Engine is loaded
             if (!window.OCREngine || !window.OCREngine.isReady) {
-                addDebugLog('warn', 'OCR Engine not ready, waiting...');
-                // Wait up to 5 seconds for OCR Engine to load
-                let retries = 0;
-                while ((!window.OCREngine || !window.OCREngine.isReady) && retries < 10) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    retries++;
-                }
-                if (!window.OCREngine || !window.OCREngine.isReady) {
-                    throw new Error('OCR Engine not loaded after 5 seconds. Please refresh the page.');
-                }
-                addDebugLog('success', 'OCR Engine loaded successfully');
+                throw new Error('OCR Engine not loaded. Please refresh the page.');
             }
             
             // Run OCR using the modular engine
@@ -5269,27 +5712,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleFile = async (file) => {
-        console.log('[handleFile] Called with file:', file);
-        if (!file || !file.type.startsWith('image/')) {
-            console.log('[handleFile] Invalid file type or no file');
-            addDebugLog('error', 'Invalid file type or no file');
-            return;
-        }
-
+        if (!file || !file.type.startsWith('image/')) return;
         setUploading(true);
         setOcrError(null);
         addDebugLog('info', `Processing file: ${file.name}`);
-        console.log('[handleFile] Starting compression...');
-
         try {
             // Use OCREngine module for compression
-            const compressed = window.OCREngine?.compressImage
+            const compressed = window.OCREngine?.compressImage 
                 ? await window.OCREngine.compressImage(file)
                 : await compressImageFallback(file);
-
-            console.log('[handleFile] Compression complete, size:', compressed.length);
-            addDebugLog('success', `Compressed image (${compressed.length} bytes)`);
-
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
@@ -5297,29 +5728,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 note: "",
                 ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null, labType: null }
             };
-
-            console.log('[handleFile] Created newImage object:', newImage.id);
-            console.log('[handleFile] Current labImages count:', labImages.length);
-
-            updateLabImages(prev => {
-                console.log('[handleFile] updateLabImages prev count:', prev.length);
-                const updated = [newImage, ...prev];
-                console.log('[handleFile] updateLabImages new count:', updated.length);
-                return updated;
-            });
-
-            console.log('[handleFile] Image added to state, switching to Images tab...');
-            setTab("Images"); // Switch to Images tab to show the newly added image
+            updateLabImages(prev => [newImage, ...prev]);
             setUploading(false);
-            addDebugLog('success', `✓ Image added! Running OCR...`);
-
-            setTimeout(() => {
-                console.log('[handleFile] Running OCR on image:', newImage.id);
-                runOcrOnImage(newImage);
-            }, 300);
-
+            setTimeout(() => runOcrOnImage(newImage), 300);
         } catch (err) {
-            console.error('[handleFile] Error:', err);
             addDebugLog('error', `File processing failed: ${err.message}`);
             setOcrError("Failed to process image");
             setUploading(false);
@@ -5327,20 +5739,43 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
-    const handleFileInput = (e) => {
-        console.log('[handleFileInput] Called, event:', e);
-        const file = e.target.files?.[0];
-        console.log('[handleFileInput] Selected file:', file);
+    const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
 
-        if (file) {
-            addDebugLog('info', `File selected: ${file.name} (${file.size} bytes, type: ${file.type})`);
-            handleFile(file);
-        } else {
-            addDebugLog('warn', 'No file selected');
-            console.log('[handleFileInput] No file in e.target.files');
-        }
-        e.target.value = '';
-    };
+    // Initialize Camera Module after handleFile is defined
+    useEffect(() => {
+        let retryCount = 0;
+        const maxRetries = 3;
+        const retryDelay = 500;
+
+        const initializeCameraModule = () => {
+            if (window.CameraModule) {
+                window.CameraModule.init({
+                    onFileSelected: (file) => {
+                        addDebugLog('info', `Camera captured file: ${file.name}`);
+                        handleFile(file);
+                    },
+                    onDebug: (type, message) => {
+                        addDebugLog(type, message);
+                    }
+                });
+                addDebugLog('success', 'Camera Module initialized');
+            } else if (retryCount < maxRetries) {
+                retryCount++;
+                addDebugLog('info', `Camera Module not ready, retrying... (${retryCount}/${maxRetries})`);
+                setTimeout(initializeCameraModule, retryDelay);
+            } else {
+                addDebugLog('warn', 'Camera Module not loaded - using fallback');
+            }
+        };
+
+        initializeCameraModule();
+
+        return () => {
+            if (window.CameraModule && window.CameraModule.destroy) {
+                window.CameraModule.destroy();
+            }
+        };
+    }, []); // Run once on mount, handleFile is in scope now
 
     const handleAIChat = (message) => {
         if (!message.trim()) return;
@@ -5483,30 +5918,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
 
-    // Prevent modal from closing during upload or OCR
-    const handleOverlayClick = () => {
-        if (uploading || ocrBusyId) {
-            addDebugLog('info', 'Please wait for upload/OCR to complete');
-            return;
-        }
-        onClose();
-    };
-
     return (
-        <div className="modalOverlay" onClick={handleOverlayClick}>
+        <div className="modalOverlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-head">
                     <span>🧪 Labs - {patient.name}</span>
-                    <button
-                        onClick={() => {
-                            if (uploading || ocrBusyId) {
-                                addDebugLog('info', 'Please wait for upload/OCR to complete');
-                                return;
-                            }
-                            onClose();
-                        }}
-                        style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}
-                    >×</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
                 </div>
                 <div className="modal-body">
                     <div className="tabs">
@@ -5515,6 +5932,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
                         <button className={`tab ${tab === "AI Chat" ? "active" : ""}`} onClick={() => setTab("AI Chat")}>🤖 AI Chat</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
+                    </div>
+
+                    <div className="ocr-engine-toggle">
+
                     </div>
 
                     {tab === "Debug" && (
@@ -5547,7 +5968,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {/* Hidden file inputs - Always rendered so refs remain valid */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                    {/* Camera input is created and managed by CameraModule */}
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
 
                     {tab !== "Debug" && (
                         <>
@@ -5589,7 +6010,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                 </div>
                                             </div>
                                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                                <span className="pill vision">🌐 Cloud Vision</span>
+                                                <span className={`pill ${isVision ? 'vision' : 'tesseract'}`}>{isVision ? '🌐 Vision' : '📱 Tesseract'}</span>
                                                 <span className={`pill ${confClass}-conf`}>{Math.round(item.avgValueConfidence || item.confidence)}%</span>
                                                 <span className="pill">{hasVals ? `${item.values.length} values` : "—"}</span>
                                                 <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>{showRawText === item.id ? '🔼' : '🔽'} Raw</button>
@@ -6081,16 +6502,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     )}
                 </div>
                 <div className="modal-foot">
-                    <button
-                        className="btn btn-white"
-                        onClick={() => {
-                            if (uploading || ocrBusyId) {
-                                addDebugLog('info', 'Please wait for upload/OCR to complete');
-                                return;
-                            }
-                            onClose();
-                        }}
-                    >Cancel</button>
+                    <button className="btn btn-white" onClick={onClose}>Cancel</button>
                     <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
                         {labImages.length === 0 ? 'Clear All' : 'Save (' + labImages.length + ')'}
                     </button>
@@ -6098,23 +6510,77 @@ const LabModal = ({ patient, onClose, onSave }) => {
             </div>
             {viewerIndex !== null && labImages[viewerIndex]?.image && <ImageViewer images={labImages.filter(l => l.image)} currentIndex={viewerIndex} onClose={() => setViewerIndex(null)} />}
 
+            {/* Camera Modal with Live Preview */}
+            <CameraModal
+                isOpen={showCameraModal}
+                onClose={() => setShowCameraModal(false)}
+                onCapture={(file) => {
+                    console.log('[LabModal] Camera captured file:', file);
+                    addDebugLog('info', 'Photo captured from camera');
+                    // Process the captured file same as file input
+                    handleFileInput({ target: { files: [file] } });
+                }}
+            />
+
             {/* Floating Action Button (FAB) for Lab Upload - Only show when not on Debug tab */}
             {tab !== "Debug" && (
                 <div className="fab-container">
                     <button
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
-                        onClick={(e) => {
-                            e.stopPropagation(); // Prevent click from bubbling to modal overlay
-                            if (!uploading && fileRef.current) {
-                                addDebugLog('info', 'Upload button clicked');
-                                fileRef.current.click();
+                        onClick={() => {
+                            if (!uploading) {
+                                setShowFabMenu(!showFabMenu);
                             }
                         }}
                         disabled={uploading}
-                        title="Upload lab image"
                     >
-                        {uploading ? '⏳' : '📤'}
+                        {uploading ? '⏳' : '📷'}
                     </button>
+                    {showFabMenu && (
+                        <div className="fab-menu" style={{ display: 'flex' }}>
+                            <button
+                                className="fab-menu-item"
+                                onClick={() => {
+                                    console.log('Camera button clicked');
+                                    addDebugLog('info', 'Camera button clicked');
+                                    setShowFabMenu(false);
+                                    
+                                    // Check if getUserMedia is supported
+                                    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+                                        // Use new camera modal with live preview
+                                        setShowCameraModal(true);
+                                        addDebugLog('info', 'Opening camera modal with live preview');
+                                    } else {
+                                        // Fallback to file input with capture attribute
+                                        if (cameraRef.current) {
+                                            cameraRef.current.click();
+                                            addDebugLog('info', 'Camera opened via fallback file input');
+                                        } else {
+                                            addDebugLog('error', 'Camera not available');
+                                        }
+                                    }
+                                }}
+                            >
+                                📸 Camera
+                            </button>
+                            <button
+                                className="fab-menu-item"
+                                onClick={() => {
+                                    console.log('Gallery button clicked', fileRef.current);
+                                    addDebugLog('info', 'Gallery button clicked');
+                                    if (fileRef.current) {
+                                        fileRef.current.click();
+                                        addDebugLog('info', 'File input triggered');
+                                    } else {
+                                        addDebugLog('error', 'File ref not available');
+                                    }
+                                    setShowFabMenu(false);
+                                }}
+                            >
+                                📁 Gallery
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -6262,17 +6728,13 @@ const App = () => {
             
             console.log('[Save] ✓ SUCCESS - Labs saved to Google Drive');
             console.log('[Save] File:', result.filename);
-
+            
             // Also save minimal reference to Firebase (just count and timestamp)
             await db.ref(`patients/${patientId}/labInfo`).set({
                 count: labData.length,
                 lastSaved: Date.now(),
                 driveFolder: result.folderId || null
             });
-
-            // Auto-sync with Google Sheets after saving labs
-            console.log('[Save] Auto-syncing with Google Sheets...');
-            await pingSheets().catch(err => console.log('[Save] Sheet sync error (non-critical):', err));
             
             showToast("✓ Labs saved to Drive");
             scheduleSync();
@@ -6413,51 +6875,17 @@ const App = () => {
                     <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 CSV</button>
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
-                    <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')} title="Open Google Sheets">📊 Sheets</button>
-                    <button className="btn btn-blue" onClick={async () => {
-                        setSyncing(true);
-                        showToast("🔄 Syncing with Google Sheets...");
-                        await pingSheets();
-                        showToast("✓ Synced with Google Sheets!");
-                        setTimeout(() => setSyncing(false), 1000);
-                    }} title="Sync with Google Sheets now">🔄 Sync</button>
+                    <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
+                    <button className="btn btn-blue" onClick={async () => { 
+                        setSyncing(true); 
+                        showToast("🔄 Syncing sheet..."); 
+                        await pingSheets(); 
+                        showToast("✓ Sheet synced!"); 
+                        setTimeout(() => setSyncing(false), 1000); 
+                    }}>🔄</button>
                 </div>
             </div>
             <NoticeBanner notice={notice} onSave={saveNotice} />
-            {/* Google Sheets Link Display */}
-            <div style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                margin: '12px 16px 8px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '13px',
-                fontWeight: 600,
-                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
-            }}>
-                <span>📊 Google Sheets: Real-time sync enabled</span>
-                <button
-                    onClick={() => window.open(SHEET_URL, '_blank')}
-                    style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        color: 'white',
-                        padding: '4px 12px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
-                    onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                >
-                    Open Sheets →
-                </button>
-            </div>
             <div className="controls-container">
                 <div className="filter-row">{['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (<button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>))}</div>
                 <input ref={searchRef} className="search-bar" placeholder="Search patients... (Ctrl+F)" value={search} onChange={e => setSearch(e.target.value)} />
