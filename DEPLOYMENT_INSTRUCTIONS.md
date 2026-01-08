@@ -51,16 +51,25 @@ The Google Apps Script backend has been completely rewritten to fix the sync iss
 5. Click **Authorize access** and complete the authorization
 6. Copy the deployment URL
 
-### 4. Update the Frontend (if needed)
+### 4. Update the Frontend (CRITICAL)
 
-If you created a new deployment or if the URL changed:
+**IMPORTANT**: After deploying the Apps Script, you MUST update the frontend with the deployment URL:
 
-1. Open `/home/user/unit-e/config.js`
-2. Update the `apiUrl` on line 6:
+1. Copy the deployment URL from step 3
+2. Open `/home/user/unit-e/config.js`
+3. Update the `apiUrl` on line 7:
    ```javascript
-   apiUrl: 'YOUR_NEW_DEPLOYMENT_URL_HERE',
+   apiUrl: 'YOUR_DEPLOYMENT_URL_HERE',
    ```
-3. Save the file
+4. Replace `YOUR_DEPLOYMENT_URL_HERE` with your actual deployment URL
+5. Save the file
+
+**Current Status**: The config.js has been configured with your web app deployment URL:
+```
+https://script.google.com/macros/s/AKfycbyNa3AOc6EMOEgAi9hDM3ktNMhN_Z-s9qkWT1wxTCznVeBul_qNUkqyBEUTa3aSD1Ca/exec
+```
+
+✅ This URL is already set in config.js - no frontend changes needed!
 
 ### 5. Test the Sync
 

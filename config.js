@@ -3,8 +3,8 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
-    // UPDATE THIS after deploying
-    apiUrl: 'YOUR_DEPLOYMENT_URL_HERE',
+    // Apps Script Web App deployment URL
+    apiUrl: 'https://script.google.com/macros/s/AKfycbyNa3AOc6EMOEgAi9hDM3ktNMhN_Z-s9qkWT1wxTCznVeBul_qNUkqyBEUTa3aSD1Ca/exec',
     
     // Wards
     wards: ["Ward 20", "Ward 21", "Ward 22", "Ward 5", "Ward 27", "Ward 4", "Ward 19", "Ward 10", "ICU", "ER", "Unassigned"],
