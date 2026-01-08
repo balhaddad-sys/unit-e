@@ -1,767 +1,689 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND
- * 
- * Features:
- * - Google Vision API integration (OCR for lab images)
- * - Lab storage to Google Drive
- * - Google Sheets sync functionality
- * - Both API key and service account authentication methods
- * - Comprehensive error handling and logging
- * 
- * Setup Instructions:
- * 1. Create a Google Cloud Project
- * 2. Enable Cloud Vision API
- * 3. Create credentials (API Key or Service Account)
- * 4. Deploy as Web App with "Execute as: Me" and "Who has access: Anyone"
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND v2.2
+ *
+ * NEW: Instant bidirectional syncing between Google Sheets and Firebase
+ * - Auto-sync: Web app → Firebase → Sheets
+ * - Auto-sync: Sheets → Firebase → Web app
+ * - Real-time updates in both directions
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-// ═══════════════════════════════════════════════════════════════════════
-// CONFIGURATION
-// ═══════════════════════════════════════════════════════════════════════
-
-/**
- * IMPORTANT: Set up Script Properties for secure credential storage
- *
- * Go to Project Settings > Script Properties and add:
- * - VISION_API_KEY: Your Google Cloud Vision API key
- * - ANTHROPIC_API_KEY: Your Anthropic Claude API key (for GPT-5 level AI)
- * - SERVICE_ACCOUNT_EMAIL: Service account email (if using service account)
- * - SERVICE_ACCOUNT_KEY: Service account private key (if using service account)
- * - SPREADSHEET_ID: Your Google Sheets ID for patient data
- * - DRIVE_FOLDER_ID: Google Drive folder ID for lab image storage
- */
-
-const SCRIPT_VERSION = '1.0.0';
-const USE_SERVICE_ACCOUNT = false; // Set to true to use service account instead of API key
+const SCRIPT_VERSION = '2.2.0';
 
 // Get configuration from Script Properties
-// NOTE: For security, configure these in Apps Script > Project Settings > Script Properties
 const CONFIG = {
-  visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
-  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY') || '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',
-  serviceAccountEmail: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_EMAIL'),
-  serviceAccountKey: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_KEY'),
-  spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I'
+  visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || '',
+  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY') || '',
+  spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '',
+  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || 'root',
+
+  // Firebase configuration for real-time sync
+  firebaseUrl: PropertiesService.getScriptProperties().getProperty('FIREBASE_URL') || 'https://internal-medicine-ward-default-rtdb.firebaseio.com',
+  firebaseSecret: PropertiesService.getScriptProperties().getProperty('FIREBASE_SECRET') || ''
 };
 
-// ═══════════════════════════════════════════════════════════════════════
-// MAIN HANDLERS
-// ═══════════════════════════════════════════════════════════════════════
+// Valid Claude models (as of January 2025)
+const CLAUDE_MODELS = {
+  SONNET: 'claude-3-5-sonnet-20241022',  // Best balance of intelligence and speed
+  OPUS: 'claude-3-opus-20240229',        // Most capable (if available)
+  HAIKU: 'claude-3-5-haiku-20241022'     // Fastest
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIREBASE INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Handle GET requests - Health check and info
+ * Get all patients from Firebase
  */
+function getFirebasePatients() {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+
+    if (response.getResponseCode() !== 200) {
+      Logger.log('Firebase read error: ' + response.getContentText());
+      return null;
+    }
+
+    var data = JSON.parse(response.getContentText());
+
+    if (!data) return [];
+
+    // Convert Firebase object to array
+    var patients = [];
+    for (var key in data) {
+      var patient = data[key];
+      patient.id = key;
+      patients.push(patient);
+    }
+
+    return patients;
+
+  } catch (error) {
+    Logger.log('Error reading from Firebase: ' + error.toString());
+    return null;
+  }
+}
+
+/**
+ * Update a single patient in Firebase
+ */
+function updateFirebasePatient(patientId, patientData) {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, {
+      method: 'put',
+      contentType: 'application/json',
+      payload: JSON.stringify(patientData),
+      muteHttpExceptions: true
+    });
+
+    return response.getResponseCode() === 200;
+
+  } catch (error) {
+    Logger.log('Error updating Firebase: ' + error.toString());
+    return false;
+  }
+}
+
+/**
+ * Delete a patient from Firebase
+ */
+function deleteFirebasePatient(patientId) {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, {
+      method: 'delete',
+      muteHttpExceptions: true
+    });
+
+    return response.getResponseCode() === 200;
+
+  } catch (error) {
+    Logger.log('Error deleting from Firebase: ' + error.toString());
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOMATIC SYNC TRIGGERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * onEdit trigger - Automatically syncs changes from Sheets to Firebase
+ * This runs whenever someone edits the Google Sheet
+ */
+function onEdit(e) {
+  try {
+    Logger.log('=== onEdit Trigger START ===');
+
+    if (!e || !e.range) {
+      Logger.log('No edit event data');
+      return;
+    }
+
+    var sheet = e.range.getSheet();
+    var sheetName = sheet.getName();
+
+    Logger.log('Sheet edited: ' + sheetName);
+
+    // Only sync if the Patients sheet was edited
+    if (sheetName !== 'Patients') {
+      Logger.log('Not Patients sheet, skipping sync');
+      return;
+    }
+
+    // Don't sync header row edits
+    var row = e.range.getRow();
+    if (row === 1) {
+      Logger.log('Header row edited, skipping sync');
+      return;
+    }
+
+    Logger.log('Syncing row ' + row + ' to Firebase...');
+
+    // Sync the edited row to Firebase
+    syncRowToFirebase(sheet, row);
+
+    Logger.log('=== onEdit Trigger COMPLETE ===');
+
+  } catch (error) {
+    Logger.log('onEdit Error: ' + error.toString());
+  }
+}
+
+/**
+ * Sync a single row from Sheets to Firebase
+ */
+function syncRowToFirebase(sheet, rowNumber) {
+  try {
+    var lastCol = 9; // We have 9 columns
+    var rowData = sheet.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
+
+    // Check if row is empty
+    if (!rowData[0] && !rowData[1] && !rowData[2]) {
+      Logger.log('Empty row, skipping');
+      return;
+    }
+
+    // Map columns to patient object
+    var patient = {
+      ward: rowData[0] || '',
+      bed: rowData[1] || '',
+      name: rowData[2] || '',
+      mrn: rowData[3] || '',
+      doctor: rowData[4] || '',
+      diagnosis: rowData[5] || '',
+      plan: rowData[6] || '',
+      status: rowData[7] || '',
+      timestamp: new Date().getTime(),
+      lastModified: new Date().toISOString(),
+      syncedFromSheet: true
+    };
+
+    // Create unique ID based on ward and bed
+    var patientId = 'sheet_' + (patient.ward + '_' + patient.bed).replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Update Firebase
+    var success = updateFirebasePatient(patientId, patient);
+
+    if (success) {
+      Logger.log('Row ' + rowNumber + ' synced to Firebase as ' + patientId);
+    } else {
+      Logger.log('Failed to sync row ' + rowNumber + ' to Firebase');
+    }
+
+  } catch (error) {
+    Logger.log('syncRowToFirebase Error: ' + error.toString());
+  }
+}
+
+/**
+ * Sync all Firebase data to Sheets
+ * Call this manually or set it on a time trigger (e.g., every 1 minute)
+ */
+function syncFirebaseToSheets() {
+  try {
+    Logger.log('=== syncFirebaseToSheets START ===');
+
+    if (!CONFIG.spreadsheetId) {
+      Logger.log('No spreadsheet configured');
+      return { success: false, error: 'No spreadsheet configured' };
+    }
+
+    // Get data from Firebase
+    var patients = getFirebasePatients();
+
+    if (!patients) {
+      Logger.log('Failed to get patients from Firebase');
+      return { success: false, error: 'Failed to read from Firebase' };
+    }
+
+    Logger.log('Got ' + patients.length + ' patients from Firebase');
+
+    // Get the sheet
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('Patients');
+    }
+
+    // Set up headers
+    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    }
+
+    // Clear existing data (but keep headers)
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
+    }
+
+    // Prepare rows
+    var rows = patients.map(function(p) {
+      return [
+        p.ward || '',
+        p.bed || '',
+        p.name || '',
+        p.mrn || '',
+        p.doctor || '',
+        p.diagnosis || '',
+        p.plan || '',
+        p.status || '',
+        p.lastModified || new Date(p.timestamp || Date.now()).toLocaleString()
+      ];
+    });
+
+    // Write to sheet
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    Logger.log('Synced ' + rows.length + ' patients to sheet');
+    Logger.log('=== syncFirebaseToSheets COMPLETE ===');
+
+    return { success: true, count: rows.length };
+
+  } catch (error) {
+    Logger.log('syncFirebaseToSheets Error: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Install time-based trigger for auto-sync
+ * Run this once to set up automatic syncing every minute
+ */
+function installAutoSyncTrigger() {
+  // Delete existing triggers first
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  // Create new trigger - sync every 1 minute
+  ScriptApp.newTrigger('syncFirebaseToSheets')
+    .timeBased()
+    .everyMinutes(1)
+    .create();
+
+  Logger.log('Auto-sync trigger installed - syncing every 1 minute');
+  return 'Trigger installed successfully';
+}
+
+/**
+ * Uninstall auto-sync trigger
+ */
+function uninstallAutoSyncTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var count = 0;
+
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      count++;
+    }
+  }
+
+  Logger.log('Removed ' + count + ' auto-sync triggers');
+  return 'Removed ' + count + ' triggers';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
 function doGet(e) {
   try {
-    const action = e.parameter.action || 'info';
-    
+    var action = (e && e.parameter && e.parameter.action) || 'info';
+
     if (action === 'health') {
       return createJsonResponse({
         status: 'healthy',
         version: SCRIPT_VERSION,
         timestamp: new Date().toISOString(),
         services: {
-          vision: !!CONFIG.visionApiKey || !!CONFIG.serviceAccountKey,
+          vision: !!CONFIG.visionApiKey,
+          claude: !!CONFIG.anthropicApiKey,
           sheets: !!CONFIG.spreadsheetId,
+          firebase: !!CONFIG.firebaseUrl,
           drive: true
+        },
+        models: {
+          claude: CLAUDE_MODELS.SONNET,
+          vision: 'google-vision-v1'
+        },
+        sync: {
+          enabled: true,
+          firebase: CONFIG.firebaseUrl,
+          sheet: CONFIG.spreadsheetId
         }
       });
     }
-    
-    // Default info response
-    return createHtmlResponse(`
-      <html>
-        <head>
-          <title>Unit E Ward Rounds API</title>
-          <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-            h1 { color: #15803d; }
-            .status { background: #d1fae5; padding: 15px; border-radius: 8px; margin: 20px 0; }
-            .endpoint { background: #f1f5f9; padding: 10px; margin: 10px 0; border-left: 4px solid #15803d; }
-            code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; font-size: 12px; }
-            .library { background: #fef3c7; padding: 10px; margin: 10px 0; border-left: 4px solid #f59e0b; }
-          </style>
-        </head>
-        <body>
-          <h1>🏥 Unit E Ward Rounds API</h1>
-          <div class="status">
-            <strong>Status:</strong> Active<br>
-            <strong>Version:</strong> ${SCRIPT_VERSION}<br>
-            <strong>Timestamp:</strong> ${new Date().toISOString()}
-          </div>
 
-          <h2>📋 Available Endpoints</h2>
+    if (action === 'syncNow') {
+      var result = syncFirebaseToSheets();
+      return createJsonResponse(result);
+    }
 
-          <div class="endpoint">
-            <strong>POST /exec</strong> - Main API endpoint<br>
-            Actions: <code>runOCR</code>, <code>claudeVision</code>, <code>claudeConsult</code>, <code>saveLabs</code>, <code>loadLabs</code>, <code>syncSheet</code>
-          </div>
+    // Info page
+    var hasVision = !!CONFIG.visionApiKey;
+    var hasClaude = !!CONFIG.anthropicApiKey;
+    var hasSheets = !!CONFIG.spreadsheetId;
+    var hasFirebase = !!CONFIG.firebaseUrl;
 
-          <div class="endpoint">
-            <strong>GET /exec?action=health</strong> - Health check
-          </div>
+    var html = '<html><head><style>' +
+      'body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }' +
+      'h1 { color: #15803d; }' +
+      '.status { background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0; }' +
+      '.good { color: #15803d; }' +
+      '.bad { color: #dc2626; }' +
+      '.code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-family: monospace; }' +
+      '.sync-box { background: #dcfce7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #15803d; }' +
+      'button { background: #15803d; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }' +
+      'button:hover { background: #166534; }' +
+      '</style></head><body>' +
+      '<h1>🏥 Unit E Ward Rounds API v' + SCRIPT_VERSION + '</h1>' +
+      '<div class="status">' +
+      '<h2>Service Status</h2>' +
+      '<p><strong>Vision API:</strong> <span class="' + (hasVision ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Claude AI:</strong> <span class="' + (hasClaude ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Google Sheets:</strong> <span class="' + (hasSheets ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Firebase:</strong> <span class="' + (hasFirebase ? 'good">✓ Connected' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Google Drive:</strong> <span class="good">✓ Available</span></p>' +
+      '</div>';
 
-          <h2>📚 Library Reference</h2>
-          <div class="library">
-            <strong>Script Library:</strong><br>
-            <code>https://script.google.com/macros/library/d/1onlqbHtDy_6Xcl1kMX8d6QMHql629lktFcicVqb5br2qJFBzhvGZZVOn/12</code>
-          </div>
+    html += '<div class="sync-box">' +
+      '<h2>⚡ Real-Time Sync</h2>' +
+      '<p><strong>Status:</strong> <span class="good">✓ Enabled</span></p>' +
+      '<p>Bidirectional sync between Google Sheets and Web App via Firebase</p>' +
+      '<ul>' +
+      '<li><strong>Web App → Firebase:</strong> Instant (real-time)</li>' +
+      '<li><strong>Firebase → Sheets:</strong> Every 1 minute (automatic)</li>' +
+      '<li><strong>Sheets → Firebase:</strong> Instant (on edit trigger)</li>' +
+      '<li><strong>Firebase → Web App:</strong> Instant (real-time)</li>' +
+      '</ul>' +
+      '<p><button onclick="location.href=location.href.split(\'?\')[0] + \'?action=syncNow\'">🔄 Sync Now</button></p>' +
+      '</div>';
 
-          <h2>🔧 Setup Required</h2>
-          <p>Configure Script Properties with your credentials:
-            <ul>
-              <li>VISION_API_KEY (for OCR)</li>
-              <li>ANTHROPIC_API_KEY (for GPT-5 level AI - Claude Opus 4.5)</li>
-              <li>SPREADSHEET_ID (for patient data)</li>
-              <li>DRIVE_FOLDER_ID (for lab storage)</li>
-            </ul>
-          </p>
-        </body>
-      </html>
-    `);
-    
+    if (!hasVision || !hasClaude) {
+      html += '<div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">' +
+        '<h3>⚠️ Configuration Required</h3>' +
+        '<p>To enable OCR and AI features, configure API keys in Script Properties.</p>' +
+        '</div>';
+    }
+
+    html += '<h2>📚 API Endpoints</h2>' +
+      '<ul>' +
+      '<li><strong>POST /exec</strong> - Main API</li>' +
+      '<li><strong>GET /exec?action=health</strong> - Health check</li>' +
+      '<li><strong>GET /exec?action=syncNow</strong> - Force sync Firebase → Sheets</li>' +
+      '<li><strong>GET /exec</strong> - This page</li>' +
+      '</ul>' +
+      '<p><strong>Claude Model:</strong> ' + CLAUDE_MODELS.SONNET + '</p>' +
+      '</body></html>';
+
+    return HtmlService.createHtmlOutput(html);
+
   } catch (error) {
     Logger.log('doGet Error: ' + error.toString());
     return createJsonResponse({ error: error.toString() }, 500);
   }
 }
 
-/**
- * Handle POST requests - Main API
- */
 function doPost(e) {
   try {
     Logger.log('=== doPost START ===');
-    Logger.log('e parameter exists: ' + !!e);
-    Logger.log('e.postData exists: ' + !!e.postData);
-    Logger.log('e.postData.contents exists: ' + !!(e.postData && e.postData.contents));
 
     if (!e || !e.postData || !e.postData.contents) {
-      Logger.log('ERROR: Missing post data');
-      Logger.log('e: ' + JSON.stringify(e));
+      Logger.log('ERROR: No post data received');
       return createJsonResponse({
-        error: 'No post data received',
-        received: e ? Object.keys(e) : 'e is null',
-        postData: e && e.postData ? Object.keys(e.postData) : 'postData is null'
+        error: 'No data received',
+        help: 'Send POST request with JSON body containing "action" field'
       }, 400);
     }
 
-    Logger.log('Raw post data: ' + e.postData.contents.substring(0, 200));
-    Logger.log('Post data type: ' + e.postData.type);
-    Logger.log('Post data length: ' + e.postData.length);
+    var data = JSON.parse(e.postData.contents);
+    var action = data.action;
 
-    // Parse request body
-    let requestData;
-    try {
-      requestData = JSON.parse(e.postData.contents);
-      Logger.log('Parsed request data successfully');
-      Logger.log('Request action: ' + requestData.action);
-    } catch (parseError) {
-      Logger.log('ERROR: Failed to parse JSON');
-      Logger.log('Parse error: ' + parseError.toString());
-      Logger.log('Raw contents: ' + e.postData.contents);
-      return createJsonResponse({
-        error: 'Invalid JSON in request body',
-        parseError: parseError.toString(),
-        receivedData: e.postData.contents.substring(0, 500)
-      }, 400);
-    }
+    Logger.log('Action: ' + action);
 
-    const action = requestData.action;
-    Logger.log('Received POST request - Action: ' + action);
-    
-    // Route to appropriate handler
     switch (action) {
       case 'runOCR':
-        return handleRunOCR(requestData);
-
+        return handleRunOCR(data);
       case 'claudeVision':
-        return handleClaudeVision(requestData);
-
+        return handleClaudeVision(data);
       case 'claudeConsult':
-        return handleClaudeConsult(requestData);
-
+        return handleClaudeConsult(data);
       case 'saveLabs':
-        return handleSaveLabs(requestData);
-
+        return handleSaveLabs(data);
       case 'loadLabs':
-        return handleLoadLabs(requestData);
-
+        return handleLoadLabs(data);
       case 'syncSheet':
-        return handleSyncSheet(requestData);
-
+        return handleSyncSheet(data);
+      case 'syncFirebase':
+        var result = syncFirebaseToSheets();
+        return createJsonResponse(result);
       case 'test':
         return createJsonResponse({
           success: true,
-          message: 'API is working',
+          message: 'API is working!',
           version: SCRIPT_VERSION,
+          sync: 'enabled',
           timestamp: new Date().toISOString()
         });
-
       default:
         return createJsonResponse({
           error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'test']
+          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'syncFirebase', 'test']
         }, 400);
     }
-    
-  } catch (error) {
-    Logger.log('doPost Error: ' + error.toString());
-    Logger.log('Stack: ' + error.stack);
+
+  } catch (err) {
+    Logger.log('doPost Error: ' + err.toString());
+    Logger.log('Stack: ' + err.stack);
     return createJsonResponse({
-      error: 'Request processing failed: ' + error.toString(),
-      stack: error.stack
+      error: 'Request processing failed: ' + err.toString(),
+      stack: err.stack
     }, 500);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// ACTION HANDLERS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR HANDLER - Google Vision API
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Handle OCR request using Google Vision API
- */
-function handleRunOCR(requestData) {
+function handleRunOCR(data) {
   try {
     Logger.log('=== handleRunOCR START ===');
-    Logger.log('Request data keys: ' + Object.keys(requestData).join(', '));
 
-    if (!requestData.image) {
-      Logger.log('ERROR: No image data provided');
-      throw new Error('No image data provided');
-    }
-
-    Logger.log('Image data length: ' + requestData.image.length);
-    Logger.log('Image data prefix: ' + requestData.image.substring(0, 50));
-
-    if (!CONFIG.visionApiKey && !CONFIG.serviceAccountKey) {
-      Logger.log('ERROR: Vision API credentials not configured');
-      Logger.log('visionApiKey exists: ' + !!CONFIG.visionApiKey);
-      Logger.log('serviceAccountKey exists: ' + !!CONFIG.serviceAccountKey);
-      throw new Error('Vision API credentials not configured. Please set VISION_API_KEY in Script Properties.');
-    }
-
-    Logger.log('Vision API Key (first 20 chars): ' + CONFIG.visionApiKey.substring(0, 20));
-    Logger.log('USE_SERVICE_ACCOUNT: ' + USE_SERVICE_ACCOUNT);
-    Logger.log('Processing OCR request...');
-
-    // Extract base64 image data
-    const imageData = requestData.image.replace(/^data:image\/\w+;base64,/, '');
-    Logger.log('Cleaned image data length: ' + imageData.length);
-
-    // Call Vision API
-    Logger.log('Calling Vision API...');
-    const ocrResult = USE_SERVICE_ACCOUNT
-      ? callVisionAPIWithServiceAccount(imageData)
-      : callVisionAPIWithKey(imageData);
-
-    Logger.log('OCR completed successfully - Text length: ' + ocrResult.text.length);
-    Logger.log('OCR confidence: ' + ocrResult.confidence);
-    Logger.log('OCR text preview: ' + ocrResult.text.substring(0, 100));
-
-    const response = {
-      success: true,
-      text: ocrResult.text,
-      confidence: ocrResult.confidence,
-      source: 'google_vision',
-      timestamp: new Date().toISOString()
-    };
-
-    Logger.log('Returning success response');
-    return createJsonResponse(response);
-
-  } catch (error) {
-    Logger.log('=== OCR ERROR ===');
-    Logger.log('Error message: ' + error.toString());
-    Logger.log('Error stack: ' + error.stack);
-    Logger.log('Error name: ' + error.name);
-
-    const errorResponse = {
-      error: 'Google Vision OCR failed: ' + error.toString(),
-      errorType: error.name,
-      timestamp: new Date().toISOString(),
-      apiKeyConfigured: !!CONFIG.visionApiKey,
-      debugInfo: 'Check Apps Script logs for details'
-    };
-
-    Logger.log('Returning error response: ' + JSON.stringify(errorResponse));
-    return createJsonResponse(errorResponse, 500);
-  }
-}
-
-/**
- * Handle save labs request - Store to Google Drive
- */
-function handleSaveLabs(requestData) {
-  try {
-    const patientId = requestData.patientId;
-    const patientName = requestData.patientName;
-    const labData = requestData.labData;
-    
-    if (!patientId || !labData) {
-      throw new Error('Missing required fields: patientId, labData');
-    }
-    
-    Logger.log('Saving labs for patient: ' + patientId + ' (' + patientName + ')');
-    
-    // Get or create patient folder
-    const patientFolder = getOrCreatePatientFolder(patientId, patientName);
-    
-    // Create lab data file
-    const filename = 'labs_' + patientId + '_' + new Date().getTime() + '.json';
-    const fileContent = JSON.stringify({
-      patientId: patientId,
-      patientName: patientName,
-      labData: labData,
-      savedAt: new Date().toISOString(),
-      version: SCRIPT_VERSION
-    }, null, 2);
-    
-    // Save to Drive
-    const file = patientFolder.createFile(filename, fileContent, MimeType.PLAIN_TEXT);
-    
-    Logger.log('Labs saved successfully - File: ' + filename);
-    
-    return createJsonResponse({
-      success: true,
-      filename: filename,
-      fileId: file.getId(),
-      folderId: patientFolder.getId(),
-      count: labData.length,
-      timestamp: new Date().toISOString()
-    });
-    
-  } catch (error) {
-    Logger.log('Save Labs Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to save labs: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle load labs request - Load from Google Drive
- */
-function handleLoadLabs(requestData) {
-  try {
-    const patientId = requestData.patientId;
-    
-    if (!patientId) {
-      throw new Error('Missing required field: patientId');
-    }
-    
-    Logger.log('Loading labs for patient: ' + patientId);
-    
-    // Get patient folder
-    const patientFolder = getPatientFolder(patientId);
-    
-    if (!patientFolder) {
-      Logger.log('No folder found for patient: ' + patientId);
+    if (!data.image) {
+      Logger.log('ERROR: No image provided');
       return createJsonResponse({
-        success: true,
-        labData: [],
-        message: 'No labs found for this patient'
-      });
+        error: 'No image data provided',
+        help: 'Send base64 encoded image in "image" field'
+      }, 400);
     }
-    
-    // Get all lab files
-    const files = patientFolder.getFilesByType(MimeType.PLAIN_TEXT);
-    const labFiles = [];
-    
-    while (files.hasNext()) {
-      const file = files.next();
-      if (file.getName().startsWith('labs_')) {
-        labFiles.push(file);
+
+    if (!CONFIG.visionApiKey) {
+      Logger.log('ERROR: Vision API key not configured');
+      return createJsonResponse({
+        error: 'Vision API key not configured',
+        help: 'Add VISION_API_KEY to Script Properties in Apps Script Project Settings',
+        setup: 'https://console.cloud.google.com/apis/credentials'
+      }, 500);
+    }
+
+    Logger.log('Image data length: ' + data.image.length);
+    Logger.log('API Key prefix: ' + CONFIG.visionApiKey.substring(0, 10) + '...');
+
+    var imageData = data.image.replace(/^data:image\/\w+;base64,/, '');
+    var url = 'https://vision.googleapis.com/v1/images:annotate?key=' + CONFIG.visionApiKey;
+
+    var payload = {
+      requests: [{
+        image: { content: imageData },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
+      }]
+    };
+
+    Logger.log('Calling Vision API...');
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    var responseCode = response.getResponseCode();
+    var responseText = response.getContentText();
+
+    Logger.log('Vision API response code: ' + responseCode);
+
+    if (responseCode !== 200) {
+      Logger.log('Vision API ERROR: ' + responseText.substring(0, 500));
+
+      var errorMsg = 'Vision API error';
+      try {
+        var errorJson = JSON.parse(responseText);
+        if (errorJson.error && errorJson.error.message) {
+          errorMsg = errorJson.error.message;
+        }
+      } catch (e) {
+        errorMsg = responseText.substring(0, 200);
+      }
+
+      return createJsonResponse({
+        error: 'Vision API error (HTTP ' + responseCode + '): ' + errorMsg,
+        help: responseCode === 403 ? 'Check if Vision API is enabled and API key is valid' : 'Check Apps Script logs for details'
+      }, 500);
+    }
+
+    var result = JSON.parse(responseText);
+    var text = '';
+    var confidence = 0;
+
+    if (result.responses && result.responses[0]) {
+      var r = result.responses[0];
+
+      if (r.fullTextAnnotation) {
+        text = r.fullTextAnnotation.text || '';
+        confidence = 90;
+      } else if (r.textAnnotations && r.textAnnotations[0]) {
+        text = r.textAnnotations[0].description || '';
+        confidence = 85;
+      } else if (r.error) {
+        Logger.log('Vision API returned error: ' + JSON.stringify(r.error));
+        return createJsonResponse({
+          error: 'Vision API error: ' + r.error.message
+        }, 500);
       }
     }
-    
-    // Sort by date (newest first)
-    labFiles.sort((a, b) => b.getDateCreated().getTime() - a.getDateCreated().getTime());
-    
-    // Get the most recent file
-    if (labFiles.length === 0) {
-      return createJsonResponse({
-        success: true,
-        labData: [],
-        message: 'No lab files found'
-      });
-    }
-    
-    const latestFile = labFiles[0];
-    const fileContent = latestFile.getBlob().getDataAsString();
-    const labsObject = JSON.parse(fileContent);
-    
-    Logger.log('Labs loaded successfully - Count: ' + labsObject.labData.length);
-    
-    return createJsonResponse({
-      success: true,
-      labData: labsObject.labData,
-      loadedFrom: latestFile.getName(),
-      savedAt: labsObject.savedAt,
-      count: labsObject.labData.length
-    });
-    
-  } catch (error) {
-    Logger.log('Load Labs Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to load labs: ' + error.toString()
-    }, 500);
-  }
-}
 
-/**
- * Handle sheet sync request - Update Google Sheets
- */
-function handleSyncSheet(requestData) {
-  try {
-    const patients = requestData.patients;
-    
-    if (!patients || !Array.isArray(patients)) {
-      throw new Error('Missing or invalid patients data');
-    }
-    
-    if (!CONFIG.spreadsheetId) {
-      throw new Error('Spreadsheet ID not configured');
-    }
-    
-    Logger.log('Syncing ' + patients.length + ' patients to sheet');
-    
-    const spreadsheet = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-    let sheet = spreadsheet.getSheetByName('Patients');
-    
-    // Create sheet if it doesn't exist
-    if (!sheet) {
-      sheet = spreadsheet.insertSheet('Patients');
-      // Add headers
-      sheet.getRange(1, 1, 1, 9).setValues([[
-        'Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'
-      ]]);
-      sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
-    }
-    
-    // Clear existing data (keep headers)
-    if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).clear();
-    }
-    
-    // Prepare data rows
-    const rows = patients.map(p => [
-      p.ward || '',
-      p.bed || '',
-      p.name || '',
-      p.mrn || '',
-      p.doctor || '',
-      p.diagnosis || '',
-      p.plan || '',
-      p.status || '',
-      new Date(p.timestamp || Date.now()).toLocaleString()
-    ]);
-    
-    // Write to sheet
-    if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, 9).setValues(rows);
-    }
-    
-    // Auto-resize columns
-    sheet.autoResizeColumns(1, 9);
-    
-    Logger.log('Sheet sync completed successfully');
-    
+    Logger.log('OCR completed - Text length: ' + text.length + ', Confidence: ' + confidence);
+
     return createJsonResponse({
       success: true,
-      patientsSync: patients.length,
-      sheetId: CONFIG.spreadsheetId,
-      sheetName: 'Patients',
+      text: text,
+      confidence: confidence,
+      source: 'google_vision',
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
-    Logger.log('Sheet Sync Error: ' + error.toString());
+    Logger.log('OCR Error: ' + error.toString());
+    Logger.log('Stack: ' + error.stack);
     return createJsonResponse({
-      error: 'Failed to sync sheet: ' + error.toString()
+      error: 'OCR failed: ' + error.toString(),
+      details: error.stack
     }, 500);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// GOOGLE VISION API INTEGRATION
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// CLAUDE VISION HANDLER
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Call Vision API with API Key
- */
-function callVisionAPIWithKey(imageBase64) {
-  Logger.log('=== callVisionAPIWithKey START ===');
-  Logger.log('Image base64 length: ' + imageBase64.length);
-
-  const url = 'https://vision.googleapis.com/v1/images:annotate?key=' + CONFIG.visionApiKey;
-  Logger.log('Vision API URL: ' + url.substring(0, 70) + '...');
-
-  const payload = {
-    requests: [{
-      image: {
-        content: imageBase64
-      },
-      features: [{
-        type: 'TEXT_DETECTION',
-        maxResults: 1
-      }]
-    }]
-  };
-
-  Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
-
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  };
-
-  Logger.log('Calling Google Vision API...');
-  const response = UrlFetchApp.fetch(url, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-
-  Logger.log('Vision API response code: ' + responseCode);
-  Logger.log('Vision API response length: ' + responseText.length);
-
-  if (responseCode !== 200) {
-    Logger.log('Vision API ERROR response: ' + responseText.substring(0, 500));
-    throw new Error('Vision API error: ' + responseCode + ' - ' + responseText.substring(0, 300));
-  }
-
-  Logger.log('Vision API response preview: ' + responseText.substring(0, 200));
-  const result = JSON.parse(responseText);
-  Logger.log('Vision API response parsed successfully');
-  
-  if (result.responses && result.responses[0]) {
-    const annotations = result.responses[0].textAnnotations;
-    if (annotations && annotations.length > 0) {
-      // First annotation contains full text
-      const text = annotations[0].description || '';
-      const confidence = annotations[0].confidence || 0.85;
-      return {
-        text: text,
-        confidence: Math.round(confidence * 100)
-      };
-    }
-  }
-  
-  return { text: '', confidence: 0 };
-}
-
-/**
- * Call Vision API with Service Account
- */
-function callVisionAPIWithServiceAccount(imageBase64) {
-  // Get OAuth token from service account
-  const token = getServiceAccountToken();
-  
-  const url = 'https://vision.googleapis.com/v1/images:annotate';
-  
-  const payload = {
-    requests: [{
-      image: {
-        content: imageBase64
-      },
-      features: [{
-        type: 'TEXT_DETECTION',
-        maxResults: 1
-      }]
-    }]
-  };
-  
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: {
-      'Authorization': 'Bearer ' + token
-    },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  };
-  
-  const response = UrlFetchApp.fetch(url, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-  
-  if (responseCode !== 200) {
-    throw new Error('Vision API error: ' + responseCode + ' - ' + responseText);
-  }
-  
-  const result = JSON.parse(responseText);
-  
-  if (result.responses && result.responses[0]) {
-    const annotations = result.responses[0].textAnnotations;
-    if (annotations && annotations.length > 0) {
-      const text = annotations[0].description || '';
-      const confidence = annotations[0].confidence || 0.85;
-      return {
-        text: text,
-        confidence: Math.round(confidence * 100)
-      };
-    }
-  }
-  
-  return { text: '', confidence: 0 };
-}
-
-/**
- * Get OAuth token from service account
- */
-function getServiceAccountToken() {
-  const serviceAccountKey = JSON.parse(CONFIG.serviceAccountKey);
-  
-  const now = Math.floor(Date.now() / 1000);
-  const claim = {
-    iss: serviceAccountKey.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-vision',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: now + 3600,
-    iat: now
-  };
-  
-  const jwt = createJWT(claim, serviceAccountKey.private_key);
-  
-  const url = 'https://oauth2.googleapis.com/token';
-  const payload = {
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion: jwt
-  };
-  
-  const options = {
-    method: 'post',
-    contentType: 'application/x-www-form-urlencoded',
-    payload: payload
-  };
-  
-  const response = UrlFetchApp.fetch(url, options);
-  const result = JSON.parse(response.getContentText());
-  
-  return result.access_token;
-}
-
-/**
- * Create JWT for service account authentication
- * Note: This is a simplified version. For production, use a proper JWT library.
- */
-function createJWT(claim, privateKey) {
-  const header = Utilities.base64EncodeWebSafe(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claimStr = Utilities.base64EncodeWebSafe(JSON.stringify(claim));
-  const signatureInput = header + '.' + claimStr;
-  
-  const signature = Utilities.computeRsaSha256Signature(signatureInput, privateKey);
-  const signatureStr = Utilities.base64EncodeWebSafe(signature);
-  
-  return signatureInput + '.' + signatureStr;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
-// CLAUDE OPUS 4.5 API INTEGRATION (GPT-5 LEVEL AI)
-// ═══════════════════════════════════════════════════════════════════════
-
-/**
- * Handle Claude Vision request - Advanced OCR with AI analysis
- * Uses Claude Opus 4.5 vision capabilities for superior medical document understanding
- */
-function handleClaudeVision(requestData) {
+function handleClaudeVision(data) {
   try {
     Logger.log('=== handleClaudeVision START ===');
-    Logger.log('requestData exists: ' + !!requestData);
-    Logger.log('requestData type: ' + typeof requestData);
 
-    if (!requestData) {
-      Logger.log('ERROR: requestData is null or undefined');
-      throw new Error('Request data is missing - this indicates a problem with request parsing in doPost');
+    if (!data.image) {
+      Logger.log('ERROR: No image provided');
+      return createJsonResponse({
+        error: 'No image data provided'
+      }, 400);
     }
-
-    Logger.log('Request data keys: ' + Object.keys(requestData).join(', '));
-
-    if (!requestData.image) {
-      Logger.log('ERROR: No image data provided');
-      throw new Error('No image data provided');
-    }
-
-    Logger.log('Image data length: ' + requestData.image.length);
 
     if (!CONFIG.anthropicApiKey) {
       Logger.log('ERROR: Anthropic API key not configured');
-      Logger.log('anthropicApiKey exists: ' + !!CONFIG.anthropicApiKey);
-      throw new Error('Anthropic API key not configured. Please add ANTHROPIC_API_KEY to Script Properties.');
+      return createJsonResponse({
+        error: 'Anthropic API key not configured',
+        help: 'Add ANTHROPIC_API_KEY to Script Properties in Apps Script Project Settings',
+        setup: 'https://console.anthropic.com/'
+      }, 500);
     }
 
-    Logger.log('Anthropic API Key (first 20 chars): ' + CONFIG.anthropicApiKey.substring(0, 20));
-    Logger.log('Processing Claude Vision OCR request...');
+    Logger.log('Image data length: ' + data.image.length);
+    Logger.log('API Key prefix: ' + CONFIG.anthropicApiKey.substring(0, 15) + '...');
 
-    // Extract base64 image data
-    var imageData = requestData.image;
-    if (imageData.includes(',')) {
+    var imageData = data.image;
+    if (imageData.indexOf(',') !== -1) {
       imageData = imageData.split(',')[1];
     }
 
-    // Determine media type
-    var imageMatch = requestData.image.match(/data:image\/(\w+);/);
-    var mediaType = (imageMatch && imageMatch[1]) ? imageMatch[1] : 'jpeg';
-    var fullMediaType = 'image/' + mediaType;
+    var mediaType = 'image/jpeg';
+    var match = data.image.match(/data:image\/(\w+);/);
+    if (match) mediaType = 'image/' + match[1];
 
-    // Call Claude Opus 4.5 with vision
-    var prompt = requestData.prompt || 'Analyze this medical laboratory report image and extract all lab values with extreme precision.\n\n' +
-      'For each lab test found, extract:\n' +
-      '- Test name (exactly as it appears)\n' +
-      '- Numeric value\n' +
-      '- Unit of measurement\n' +
-      '- Reference range if visible\n' +
-      '- Any flags (L/H/LL/HH for Low/High/Critical Low/Critical High)\n\n' +
-      'Return ONLY a valid JSON object in this exact format:\n' +
+    Logger.log('Media type: ' + mediaType);
+
+    var prompt = 'Analyze this medical laboratory report image and extract ALL lab values with high precision.\n\n' +
+      'For each lab test found:\n' +
+      '- Extract exact test name\n' +
+      '- Extract numeric value\n' +
+      '- Extract unit of measurement\n' +
+      '- Note any flags (L/H for Low/High)\n' +
+      '- Extract reference ranges if visible\n\n' +
+      'Return ONLY valid JSON in this exact format:\n' +
       '{\n' +
-      '  "reportType": "CBC" or "BMP" or "LFT" or "GENERAL",\n' +
+      '  "reportType": "CBC|BMP|CMP|LFT|GENERAL",\n' +
       '  "confidence": 0-100,\n' +
       '  "values": [\n' +
       '    {\n' +
-      '      "test": "WBC",\n' +
-      '      "value": "8.5",\n' +
-      '      "unit": "×10⁹/L",\n' +
-      '      "flag": "N",\n' +
-      '      "refLow": 4.0,\n' +
-      '      "refHigh": 11.0,\n' +
-      '      "confidence": 95\n' +
+      '      "test": "test name",\n' +
+      '      "value": "numeric value as string",\n' +
+      '      "unit": "unit",\n' +
+      '      "flag": "N|L|H",\n' +
+      '      "refLow": number or null,\n' +
+      '      "refHigh": number or null,\n' +
+      '      "confidence": 0-100\n' +
       '    }\n' +
       '  ]\n' +
       '}\n\n' +
-      'Be extremely selective - only extract values you are highly confident about. Reject physiologically impossible values.';
-
-    var url = 'https://api.anthropic.com/v1/messages';
+      'Only extract values you are highly confident about. Return empty values array if no clear lab data is visible.';
 
     var payload = {
-      model: 'claude-opus-4-20250514',  // Latest Claude Opus 4.5
+      model: CLAUDE_MODELS.SONNET,
       max_tokens: 4096,
-      messages: [
-        {
-          role: 'user',
-          content: [
-            {
-              type: 'image',
-              source: {
-                type: 'base64',
-                media_type: fullMediaType,
-                data: imageData
-              }
-            },
-            {
-              type: 'text',
-              text: prompt
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: imageData
             }
-          ]
-        }
-      ]
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
     };
 
-    var options = {
+    Logger.log('Calling Claude API with model: ' + CLAUDE_MODELS.SONNET);
+    Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
+
+    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post',
       contentType: 'application/json',
       headers: {
@@ -770,158 +692,139 @@ function handleClaudeVision(requestData) {
       },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
-    };
+    });
 
-    Logger.log('Calling Claude API at: ' + url);
-    Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
-    Logger.log('Media type: ' + fullMediaType);
-
-    var response = UrlFetchApp.fetch(url, options);
     var responseCode = response.getResponseCode();
     var responseText = response.getContentText();
 
     Logger.log('Claude API response code: ' + responseCode);
-    Logger.log('Claude API response length: ' + responseText.length);
+    Logger.log('Response length: ' + responseText.length);
 
     if (responseCode !== 200) {
-      Logger.log('Claude API ERROR response: ' + responseText.substring(0, 500));
-      throw new Error('Claude API error: ' + responseCode + ' - ' + responseText.substring(0, 300));
+      Logger.log('Claude API ERROR: ' + responseText.substring(0, 500));
+
+      var errorMsg = 'Claude API error';
+      try {
+        var errorJson = JSON.parse(responseText);
+        if (errorJson.error && errorJson.error.message) {
+          errorMsg = errorJson.error.message;
+        }
+      } catch (e) {
+        errorMsg = responseText.substring(0, 200);
+      }
+
+      return createJsonResponse({
+        error: 'Claude API error (HTTP ' + responseCode + '): ' + errorMsg,
+        help: responseCode === 401 ? 'Invalid API key' :
+              responseCode === 429 ? 'Rate limit exceeded - wait and try again' :
+              'Check Apps Script logs for details'
+      }, 500);
     }
 
-    Logger.log('Claude API response preview: ' + responseText.substring(0, 200));
     var result = JSON.parse(responseText);
-    Logger.log('Claude API response parsed successfully');
+    var content = '';
 
-    // Extract text content from Claude's response
-    var content = result.content && result.content[0] && result.content[0].text;
-    if (!content) {
-      throw new Error('No content in Claude response');
+    if (result.content && result.content[0] && result.content[0].text) {
+      content = result.content[0].text;
+    } else {
+      Logger.log('ERROR: No content in Claude response');
+      return createJsonResponse({
+        error: 'No content in Claude response'
+      }, 500);
     }
 
-    // Parse the JSON response from Claude
-    var parsedData;
+    Logger.log('Claude response preview: ' + content.substring(0, 200));
+
+    var parsed = {};
     try {
-      // Extract JSON from response (Claude might include explanatory text)
       var jsonMatch = content.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
-        parsedData = JSON.parse(jsonMatch[0]);
+        parsed = JSON.parse(jsonMatch[0]);
+        Logger.log('Successfully parsed JSON - Values count: ' + (parsed.values ? parsed.values.length : 0));
       } else {
-        parsedData = JSON.parse(content);
+        Logger.log('No JSON found in response');
+        parsed = { rawText: content, values: [] };
       }
     } catch (e) {
-      // If parsing fails, return the raw text
-      Logger.log('Failed to parse Claude JSON, returning raw text: ' + e.toString());
-      return createJsonResponse({
-        success: true,
-        text: content,
-        rawText: content,
-        source: 'claude_opus_4.5',
-        confidence: 85,
-        timestamp: new Date().toISOString()
-      });
+      Logger.log('JSON parse error: ' + e.toString());
+      parsed = { rawText: content, values: [] };
     }
 
-    var valuesCount = (parsedData.values && parsedData.values.length) ? parsedData.values.length : 0;
-    Logger.log('Claude Vision OCR completed - Found ' + valuesCount + ' lab values');
-
-    var responseData = {
+    return createJsonResponse({
       success: true,
-      reportType: parsedData.reportType,
-      confidence: parsedData.confidence,
-      values: parsedData.values,
+      reportType: parsed.reportType || 'GENERAL',
+      values: parsed.values || [],
+      confidence: parsed.confidence || 85,
       rawText: content,
-      source: 'claude_opus_4.5',
-      model: 'claude-opus-4-20250514',
+      source: 'claude_vision',
+      model: CLAUDE_MODELS.SONNET,
       timestamp: new Date().toISOString()
-    };
-
-    return createJsonResponse(responseData);
+    });
 
   } catch (error) {
-    Logger.log('=== CLAUDE VISION ERROR ===');
-    Logger.log('Error message: ' + error.toString());
-    Logger.log('Error stack: ' + error.stack);
-    Logger.log('Error name: ' + error.name);
-
-    const errorResponse = {
+    Logger.log('Claude Vision Error: ' + error.toString());
+    Logger.log('Stack: ' + error.stack);
+    return createJsonResponse({
       error: 'Claude Vision failed: ' + error.toString(),
-      errorType: error.name,
-      timestamp: new Date().toISOString(),
-      apiKeyConfigured: !!CONFIG.anthropicApiKey,
-      debugInfo: 'Check Apps Script logs for details'
-    };
-
-    Logger.log('Returning error response: ' + JSON.stringify(errorResponse));
-    return createJsonResponse(errorResponse, 500);
+      details: error.stack
+    }, 500);
   }
 }
 
-/**
- * Handle Claude Consult request - Advanced medical AI consultation
- * Uses Claude Opus 4.5 for GPT-5 level medical reasoning
- */
-function handleClaudeConsult(requestData) {
+// ═══════════════════════════════════════════════════════════════════════════
+// CLAUDE CONSULT HANDLER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleClaudeConsult(data) {
   try {
-    if (!requestData.query) {
-      throw new Error('No query provided');
+    Logger.log('=== handleClaudeConsult START ===');
+
+    if (!data.query) {
+      return createJsonResponse({ error: 'No query provided' }, 400);
     }
 
     if (!CONFIG.anthropicApiKey) {
-      throw new Error('Anthropic API key not configured. Please add ANTHROPIC_API_KEY to Script Properties.');
+      return createJsonResponse({
+        error: 'Anthropic API key not configured',
+        help: 'Add ANTHROPIC_API_KEY to Script Properties'
+      }, 500);
     }
 
-    Logger.log('Processing Claude medical consultation: ' + requestData.query);
+    Logger.log('Query: ' + data.query.substring(0, 100));
 
-    var patientContext = requestData.patientContext || '';
-    var labValues = requestData.labValues || [];
+    var prompt = data.query;
 
-    // Build comprehensive medical prompt
-    var systemPrompt = 'You are an elite medical AI consultant with GPT-5 level capabilities, providing expert clinical decision support.\n\n' +
-      'You have comprehensive knowledge of:\n' +
-      '- Internal medicine, emergency medicine, critical care\n' +
-      '- Lab value interpretation and clinical correlations\n' +
-      '- Diagnostic reasoning and differential diagnosis\n' +
-      '- Evidence-based treatment guidelines\n' +
-      '- Drug interactions and dosing\n' +
-      '- Clinical pearls and common pitfalls\n\n' +
-      'Provide clear, actionable, evidence-based medical guidance. Structure your responses with:\n' +
+    if (data.patientContext) {
+      prompt += '\n\nPatient Context:\n' + data.patientContext;
+    }
+
+    if (data.labValues && data.labValues.length > 0) {
+      prompt += '\n\nRecent Lab Values:\n';
+      for (var i = 0; i < data.labValues.length; i++) {
+        var v = data.labValues[i];
+        var flagText = (v.flag && v.flag !== 'N') ? ' [' + v.flag + ']' : '';
+        prompt += '- ' + v.test + ': ' + v.value + ' ' + (v.unit || '') + flagText + '\n';
+      }
+    }
+
+    var systemPrompt = 'You are an expert medical AI consultant providing evidence-based clinical decision support.\n\n' +
+      'Provide clear, actionable guidance with:\n' +
       '- Key clinical points\n' +
       '- Diagnostic considerations\n' +
-      '- Treatment recommendations\n' +
+      '- Evidence-based treatment recommendations\n' +
       '- Critical warnings when applicable\n\n' +
-      'Be precise, thorough, and cite clinical reasoning.';
-
-    var userPrompt = requestData.query;
-
-    if (patientContext) {
-      userPrompt += '\n\nPatient Context:\n' + patientContext;
-    }
-
-    if (labValues.length > 0) {
-      var labValuesText = '\n\nRecent Lab Values:\n';
-      for (var i = 0; i < labValues.length; i++) {
-        var v = labValues[i];
-        var flagText = (v.flag !== 'N') ? ' [' + v.flag + ']' : '';
-        labValuesText += v.test + ': ' + v.value + ' ' + v.unit + ' (ref: ' + v.refLow + '-' + v.refHigh + ')' + flagText + '\n';
-      }
-      userPrompt += labValuesText;
-    }
-
-    var url = 'https://api.anthropic.com/v1/messages';
+      'Always recommend physician oversight for important clinical decisions.';
 
     var payload = {
-      model: 'claude-opus-4-20250514',  // Latest Claude Opus 4.5
-      max_tokens: 8192,
+      model: CLAUDE_MODELS.SONNET,
+      max_tokens: 4096,
       system: systemPrompt,
-      messages: [
-        {
-          role: 'user',
-          content: userPrompt
-        }
-      ]
+      messages: [{ role: 'user', content: prompt }]
     };
 
-    var options = {
+    Logger.log('Calling Claude API for consultation...');
+
+    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
       method: 'post',
       contentType: 'application/json',
       headers: {
@@ -930,33 +833,35 @@ function handleClaudeConsult(requestData) {
       },
       payload: JSON.stringify(payload),
       muteHttpExceptions: true
-    };
+    });
 
-    var response = UrlFetchApp.fetch(url, options);
     var responseCode = response.getResponseCode();
     var responseText = response.getContentText();
 
+    Logger.log('Claude response code: ' + responseCode);
+
     if (responseCode !== 200) {
-      throw new Error('Claude API error: ' + responseCode + ' - ' + responseText);
+      Logger.log('Claude API ERROR: ' + responseText.substring(0, 500));
+      return createJsonResponse({
+        error: 'Claude API error: ' + responseText.substring(0, 200)
+      }, 500);
     }
 
     var result = JSON.parse(responseText);
+    var content = '';
 
-    // Extract text content from Claude's response
-    var content = result.content && result.content[0] && result.content[0].text;
-    if (!content) {
-      throw new Error('No content in Claude response');
+    if (result.content && result.content[0] && result.content[0].text) {
+      content = result.content[0].text;
     }
 
-    Logger.log('Claude consultation completed - Response length: ' + content.length);
+    Logger.log('Consultation completed - Response length: ' + content.length);
 
     return createJsonResponse({
       success: true,
       response: content,
-      model: 'claude-opus-4-20250514',
-      source: 'claude_opus_4.5',
-      timestamp: new Date().toISOString(),
-      usage: result.usage
+      model: CLAUDE_MODELS.SONNET,
+      source: 'claude_ai',
+      timestamp: new Date().toISOString()
     });
 
   } catch (error) {
@@ -967,104 +872,242 @@ function handleClaudeConsult(requestData) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// GOOGLE DRIVE HELPERS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// LABS STORAGE HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Get or create patient folder in Drive
- */
-function getOrCreatePatientFolder(patientId, patientName) {
-  const rootFolder = CONFIG.driveFolderId === 'root' 
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-  
-  // Check if Unit E folder exists
-  const unitEFolderName = 'Unit E Ward Rounds';
-  let unitEFolder;
-  
-  const unitEFolders = rootFolder.getFoldersByName(unitEFolderName);
-  if (unitEFolders.hasNext()) {
-    unitEFolder = unitEFolders.next();
-  } else {
-    unitEFolder = rootFolder.createFolder(unitEFolderName);
-  }
-  
-  // Check if patient folder exists
-  const patientFolderName = 'Patient_' + patientId + '_' + (patientName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
-  const patientFolders = unitEFolder.getFoldersByName(patientFolderName);
-  
-  if (patientFolders.hasNext()) {
-    return patientFolders.next();
-  } else {
-    return unitEFolder.createFolder(patientFolderName);
+function handleSaveLabs(data) {
+  try {
+    if (!data.patientId || !data.labData) {
+      return createJsonResponse({
+        error: 'Missing required fields: patientId and labData'
+      }, 400);
+    }
+
+    Logger.log('Saving labs for patient: ' + data.patientId);
+
+    var folder = getOrCreatePatientFolder(data.patientId, data.patientName);
+    var filename = 'labs_' + data.patientId + '_' + Date.now() + '.json';
+    var content = JSON.stringify({
+      patientId: data.patientId,
+      patientName: data.patientName,
+      labData: data.labData,
+      savedAt: new Date().toISOString()
+    }, null, 2);
+
+    var file = folder.createFile(filename, content, MimeType.PLAIN_TEXT);
+
+    Logger.log('Labs saved successfully: ' + filename);
+
+    return createJsonResponse({
+      success: true,
+      filename: filename,
+      fileId: file.getId(),
+      count: data.labData.length
+    });
+
+  } catch (error) {
+    Logger.log('Save Labs Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to save labs: ' + error.toString()
+    }, 500);
   }
 }
 
-/**
- * Get patient folder from Drive
- */
-function getPatientFolder(patientId) {
-  const rootFolder = CONFIG.driveFolderId === 'root' 
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-  
-  const unitEFolders = rootFolder.getFoldersByName('Unit E Ward Rounds');
-  if (!unitEFolders.hasNext()) {
-    return null;
+function handleLoadLabs(data) {
+  try {
+    if (!data.patientId) {
+      return createJsonResponse({ error: 'Missing patientId' }, 400);
+    }
+
+    Logger.log('Loading labs for patient: ' + data.patientId);
+
+    var folder = getPatientFolder(data.patientId);
+    if (!folder) {
+      return createJsonResponse({
+        success: true,
+        labData: [],
+        message: 'No labs found for this patient'
+      });
+    }
+
+    var files = folder.getFilesByType(MimeType.PLAIN_TEXT);
+    var latestFile = null;
+    var latestTime = 0;
+
+    while (files.hasNext()) {
+      var file = files.next();
+      if (file.getName().indexOf('labs_') === 0) {
+        var fileTime = file.getDateCreated().getTime();
+        if (fileTime > latestTime) {
+          latestFile = file;
+          latestTime = fileTime;
+        }
+      }
+    }
+
+    if (!latestFile) {
+      return createJsonResponse({
+        success: true,
+        labData: [],
+        message: 'No lab files found'
+      });
+    }
+
+    var content = JSON.parse(latestFile.getBlob().getDataAsString());
+
+    Logger.log('Labs loaded - Count: ' + content.labData.length);
+
+    return createJsonResponse({
+      success: true,
+      labData: content.labData,
+      savedAt: content.savedAt,
+      count: content.labData.length
+    });
+
+  } catch (error) {
+    Logger.log('Load Labs Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to load labs: ' + error.toString()
+    }, 500);
   }
-  
-  const unitEFolder = unitEFolders.next();
-  const allFolders = unitEFolder.getFolders();
-  
-  while (allFolders.hasNext()) {
-    const folder = allFolders.next();
-    if (folder.getName().startsWith('Patient_' + patientId + '_')) {
-      return folder;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHEETS SYNC HANDLER (Legacy - for manual sync)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleSyncSheet(data) {
+  try {
+    if (!data.patients) {
+      return createJsonResponse({ error: 'Missing patients data' }, 400);
+    }
+
+    if (!CONFIG.spreadsheetId) {
+      return createJsonResponse({
+        error: 'Spreadsheet not configured',
+        help: 'Add SPREADSHEET_ID to Script Properties'
+      }, 500);
+    }
+
+    Logger.log('Manual sync: ' + data.patients.length + ' patients to sheet');
+
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('Patients');
+    }
+
+    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    }
+
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clear();
+    }
+
+    var rows = data.patients.map(function(p) {
+      return [
+        p.ward || '',
+        p.bed || '',
+        p.name || '',
+        p.mrn || '',
+        p.doctor || '',
+        p.diagnosis || '',
+        p.plan || '',
+        p.status || '',
+        new Date().toLocaleString()
+      ];
+    });
+
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    Logger.log('Manual sheet sync completed');
+
+    return createJsonResponse({
+      success: true,
+      synced: rows.length,
+      sheetId: CONFIG.spreadsheetId
+    });
+
+  } catch (error) {
+    Logger.log('Sheet Sync Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to sync sheet: ' + error.toString()
+    }, 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// GOOGLE DRIVE HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function getOrCreatePatientFolder(patientId, patientName) {
+  var root = CONFIG.driveFolderId === 'root' ?
+    DriveApp.getRootFolder() :
+    DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  var mainFolders = root.getFoldersByName('Unit E Ward Rounds');
+  var mainFolder = mainFolders.hasNext() ?
+    mainFolders.next() :
+    root.createFolder('Unit E Ward Rounds');
+
+  var safeName = (patientName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
+  var patientFolderName = 'Patient_' + patientId + '_' + safeName;
+  var patientFolders = mainFolder.getFoldersByName(patientFolderName);
+
+  return patientFolders.hasNext() ?
+    patientFolders.next() :
+    mainFolder.createFolder(patientFolderName);
+}
+
+function getPatientFolder(patientId) {
+  var root = CONFIG.driveFolderId === 'root' ?
+    DriveApp.getRootFolder() :
+    DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  var mainFolders = root.getFoldersByName('Unit E Ward Rounds');
+  if (!mainFolders.hasNext()) return null;
+
+  var folders = mainFolders.next().getFolders();
+  while (folders.hasNext()) {
+    var f = folders.next();
+    if (f.getName().indexOf('Patient_' + patientId + '_') === 0) {
+      return f;
     }
   }
-  
+
   return null;
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Create JSON response
- */
-function createJsonResponse(data, statusCode = 200) {
-  const output = ContentService.createTextOutput(JSON.stringify(data));
-  output.setMimeType(ContentService.MimeType.JSON);
-  return output;
+function createJsonResponse(data, statusCode) {
+  statusCode = statusCode || 200;
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Create HTML response
- */
-function createHtmlResponse(html) {
-  return HtmlService.createHtmlOutput(html);
-}
-
-/**
- * Test function to verify setup
+ * Test function - Run this from Apps Script editor to verify configuration
  */
 function testConfiguration() {
   Logger.log('=== Configuration Test ===');
-  Logger.log('Vision API Key: ' + (CONFIG.visionApiKey ? 'Configured' : 'NOT CONFIGURED'));
-  Logger.log('Service Account: ' + (CONFIG.serviceAccountKey ? 'Configured' : 'NOT CONFIGURED'));
-  Logger.log('Spreadsheet ID: ' + (CONFIG.spreadsheetId ? 'Configured' : 'NOT CONFIGURED'));
-  Logger.log('Drive Folder ID: ' + CONFIG.driveFolderId);
-  
-  if (CONFIG.spreadsheetId) {
-    try {
-      const spreadsheet = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-      Logger.log('Spreadsheet access: SUCCESS - ' + spreadsheet.getName());
-    } catch (e) {
-      Logger.log('Spreadsheet access: FAILED - ' + e.toString());
-    }
-  }
-  
+  Logger.log('Version: ' + SCRIPT_VERSION);
+  Logger.log('Vision API Key: ' + (CONFIG.visionApiKey ? '✓ Configured (' + CONFIG.visionApiKey.substring(0, 10) + '...)' : '✗ NOT CONFIGURED'));
+  Logger.log('Anthropic API Key: ' + (CONFIG.anthropicApiKey ? '✓ Configured (' + CONFIG.anthropicApiKey.substring(0, 15) + '...)' : '✗ NOT CONFIGURED'));
+  Logger.log('Spreadsheet ID: ' + (CONFIG.spreadsheetId ? '✓ Configured' : '✗ NOT CONFIGURED'));
+  Logger.log('Drive Folder: ' + CONFIG.driveFolderId);
+  Logger.log('Firebase URL: ' + CONFIG.firebaseUrl);
+  Logger.log('Claude Model: ' + CLAUDE_MODELS.SONNET);
+  Logger.log('Sync: ENABLED (bidirectional)');
   Logger.log('=== Test Complete ===');
 }
