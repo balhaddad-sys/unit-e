@@ -1,1680 +1,811 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND v2.2
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v3.2
  *
- * NEW: Instant bidirectional syncing between Google Sheets and Firebase
- * - Auto-sync: Web app → Firebase → Sheets
- * - Auto-sync: Sheets → Firebase → Web app
- * - Real-time updates in both directions
+ * Matches YOUR sheet format exactly:
+ * Row 5: Room/Ward | Patient name | Diagnosis | Assigned Doctor | Status
+ * Ward headers (Ward 20, Ward 21, etc.) in column A
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const SCRIPT_VERSION = '2.2.0';
-
-// Get configuration from Script Properties
-const CONFIG = {
-  visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
-  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY') || '',
-  spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
-
-  // Firebase configuration for real-time sync
-  firebaseUrl: PropertiesService.getScriptProperties().getProperty('FIREBASE_URL') || 'https://internal-medicine-ward-default-rtdb.firebaseio.com',
-  firebaseSecret: PropertiesService.getScriptProperties().getProperty('FIREBASE_SECRET') || ''
-};
-
-// Valid Claude models (as of January 2025)
-const CLAUDE_MODELS = {
-  SONNET: 'claude-3-5-sonnet-20241022',  // Best balance of intelligence and speed
-  OPUS: 'claude-3-opus-20240229',        // Most capable (if available)
-  HAIKU: 'claude-3-5-haiku-20241022'     // Fastest
-};
+const SCRIPT_VERSION = '3.2.0';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// FIREBASE INTEGRATION
+// CONFIGURATION
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Get all patients from Firebase
- */
-function getFirebasePatients() {
-  try {
-    var url = CONFIG.firebaseUrl + '/patients.json';
-    if (CONFIG.firebaseSecret) {
-      url += '?auth=' + CONFIG.firebaseSecret;
+function getConfig() {
+  const props = PropertiesService.getScriptProperties();
+  return {
+    visionApiKey: props.getProperty('VISION_API_KEY') || '',
+    anthropicApiKey: props.getProperty('ANTHROPIC_API_KEY') || '',
+    spreadsheetId: props.getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
+    driveFolderId: props.getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
+    sheetName: props.getProperty('SHEET_NAME') || 'Unit e',
+    dataStartRow: 6  // Data starts at row 6 (after headers at row 5)
+  };
+}
+
+const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
+
+// ═══════════════════════════════════════════════════════════════════════════
+// DATA STORE - Google Drive Storage
+// ═══════════════════════════════════════════════════════════════════════════
+
+const DataStore = {
+
+  getAppFolder: function() {
+    const config = getConfig();
+    let root;
+
+    if (config.driveFolderId === 'root') {
+      root = DriveApp.getRootFolder();
+    } else {
+      root = DriveApp.getFolderById(config.driveFolderId);
     }
 
-    var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+    const folderName = 'Unit E Ward Rounds Data';
+    const folders = root.getFoldersByName(folderName);
 
-    if (response.getResponseCode() !== 200) {
-      Logger.log('Firebase read error: ' + response.getContentText());
+    if (folders.hasNext()) {
+      const folder = folders.next();
+      Logger.log('Using existing folder: ' + folder.getName() + ' (ID: ' + folder.getId() + ')');
+      return folder;
+    }
+
+    const newFolder = root.createFolder(folderName);
+    Logger.log('Created new folder: ' + newFolder.getName() + ' (ID: ' + newFolder.getId() + ')');
+    return newFolder;
+  },
+
+  getFile: function(fileName, defaultData) {
+    const folder = this.getAppFolder();
+    const files = folder.getFilesByName(fileName);
+
+    if (files.hasNext()) {
+      const file = files.next();
+      Logger.log('Using existing file: ' + fileName + ' (ID: ' + file.getId() + ')');
+      return file;
+    }
+
+    const newFile = folder.createFile(fileName, JSON.stringify(defaultData || {}), MimeType.PLAIN_TEXT);
+    Logger.log('Created new file: ' + fileName + ' (ID: ' + newFile.getId() + ')');
+    return newFile;
+  },
+
+  read: function(fileName, defaultData) {
+    try {
+      const file = this.getFile(fileName, defaultData);
+      const content = file.getBlob().getDataAsString();
+      const parsed = content ? JSON.parse(content) : (defaultData || {});
+      Logger.log('Read from ' + fileName + ': ' + Object.keys(parsed).length + ' items');
+      return parsed;
+    } catch (e) {
+      Logger.log('Read error for ' + fileName + ': ' + e.toString());
+      return defaultData || {};
+    }
+  },
+
+  write: function(fileName, data) {
+    try {
+      const file = this.getFile(fileName, {});
+      const content = JSON.stringify(data, null, 2);
+      file.setContent(content);
+      Logger.log('Wrote to ' + fileName + ': ' + content.length + ' bytes, ' + Object.keys(data).length + ' items');
+      return true;
+    } catch (e) {
+      Logger.log('Write error for ' + fileName + ': ' + e.toString());
+      return false;
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHEET SYNC - Reads YOUR exact format
+// ═══════════════════════════════════════════════════════════════════════════
+
+const SheetSync = {
+
+  getSheet: function() {
+    const config = getConfig();
+    if (!config.spreadsheetId) return null;
+
+    try {
+      const ss = SpreadsheetApp.openById(config.spreadsheetId);
+      // Try configured name first, then fallbacks
+      return ss.getSheetByName(config.sheetName) ||
+             ss.getSheetByName('Unit e') ||
+             ss.getSheetByName('Patients') ||
+             ss.getSheets()[0];
+    } catch (e) {
+      Logger.log('getSheet error: ' + e);
       return null;
     }
-
-    var data = JSON.parse(response.getContentText());
-
-    if (!data) return [];
-
-    // Convert Firebase object to array
-    var patients = [];
-    for (var key in data) {
-      var patient = data[key];
-      patient.id = key;
-      patients.push(patient);
-    }
-
-    return patients;
-
-  } catch (error) {
-    Logger.log('Error reading from Firebase: ' + error.toString());
-    return null;
-  }
-}
-
-/**
- * Update a single patient in Firebase
- */
-function updateFirebasePatient(patientId, patientData) {
-  try {
-    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
-    if (CONFIG.firebaseSecret) {
-      url += '?auth=' + CONFIG.firebaseSecret;
-    }
-
-    var response = UrlFetchApp.fetch(url, {
-      method: 'put',
-      contentType: 'application/json',
-      payload: JSON.stringify(patientData),
-      muteHttpExceptions: true
-    });
-
-    return response.getResponseCode() === 200;
-
-  } catch (error) {
-    Logger.log('Error updating Firebase: ' + error.toString());
-    return false;
-  }
-}
-
-/**
- * Delete a patient from Firebase
- */
-function deleteFirebasePatient(patientId) {
-  try {
-    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
-    if (CONFIG.firebaseSecret) {
-      url += '?auth=' + CONFIG.firebaseSecret;
-    }
-
-    var response = UrlFetchApp.fetch(url, {
-      method: 'delete',
-      muteHttpExceptions: true
-    });
-
-    return response.getResponseCode() === 200;
-
-  } catch (error) {
-    Logger.log('Error deleting from Firebase: ' + error.toString());
-    return false;
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// AUTOMATIC SYNC TRIGGERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-/**
- * onEdit trigger - Automatically syncs changes from Sheets to Firebase
- * This runs whenever someone edits the Google Sheet
- */
-function onEdit(e) {
-  try {
-    Logger.log('=== onEdit Trigger START ===');
-
-    if (!e || !e.range) {
-      Logger.log('No edit event data');
-      return;
-    }
-
-    var sheet = e.range.getSheet();
-    var sheetName = sheet.getName();
-
-    Logger.log('Sheet edited: ' + sheetName);
-
-    // Only sync if the Patients sheet was edited
-    if (sheetName !== 'Patients') {
-      Logger.log('Not Patients sheet, skipping sync');
-      return;
-    }
-
-    // Don't sync header row edits
-    var row = e.range.getRow();
-    if (row === 1) {
-      Logger.log('Header row edited, skipping sync');
-      return;
-    }
-
-    Logger.log('Syncing row ' + row + ' to Firebase...');
-
-    // Sync the edited row to Firebase
-    syncRowToFirebase(sheet, row);
-
-    Logger.log('=== onEdit Trigger COMPLETE ===');
-
-  } catch (error) {
-    Logger.log('onEdit Error: ' + error.toString());
-  }
-}
-
-/**
- * Sync a single row from Sheets to Firebase
- */
-function syncRowToFirebase(sheet, rowNumber) {
-  try {
-    var lastCol = 9; // We have 9 columns
-    var rowData = sheet.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
-
-    // Check if row is empty
-    if (!rowData[0] && !rowData[1] && !rowData[2]) {
-      Logger.log('Empty row, skipping');
-      return;
-    }
-
-    // Map columns to patient object
-    var patient = {
-      ward: rowData[0] || '',
-      bed: rowData[1] || '',
-      name: rowData[2] || '',
-      mrn: rowData[3] || '',
-      doctor: rowData[4] || '',
-      diagnosis: rowData[5] || '',
-      plan: rowData[6] || '',
-      status: rowData[7] || '',
-      timestamp: new Date().getTime(),
-      lastModified: new Date().toISOString(),
-      syncedFromSheet: true
-    };
-
-    // Create unique ID based on ward and bed
-    var patientId = 'sheet_' + (patient.ward + '_' + patient.bed).replace(/[^a-zA-Z0-9]/g, '_');
-
-    // Update Firebase
-    var success = updateFirebasePatient(patientId, patient);
-
-    if (success) {
-      Logger.log('Row ' + rowNumber + ' synced to Firebase as ' + patientId);
-    } else {
-      Logger.log('Failed to sync row ' + rowNumber + ' to Firebase');
-    }
-
-  } catch (error) {
-    Logger.log('syncRowToFirebase Error: ' + error.toString());
-  }
-}
-
-/**
- * Sync all Firebase data to Sheets
- * Call this manually or set it on a time trigger (e.g., every 1 minute)
- */
-function syncFirebaseToSheets() {
-  try {
-    Logger.log('=== syncFirebaseToSheets START ===');
-
-    if (!CONFIG.spreadsheetId) {
-      Logger.log('No spreadsheet configured');
-      return { success: false, error: 'No spreadsheet configured' };
-    }
-
-    // Get data from Firebase
-    var patients = getFirebasePatients();
-
-    if (!patients) {
-      Logger.log('Failed to get patients from Firebase');
-      return { success: false, error: 'Failed to read from Firebase' };
-    }
-
-    Logger.log('Got ' + patients.length + ' patients from Firebase');
-
-    // Get the sheet
-    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-    var sheet = ss.getSheetByName('Patients');
-
-    if (!sheet) {
-      sheet = ss.insertSheet('Patients');
-    }
-
-    // Set up headers
-    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
-
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    }
-
-    // Clear existing data (but keep headers)
-    if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
-    }
-
-    // Prepare rows
-    var rows = patients.map(function(p) {
-      return [
-        p.ward || '',
-        p.bed || '',
-        p.name || '',
-        p.mrn || '',
-        p.doctor || '',
-        p.diagnosis || '',
-        p.plan || '',
-        p.status || '',
-        p.lastModified || new Date(p.timestamp || Date.now()).toLocaleString()
-      ];
-    });
-
-    // Write to sheet
-    if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-    }
-
-    Logger.log('Synced ' + rows.length + ' patients to sheet');
-    Logger.log('=== syncFirebaseToSheets COMPLETE ===');
-
-    return { success: true, count: rows.length };
-
-  } catch (error) {
-    Logger.log('syncFirebaseToSheets Error: ' + error.toString());
-    return { success: false, error: error.toString() };
-  }
-}
-
-/**
- * Sync FROM Google Drive TO Google Sheets
- * Reads patients from Google Drive and writes to Google Sheets
- */
-function syncDriveToSheets() {
-  try {
-    Logger.log('=== syncDriveToSheets START ===');
-
-    if (!CONFIG.spreadsheetId) {
-      Logger.log('No spreadsheet configured');
-      return { success: false, error: 'No spreadsheet configured' };
-    }
-
-    // Get patients from Google Drive
-    var patientsFile = getOrCreatePatientsFile();
-    var patientsData = loadPatientsFromFile(patientsFile);
-
-    // Convert object to array
-    var patients = [];
-    for (var key in patientsData) {
-      var patient = patientsData[key];
-      patient.id = key;
-      patients.push(patient);
-    }
-
-    Logger.log('Got ' + patients.length + ' patients from Google Drive');
-
-    // Get the sheet
-    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-    var sheet = ss.getSheetByName('Patients');
-
-    if (!sheet) {
-      sheet = ss.insertSheet('Patients');
-    }
-
-    // Set up headers
-    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
-
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    }
-
-    // Clear existing data (but keep headers)
-    if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
-    }
-
-    // Prepare rows
-    var rows = patients.map(function(p) {
-      return [
-        p.ward || '',
-        p.bed || '',
-        p.name || '',
-        p.mrn || '',
-        p.doctor || '',
-        p.diagnosis || '',
-        p.plan || '',
-        p.status || '',
-        new Date(p.timestamp || Date.now()).toLocaleString()
-      ];
-    });
-
-    // Write to sheet
-    if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-    }
-
-    Logger.log('Synced ' + rows.length + ' patients to sheet');
-    Logger.log('=== syncDriveToSheets COMPLETE ===');
-
-    return { success: true, count: rows.length, timestamp: new Date().toISOString() };
-
-  } catch (error) {
-    Logger.log('syncDriveToSheets Error: ' + error.toString());
-    return { success: false, error: error.toString() };
-  }
-}
-
-/**
- * Sync FROM Google Sheets TO Google Drive
- * Reads patients from Google Sheets and writes to Google Drive
- */
-function syncSheetsToDrive() {
-  try {
-    Logger.log('=== syncSheetsToDrive START ===');
-
-    if (!CONFIG.spreadsheetId) {
-      Logger.log('No spreadsheet configured');
-      return { success: false, error: 'No spreadsheet configured' };
-    }
-
-    // Get the sheet
-    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-    var sheet = ss.getSheetByName('Patients');
-
-    if (!sheet || sheet.getLastRow() < 2) {
-      Logger.log('No data in sheet');
-      return { success: true, count: 0, message: 'No data in sheet' };
-    }
-
-    // Read data from sheet (skip header row)
-    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
-
-    Logger.log('Read ' + data.length + ' rows from sheet');
-
-    // Get existing patients from Drive
-    var patientsFile = getOrCreatePatientsFile();
-    var existingPatients = loadPatientsFromFile(patientsFile);
-
-    // Create a map of existing patients by ward+name for matching
-    var existingMap = {};
-    for (var key in existingPatients) {
-      var p = existingPatients[key];
-      var mapKey = ((p.ward || '').toLowerCase() + '|' + (p.name || '').toLowerCase()).trim();
-      existingMap[mapKey] = { id: key, patient: p };
-    }
-
-    var imported = 0;
-    var updated = 0;
-    var skipped = 0;
-
-    // Process each row from sheet
-    for (var i = 0; i < data.length; i++) {
-      var row = data[i];
-
-      // Extract fields (matching header order: Ward, Bed, Name, MRN, Doctor, Diagnosis, Plan, Status, Last Updated)
-      var name = (row[2] || '').toString().trim();
-
-      // Skip empty rows
-      if (!name) {
-        skipped++;
-        continue;
+  },
+
+  /**
+   * Pull from YOUR sheet format:
+   * Col A: Room/Ward (ward headers like "Ward 20" + bed numbers like "11-1")
+   * Col B: Patient name
+   * Col C: Diagnosis
+   * Col D: Assigned Doctor
+   * Col E: Status
+   */
+  pullFromSheet: function() {
+    const sheet = this.getSheet();
+    if (!sheet) return { success: false, error: 'Sheet not found' };
+
+    const config = getConfig();
+
+    try {
+      const lastRow = sheet.getLastRow();
+      Logger.log('Sheet: ' + sheet.getName() + ', Last row: ' + lastRow);
+
+      if (lastRow < config.dataStartRow) {
+        return { success: true, imported: 0, message: 'No data' };
       }
 
-      var ward = (row[0] || '').toString().trim() || 'Unassigned';
-      var bed = (row[1] || '').toString().trim();
-      var mrn = (row[3] || '').toString().trim();
-      var doctor = (row[4] || '').toString().trim();
-      var diagnosis = (row[5] || '').toString().trim();
-      var plan = (row[6] || '').toString().trim();
-      var status = (row[7] || '').toString().trim() || 'New';
+      const numRows = lastRow - config.dataStartRow + 1;
+      const data = sheet.getRange(config.dataStartRow, 1, numRows, 5).getValues();
 
-      // Check if patient already exists
-      var mapKey = (ward.toLowerCase() + '|' + name.toLowerCase()).trim();
-      var existing = existingMap[mapKey];
+      Logger.log('Reading ' + numRows + ' rows from row ' + config.dataStartRow);
+      Logger.log('First few rows: ' + JSON.stringify(data.slice(0, 5)));
 
-      var patient = {
-        ward: ward,
-        bed: bed,
-        name: name,
-        mrn: mrn,
-        doctor: doctor,
-        diagnosis: diagnosis,
-        plan: plan,
-        status: status,
-        timestamp: existing ? existing.patient.timestamp : Date.now(),
-        labData: existing ? existing.patient.labData : []
+      const patients = {};
+      let currentWard = 'Unassigned';
+      let count = 0;
+
+      data.forEach(function(row, idx) {
+        const colA = (row[0] || '').toString().trim();  // Room/Ward
+        const colB = (row[1] || '').toString().trim();  // Patient name
+        const colC = (row[2] || '').toString().trim();  // Diagnosis
+        const colD = (row[3] || '').toString().trim();  // Doctor
+        const colE = (row[4] || '').toString().trim();  // Status
+
+        // Check if this is a ward header row (Ward X in col A, nothing in col B)
+        if (colA && colA.toLowerCase().startsWith('ward') && !colB) {
+          currentWard = colA;
+          Logger.log('Row ' + (idx + config.dataStartRow) + ': Ward header -> ' + currentWard);
+          return;
+        }
+
+        // Skip empty rows or header-like rows
+        if (!colB || colB.toLowerCase().includes('patient') || colB.toLowerCase().includes('name')) {
+          return;
+        }
+
+        // This is a patient row
+        const patientId = (currentWard + '_' + colB).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+
+        patients[patientId] = {
+          id: patientId,
+          ward: currentWard,
+          bed: colA,
+          name: colB,
+          diagnosis: colC,
+          doctor: colD,
+          status: colE || 'Non-Chronic',
+          labData: [],
+          createdAt: Date.now(),
+          updatedAt: Date.now()
+        };
+
+        count++;
+        Logger.log('Row ' + (idx + config.dataStartRow) + ': Patient "' + colB + '" in ' + currentWard + ' bed ' + colA);
+      });
+
+      Logger.log('Total patients parsed: ' + count);
+      Logger.log('Patient IDs: ' + Object.keys(patients).join(', '));
+
+      // Merge with existing data (preserve lab data)
+      const existing = DataStore.read('patients.json', {});
+      Logger.log('Existing patients in Drive: ' + Object.keys(existing).length);
+
+      for (const id in patients) {
+        if (existing[id] && existing[id].labData && existing[id].labData.length > 0) {
+          patients[id].labData = existing[id].labData;
+          Logger.log('Preserved lab data for: ' + id);
+        }
+      }
+
+      // Save to Drive
+      const writeResult = DataStore.write('patients.json', patients);
+      Logger.log('Write to Drive result: ' + writeResult);
+
+      // Verify write
+      const verification = DataStore.read('patients.json', {});
+      Logger.log('Verification - patients in Drive after write: ' + Object.keys(verification).length);
+
+      return {
+        success: true,
+        count: count,
+        saved: Object.keys(verification).length,
+        timestamp: new Date().toISOString()
       };
 
-      if (existing) {
-        // Update existing patient
-        existingPatients[existing.id] = patient;
-        updated++;
-      } else {
-        // Create new patient with generated ID
-        var newId = Utilities.getUuid();
-        existingPatients[newId] = patient;
-        imported++;
+    } catch (e) {
+      Logger.log('pullFromSheet error: ' + e.toString());
+      Logger.log('Stack: ' + e.stack);
+      return { success: false, error: e.toString() };
+    }
+  },
+
+  /**
+   * Push to sheet (Drive → Sheet)
+   * Writes back in YOUR format
+   */
+  pushToSheet: function(patients) {
+    const sheet = this.getSheet();
+    if (!sheet) return { success: false, error: 'Sheet not found' };
+
+    const config = getConfig();
+
+    try {
+      // Group by ward
+      const byWard = {};
+      for (const id in patients) {
+        const p = patients[id];
+        const ward = p.ward || 'Unassigned';
+        if (!byWard[ward]) byWard[ward] = [];
+        byWard[ward].push(p);
       }
-    }
 
-    // Save back to Drive
-    savePatientsToFile(patientsFile, existingPatients);
+      // Sort within wards by bed
+      for (const ward in byWard) {
+        byWard[ward].sort((a, b) => (a.bed || '').localeCompare(b.bed || '', undefined, { numeric: true }));
+      }
 
-    Logger.log('Sheet sync: ' + imported + ' new, ' + updated + ' updated, ' + skipped + ' skipped');
-    Logger.log('=== syncSheetsToDrive COMPLETE ===');
+      // Clear existing data
+      const lastRow = sheet.getLastRow();
+      if (lastRow >= config.dataStartRow) {
+        sheet.getRange(config.dataStartRow, 1, lastRow - config.dataStartRow + 1, 5).clearContent();
+      }
 
-    return {
-      success: true,
-      imported: imported,
-      updated: updated,
-      skipped: skipped,
-      total: imported + updated,
-      timestamp: new Date().toISOString()
-    };
+      // Build rows
+      const rows = [];
+      const wardOrder = ['Ward 20', 'Ward 21', 'Ward 22', 'Ward 5', 'Ward 27', 'Ward 4', 'Ward 19', 'Ward 10', 'ICU', 'ER'];
 
-  } catch (error) {
-    Logger.log('syncSheetsToDrive Error: ' + error.toString());
-    return { success: false, error: error.toString() };
-  }
-}
+      wardOrder.forEach(function(ward) {
+        if (byWard[ward] && byWard[ward].length > 0) {
+          rows.push([ward, '', '', '', '']);  // Ward header
+          byWard[ward].forEach(function(p) {
+            rows.push([p.bed || '', p.name || '', p.diagnosis || '', p.doctor || '', p.status || '']);
+          });
+        }
+      });
 
-/**
- * Install time-based trigger for auto-sync
- * Run this once to set up automatic syncing every minute
- */
-function installAutoSyncTrigger() {
-  // Delete existing triggers first
-  var triggers = ScriptApp.getProjectTriggers();
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
-      ScriptApp.deleteTrigger(triggers[i]);
-    }
-  }
+      // Any remaining wards
+      for (const ward in byWard) {
+        if (wardOrder.indexOf(ward) === -1 && byWard[ward].length > 0) {
+          rows.push([ward, '', '', '', '']);
+          byWard[ward].forEach(function(p) {
+            rows.push([p.bed || '', p.name || '', p.diagnosis || '', p.doctor || '', p.status || '']);
+          });
+        }
+      }
 
-  // Create new trigger - sync every 1 minute
-  ScriptApp.newTrigger('syncFirebaseToSheets')
-    .timeBased()
-    .everyMinutes(1)
-    .create();
+      if (rows.length > 0) {
+        sheet.getRange(config.dataStartRow, 1, rows.length, 5).setValues(rows);
 
-  Logger.log('Auto-sync trigger installed - syncing every 1 minute');
-  return 'Trigger installed successfully';
-}
+        // Format ward headers
+        let rowNum = config.dataStartRow;
+        rows.forEach(function(row) {
+          if (row[0].toLowerCase().startsWith('ward') && !row[1]) {
+            sheet.getRange(rowNum, 1, 1, 5).setBackground('#c8e6c9').setFontWeight('bold');
+          }
+          rowNum++;
+        });
+      }
 
-/**
- * Uninstall auto-sync trigger
- */
-function uninstallAutoSyncTrigger() {
-  var triggers = ScriptApp.getProjectTriggers();
-  var count = 0;
+      return { success: true, count: rows.length };
 
-  for (var i = 0; i < triggers.length; i++) {
-    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
-      ScriptApp.deleteTrigger(triggers[i]);
-      count++;
+    } catch (e) {
+      Logger.log('pushToSheet error: ' + e);
+      return { success: false, error: e.toString() };
     }
   }
-
-  Logger.log('Removed ' + count + ' auto-sync triggers');
-  return 'Removed ' + count + ' triggers';
-}
+};
 
 // ═══════════════════════════════════════════════════════════════════════════
-// MAIN HANDLERS
+// PATIENT SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const PatientService = {
+
+  getAll: function() {
+    return DataStore.read('patients.json', {});
+  },
+
+  getById: function(id) {
+    return this.getAll()[id] || null;
+  },
+
+  create: function(data) {
+    const patients = this.getAll();
+    const id = data.id || Utilities.getUuid();
+
+    patients[id] = {
+      id: id,
+      ward: data.ward || 'Unassigned',
+      bed: data.bed || '',
+      name: data.name || '',
+      diagnosis: data.diagnosis || '',
+      doctor: data.doctor || '',
+      status: data.status || 'New',
+      labData: data.labData || [],
+      createdAt: Date.now(),
+      updatedAt: Date.now()
+    };
+
+    DataStore.write('patients.json', patients);
+    return { success: true, patient: patients[id], id: id };
+  },
+
+  update: function(id, updates) {
+    const patients = this.getAll();
+    if (!patients[id]) return { success: false, error: 'Not found' };
+
+    for (const key in updates) {
+      if (key !== 'id' && key !== 'createdAt') {
+        patients[id][key] = updates[key];
+      }
+    }
+    patients[id].updatedAt = Date.now();
+
+    DataStore.write('patients.json', patients);
+    return { success: true, patient: patients[id] };
+  },
+
+  delete: function(id) {
+    const patients = this.getAll();
+    if (!patients[id]) return { success: false, error: 'Not found' };
+
+    delete patients[id];
+    DataStore.write('patients.json', patients);
+    return { success: true };
+  },
+
+  refresh: function() {
+    const result = SheetSync.pullFromSheet();
+    return {
+      success: result.success,
+      patients: this.getAll(),
+      syncResult: result
+    };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LAB SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const LabService = {
+
+  save: function(patientId, labData, metadata) {
+    const patients = PatientService.getAll();
+    if (!patients[patientId]) return { success: false, error: 'Patient not found' };
+
+    if (!patients[patientId].labData) patients[patientId].labData = [];
+
+    const entry = {
+      id: Utilities.getUuid(),
+      timestamp: Date.now(),
+      reportType: labData.reportType || 'GENERAL',
+      values: labData.values || [],
+      source: labData.source || 'manual'
+    };
+
+    patients[patientId].labData.unshift(entry);
+    if (patients[patientId].labData.length > 50) {
+      patients[patientId].labData = patients[patientId].labData.slice(0, 50);
+    }
+    patients[patientId].updatedAt = Date.now();
+
+    DataStore.write('patients.json', patients);
+    return { success: true, labEntry: entry };
+  },
+
+  getHistory: function(patientId, limit) {
+    const patient = PatientService.getById(patientId);
+    if (!patient) return { success: false, error: 'Patient not found' };
+
+    const history = patient.labData || [];
+    return {
+      success: true,
+      history: limit ? history.slice(0, limit) : history,
+      count: history.length
+    };
+  },
+
+  getLatest: function(patientId) {
+    const result = this.getHistory(patientId, 1);
+    return result.success ? { success: true, labs: result.history[0] || null } : result;
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// NOTICE SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const NoticeService = {
+  get: function() { return DataStore.read('notice.json', { text: '' }); },
+  save: function(text) {
+    const notice = { text: text || '', updatedAt: Date.now() };
+    return DataStore.write('notice.json', notice) ? { success: true, notice } : { success: false };
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const OCRService = {
+  process: function(imageBase64) {
+    const config = getConfig();
+    if (!config.visionApiKey) return { success: false, error: 'Vision API key not configured' };
+
+    try {
+      const imageData = imageBase64.replace(/^data:image\/\w+;base64,/, '');
+      const response = UrlFetchApp.fetch(
+        'https://vision.googleapis.com/v1/images:annotate?key=' + config.visionApiKey,
+        {
+          method: 'post',
+          contentType: 'application/json',
+          payload: JSON.stringify({
+            requests: [{ image: { content: imageData }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }]
+          }),
+          muteHttpExceptions: true
+        }
+      );
+
+      if (response.getResponseCode() !== 200) return { success: false, error: 'Vision API error' };
+
+      const result = JSON.parse(response.getContentText());
+      const text = result.responses?.[0]?.fullTextAnnotation?.text ||
+                   result.responses?.[0]?.textAnnotations?.[0]?.description || '';
+
+      return { success: true, text: text, confidence: text ? 90 : 0, source: 'google_vision' };
+    } catch (e) {
+      return { success: false, error: e.toString() };
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLAUDE SERVICE
+// ═══════════════════════════════════════════════════════════════════════════
+
+const ClaudeService = {
+
+  processImage: function(imageBase64) {
+    const config = getConfig();
+    if (!config.anthropicApiKey) return { success: false, error: 'API key not configured' };
+
+    try {
+      let imageData = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
+      const mediaType = imageBase64.match(/data:image\/(\w+);/)?.[1] || 'jpeg';
+
+      const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { 'x-api-key': config.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+        payload: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 4096,
+          messages: [{
+            role: 'user',
+            content: [
+              { type: 'image', source: { type: 'base64', media_type: 'image/' + mediaType, data: imageData } },
+              { type: 'text', text: 'Extract lab values as JSON: {"reportType":"CBC|BMP|CMP|LFT|GENERAL","values":[{"test":"name","value":"number","unit":"unit","flag":"N|L|H"}]}' }
+            ]
+          }]
+        }),
+        muteHttpExceptions: true
+      });
+
+      if (response.getResponseCode() !== 200) return { success: false, error: 'Claude API error' };
+
+      const content = JSON.parse(response.getContentText()).content?.[0]?.text || '';
+      let parsed = { values: [], reportType: 'GENERAL' };
+      try { parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}'); } catch(e) {}
+
+      return { success: true, values: parsed.values || [], reportType: parsed.reportType || 'GENERAL', rawText: content };
+    } catch (e) {
+      return { success: false, error: e.toString() };
+    }
+  },
+
+  consult: function(query, patientContext, labValues) {
+    const config = getConfig();
+    if (!config.anthropicApiKey) return { success: false, error: 'API key not configured' };
+
+    try {
+      let prompt = query;
+      if (patientContext) prompt += '\n\nPatient: ' + patientContext;
+      if (labValues?.length) {
+        prompt += '\n\nLabs:\n' + labValues.map(v => `- ${v.test}: ${v.value} ${v.unit || ''}`).join('\n');
+      }
+
+      const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+        method: 'post',
+        contentType: 'application/json',
+        headers: { 'x-api-key': config.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+        payload: JSON.stringify({
+          model: CLAUDE_MODEL,
+          max_tokens: 4096,
+          system: 'You are an expert medical AI consultant.',
+          messages: [{ role: 'user', content: prompt }]
+        }),
+        muteHttpExceptions: true
+      });
+
+      if (response.getResponseCode() !== 200) return { success: false, error: 'Claude API error' };
+
+      return { success: true, response: JSON.parse(response.getContentText()).content?.[0]?.text || '' };
+    } catch (e) {
+      return { success: false, error: e.toString() };
+    }
+  }
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HTTP HANDLERS
 // ═══════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
-  try {
-    var action = (e && e.parameter && e.parameter.action) || 'info';
+  const action = e?.parameter?.action || 'info';
 
-    if (action === 'health') {
-      return createJsonResponse({
-        status: 'healthy',
-        version: SCRIPT_VERSION,
-        timestamp: new Date().toISOString(),
-        services: {
-          vision: !!CONFIG.visionApiKey,
-          claude: !!CONFIG.anthropicApiKey,
-          sheets: !!CONFIG.spreadsheetId,
-          firebase: !!CONFIG.firebaseUrl,
-          drive: true
-        },
-        models: {
-          claude: CLAUDE_MODELS.SONNET,
-          vision: 'google-vision-v1'
-        },
-        sync: {
-          enabled: true,
-          firebase: CONFIG.firebaseUrl,
-          sheet: CONFIG.spreadsheetId
-        }
-      });
-    }
-
-    if (action === 'syncNow') {
-      var result = syncFirebaseToSheets();
-      return createJsonResponse(result);
-    }
-
-    // Info page
-    var hasVision = !!CONFIG.visionApiKey;
-    var hasClaude = !!CONFIG.anthropicApiKey;
-    var hasSheets = !!CONFIG.spreadsheetId;
-    var hasFirebase = !!CONFIG.firebaseUrl;
-
-    var html = '<html><head><style>' +
-      'body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }' +
-      'h1 { color: #15803d; }' +
-      '.status { background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0; }' +
-      '.good { color: #15803d; }' +
-      '.bad { color: #dc2626; }' +
-      '.code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-family: monospace; }' +
-      '.sync-box { background: #dcfce7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #15803d; }' +
-      'button { background: #15803d; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }' +
-      'button:hover { background: #166534; }' +
-      '</style></head><body>' +
-      '<h1>🏥 Unit E Ward Rounds API v' + SCRIPT_VERSION + '</h1>' +
-      '<div class="status">' +
-      '<h2>Service Status</h2>' +
-      '<p><strong>Vision API:</strong> <span class="' + (hasVision ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
-      '<p><strong>Claude AI:</strong> <span class="' + (hasClaude ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
-      '<p><strong>Google Sheets:</strong> <span class="' + (hasSheets ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
-      '<p><strong>Firebase:</strong> <span class="' + (hasFirebase ? 'good">✓ Connected' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
-      '<p><strong>Google Drive:</strong> <span class="good">✓ Available</span></p>' +
-      '</div>';
-
-    html += '<div class="sync-box">' +
-      '<h2>⚡ Real-Time Sync</h2>' +
-      '<p><strong>Status:</strong> <span class="good">✓ Enabled</span></p>' +
-      '<p>Bidirectional sync between Google Sheets and Web App via Firebase</p>' +
-      '<ul>' +
-      '<li><strong>Web App → Firebase:</strong> Instant (real-time)</li>' +
-      '<li><strong>Firebase → Sheets:</strong> Every 1 minute (automatic)</li>' +
-      '<li><strong>Sheets → Firebase:</strong> Instant (on edit trigger)</li>' +
-      '<li><strong>Firebase → Web App:</strong> Instant (real-time)</li>' +
-      '</ul>' +
-      '<p><button onclick="location.href=location.href.split(\'?\')[0] + \'?action=syncNow\'">🔄 Sync Now</button></p>' +
-      '</div>';
-
-    if (!hasVision || !hasClaude) {
-      html += '<div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">' +
-        '<h3>⚠️ Configuration Required</h3>' +
-        '<p>To enable OCR and AI features, configure API keys in Script Properties.</p>' +
-        '</div>';
-    }
-
-    html += '<h2>📚 API Endpoints</h2>' +
-      '<ul>' +
-      '<li><strong>POST /exec</strong> - Main API</li>' +
-      '<li><strong>GET /exec?action=health</strong> - Health check</li>' +
-      '<li><strong>GET /exec?action=syncNow</strong> - Force sync Firebase → Sheets</li>' +
-      '<li><strong>GET /exec</strong> - This page</li>' +
-      '</ul>' +
-      '<p><strong>Claude Model:</strong> ' + CLAUDE_MODELS.SONNET + '</p>' +
-      '</body></html>';
-
-    return HtmlService.createHtmlOutput(html);
-
-  } catch (error) {
-    Logger.log('doGet Error: ' + error.toString());
-    return createJsonResponse({ error: error.toString() }, 500);
+  switch (action) {
+    case 'health':
+      return json({ status: 'healthy', version: SCRIPT_VERSION, sheet: getConfig().sheetName });
+    case 'sync':
+    case 'pull':
+      return json(SheetSync.pullFromSheet());
+    case 'test':
+      return json(testSheetRead());
+    case 'debug':
+      return json(debugFullFlow());
+    case 'patients':
+      return json({ patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
+    default:
+      return htmlPage();
   }
 }
 
 function doPost(e) {
   try {
-    Logger.log('=== doPost START ===');
+    if (!e?.postData?.contents) return json({ error: 'No data' }, 400);
 
-    if (!e || !e.postData || !e.postData.contents) {
-      Logger.log('ERROR: No post data received');
-      return createJsonResponse({
-        error: 'No data received',
-        help: 'Send POST request with JSON body containing "action" field'
-      }, 400);
-    }
-
-    var data = JSON.parse(e.postData.contents);
-    var action = data.action;
+    const data = JSON.parse(e.postData.contents);
+    const action = data.action;
 
     Logger.log('Action: ' + action);
 
     switch (action) {
-      case 'runOCR':
-        return handleRunOCR(data);
-      case 'claudeVision':
-        return handleClaudeVision(data);
-      case 'claudeConsult':
-        return handleClaudeConsult(data);
-      case 'saveLabs':
-        return handleSaveLabs(data);
-      case 'loadLabs':
-        return handleLoadLabs(data);
-      case 'syncSheet':
-        return handleSyncSheet(data);
-      case 'syncFirebase':
-        var result = syncFirebaseToSheets();
-        return createJsonResponse(result);
-      case 'syncDriveToSheets':
-        var result = syncDriveToSheets();
-        return createJsonResponse(result);
-      case 'syncSheetsToDrive':
-        var result = syncSheetsToDrive();
-        return createJsonResponse(result);
-      case 'savePatient':
-        return handleSavePatient(data);
-      case 'updatePatient':
-        return handleUpdatePatient(data);
-      case 'deletePatient':
-        return handleDeletePatient(data);
+      // Patients
       case 'loadPatients':
-        return handleLoadPatients(data);
-      case 'saveNotice':
-        return handleSaveNotice(data);
-      case 'loadNotice':
-        return handleLoadNotice(data);
-      case 'saveAuditLog':
-        return handleSaveAuditLog(data);
-      case 'test':
-        return createJsonResponse({
+        const pullResult = SheetSync.pullFromSheet();
+        Logger.log('Pull result: ' + JSON.stringify(pullResult));
+        const allPatients = PatientService.getAll();
+        Logger.log('Patients in store: ' + Object.keys(allPatients).length);
+        return json({
           success: true,
-          message: 'API is working!',
-          version: SCRIPT_VERSION,
-          sync: 'enabled',
-          timestamp: new Date().toISOString()
+          patients: allPatients,
+          count: Object.keys(allPatients).length,
+          syncResult: pullResult
         });
+      case 'refreshFromSheet':
+        return json(PatientService.refresh());
+      case 'savePatient':
+        return json(PatientService.create(data.patient || data));
+      case 'updatePatient':
+        return json(PatientService.update(data.patientId, data.updates || data));
+      case 'deletePatient':
+        return json(PatientService.delete(data.patientId));
+
+      // Labs
+      case 'saveLabs':
+        return json(LabService.save(data.patientId, data.labData, data.metadata));
+      case 'loadLabs':
+        return json(LabService.getLatest(data.patientId));
+      case 'loadLabHistory':
+        return json(LabService.getHistory(data.patientId, data.limit));
+
+      // Notice
+      case 'loadNotice':
+        return json({ success: true, notice: NoticeService.get() });
+      case 'saveNotice':
+        return json(NoticeService.save(data.notice?.text || data.text));
+
+      // OCR & AI
+      case 'runOCR':
+        return json(OCRService.process(data.image));
+      case 'claudeVision':
+        return json(ClaudeService.processImage(data.image));
+      case 'claudeConsult':
+        return json(ClaudeService.consult(data.query, data.patientContext, data.labValues));
+
+      // Sync
+      case 'pullFromSheet':
+      case 'syncSheet':
+      case 'fullSync':
+        return json(SheetSync.pullFromSheet());
+      case 'pushToSheet':
+        return json(SheetSync.pushToSheet(PatientService.getAll()));
+
+      case 'test':
+        return json({ success: true, version: SCRIPT_VERSION });
+
       default:
-        return createJsonResponse({
-          error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'syncFirebase', 'syncDriveToSheets', 'syncSheetsToDrive', 'savePatient', 'updatePatient', 'deletePatient', 'loadPatients', 'saveNotice', 'loadNotice', 'saveAuditLog', 'test']
-        }, 400);
+        return json({ error: 'Unknown action: ' + action });
     }
-
-  } catch (err) {
-    Logger.log('doPost Error: ' + err.toString());
-    Logger.log('Stack: ' + err.stack);
-    return createJsonResponse({
-      error: 'Request processing failed: ' + err.toString(),
-      stack: err.stack
-    }, 500);
+  } catch (e) {
+    Logger.log('Error: ' + e);
+    return json({ error: e.toString() });
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// OCR HANDLER - Google Vision API
-// ═══════════════════════════════════════════════════════════════════════════
+function json(data) {
+  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
 
-function handleRunOCR(data) {
-  try {
-    Logger.log('=== handleRunOCR START ===');
-
-    if (!data.image) {
-      Logger.log('ERROR: No image provided');
-      return createJsonResponse({
-        error: 'No image data provided',
-        help: 'Send base64 encoded image in "image" field'
-      }, 400);
-    }
-
-    if (!CONFIG.visionApiKey) {
-      Logger.log('ERROR: Vision API key not configured');
-      return createJsonResponse({
-        error: 'Vision API key not configured',
-        help: 'Add VISION_API_KEY to Script Properties in Apps Script Project Settings',
-        setup: 'https://console.cloud.google.com/apis/credentials'
-      }, 500);
-    }
-
-    Logger.log('Image data length: ' + data.image.length);
-    Logger.log('API Key prefix: ' + CONFIG.visionApiKey.substring(0, 10) + '...');
-
-    var imageData = data.image.replace(/^data:image\/\w+;base64,/, '');
-    var url = 'https://vision.googleapis.com/v1/images:annotate?key=' + CONFIG.visionApiKey;
-
-    var payload = {
-      requests: [{
-        image: { content: imageData },
-        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
-      }]
-    };
-
-    Logger.log('Calling Vision API...');
-    var response = UrlFetchApp.fetch(url, {
-      method: 'post',
-      contentType: 'application/json',
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-
-    var responseCode = response.getResponseCode();
-    var responseText = response.getContentText();
-
-    Logger.log('Vision API response code: ' + responseCode);
-
-    if (responseCode !== 200) {
-      Logger.log('Vision API ERROR: ' + responseText.substring(0, 500));
-
-      var errorMsg = 'Vision API error';
-      try {
-        var errorJson = JSON.parse(responseText);
-        if (errorJson.error && errorJson.error.message) {
-          errorMsg = errorJson.error.message;
-        }
-      } catch (e) {
-        errorMsg = responseText.substring(0, 200);
-      }
-
-      return createJsonResponse({
-        error: 'Vision API error (HTTP ' + responseCode + '): ' + errorMsg,
-        help: responseCode === 403 ? 'Check if Vision API is enabled and API key is valid' : 'Check Apps Script logs for details'
-      }, 500);
-    }
-
-    var result = JSON.parse(responseText);
-    var text = '';
-    var confidence = 0;
-
-    if (result.responses && result.responses[0]) {
-      var r = result.responses[0];
-
-      if (r.fullTextAnnotation) {
-        text = r.fullTextAnnotation.text || '';
-        confidence = 90;
-      } else if (r.textAnnotations && r.textAnnotations[0]) {
-        text = r.textAnnotations[0].description || '';
-        confidence = 85;
-      } else if (r.error) {
-        Logger.log('Vision API returned error: ' + JSON.stringify(r.error));
-        return createJsonResponse({
-          error: 'Vision API error: ' + r.error.message
-        }, 500);
-      }
-    }
-
-    Logger.log('OCR completed - Text length: ' + text.length + ', Confidence: ' + confidence);
-
-    return createJsonResponse({
-      success: true,
-      text: text,
-      confidence: confidence,
-      source: 'google_vision',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('OCR Error: ' + error.toString());
-    Logger.log('Stack: ' + error.stack);
-    return createJsonResponse({
-      error: 'OCR failed: ' + error.toString(),
-      details: error.stack
-    }, 500);
-  }
+function htmlPage() {
+  const config = getConfig();
+  return HtmlService.createHtmlOutput(`
+    <html><head><title>Unit E API v${SCRIPT_VERSION}</title>
+    <style>body{font-family:system-ui;max-width:600px;margin:40px auto;padding:20px}
+    .btn{background:#15803d;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 8px 8px 0}
+    .btn-blue{background:#2563eb}
+    .card{background:#f5f5f5;padding:16px;border-radius:8px;margin:16px 0}</style></head>
+    <body>
+    <h1>🏥 Unit E Ward Rounds API</h1>
+    <p>Version ${SCRIPT_VERSION}</p>
+    <div class="card">
+      <strong>Sheet:</strong> ${config.sheetName}<br>
+      <strong>Data starts:</strong> Row ${config.dataStartRow}<br>
+      <strong>Spreadsheet ID:</strong> ${config.spreadsheetId}
+    </div>
+    <h3>Actions</h3>
+    <a class="btn" href="?action=sync">🔄 Sync from Sheet</a>
+    <a class="btn" href="?action=patients">👥 View Patients</a>
+    <br>
+    <a class="btn btn-blue" href="?action=debug">🔍 Debug Full Flow</a>
+    <a class="btn btn-blue" href="?action=test">🧪 Test Sheet Read</a>
+    <a class="btn btn-blue" href="?action=health">❤️ Health</a>
+    </body></html>
+  `);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CLAUDE VISION HANDLER
+// TEST & SETUP
 // ═══════════════════════════════════════════════════════════════════════════
 
-function handleClaudeVision(data) {
+function testSheetRead() {
+  const sheet = SheetSync.getSheet();
+  if (!sheet) return { error: 'Sheet not found' };
+
+  const config = getConfig();
+  const lastRow = sheet.getLastRow();
+
+  // Read first 10 rows of data
+  const sampleRows = Math.min(10, lastRow - config.dataStartRow + 1);
+  if (sampleRows < 1) return { error: 'No data rows', lastRow: lastRow, dataStart: config.dataStartRow };
+
+  const data = sheet.getRange(config.dataStartRow, 1, sampleRows, 5).getValues();
+
+  return {
+    sheetName: sheet.getName(),
+    lastRow: lastRow,
+    dataStartRow: config.dataStartRow,
+    sampleData: data
+  };
+}
+
+/**
+ * Debug the full flow - sheet read, parse, save, retrieve
+ */
+function debugFullFlow() {
+  const results = {
+    step1_config: null,
+    step2_sheetRead: null,
+    step3_pullFromSheet: null,
+    step4_driveContents: null,
+    step5_patientServiceGetAll: null
+  };
+
   try {
-    Logger.log('=== handleClaudeVision START ===');
+    // Step 1: Config
+    results.step1_config = getConfig();
 
-    if (!data.image) {
-      Logger.log('ERROR: No image provided');
-      return createJsonResponse({
-        error: 'No image data provided'
-      }, 400);
-    }
-
-    if (!CONFIG.anthropicApiKey) {
-      Logger.log('ERROR: Anthropic API key not configured');
-      return createJsonResponse({
-        error: 'Anthropic API key not configured',
-        help: 'Add ANTHROPIC_API_KEY to Script Properties in Apps Script Project Settings',
-        setup: 'https://console.anthropic.com/'
-      }, 500);
-    }
-
-    Logger.log('Image data length: ' + data.image.length);
-    Logger.log('API Key prefix: ' + CONFIG.anthropicApiKey.substring(0, 15) + '...');
-
-    var imageData = data.image;
-    if (imageData.indexOf(',') !== -1) {
-      imageData = imageData.split(',')[1];
-    }
-
-    var mediaType = 'image/jpeg';
-    var match = data.image.match(/data:image\/(\w+);/);
-    if (match) mediaType = 'image/' + match[1];
-
-    Logger.log('Media type: ' + mediaType);
-
-    var prompt = 'Analyze this medical laboratory report image and extract ALL lab values with high precision.\n\n' +
-      'For each lab test found:\n' +
-      '- Extract exact test name\n' +
-      '- Extract numeric value\n' +
-      '- Extract unit of measurement\n' +
-      '- Note any flags (L/H for Low/High)\n' +
-      '- Extract reference ranges if visible\n\n' +
-      'Return ONLY valid JSON in this exact format:\n' +
-      '{\n' +
-      '  "reportType": "CBC|BMP|CMP|LFT|GENERAL",\n' +
-      '  "confidence": 0-100,\n' +
-      '  "values": [\n' +
-      '    {\n' +
-      '      "test": "test name",\n' +
-      '      "value": "numeric value as string",\n' +
-      '      "unit": "unit",\n' +
-      '      "flag": "N|L|H",\n' +
-      '      "refLow": number or null,\n' +
-      '      "refHigh": number or null,\n' +
-      '      "confidence": 0-100\n' +
-      '    }\n' +
-      '  ]\n' +
-      '}\n\n' +
-      'Only extract values you are highly confident about. Return empty values array if no clear lab data is visible.';
-
-    var payload = {
-      model: CLAUDE_MODELS.SONNET,
-      max_tokens: 4096,
-      messages: [{
-        role: 'user',
-        content: [
-          {
-            type: 'image',
-            source: {
-              type: 'base64',
-              media_type: mediaType,
-              data: imageData
-            }
-          },
-          { type: 'text', text: prompt }
-        ]
-      }]
-    };
-
-    Logger.log('Calling Claude API with model: ' + CLAUDE_MODELS.SONNET);
-    Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
-
-    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: {
-        'x-api-key': CONFIG.anthropicApiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-
-    var responseCode = response.getResponseCode();
-    var responseText = response.getContentText();
-
-    Logger.log('Claude API response code: ' + responseCode);
-    Logger.log('Response length: ' + responseText.length);
-
-    if (responseCode !== 200) {
-      Logger.log('Claude API ERROR: ' + responseText.substring(0, 500));
-
-      var errorMsg = 'Claude API error';
-      try {
-        var errorJson = JSON.parse(responseText);
-        if (errorJson.error && errorJson.error.message) {
-          errorMsg = errorJson.error.message;
-        }
-      } catch (e) {
-        errorMsg = responseText.substring(0, 200);
-      }
-
-      return createJsonResponse({
-        error: 'Claude API error (HTTP ' + responseCode + '): ' + errorMsg,
-        help: responseCode === 401 ? 'Invalid API key' :
-              responseCode === 429 ? 'Rate limit exceeded - wait and try again' :
-              'Check Apps Script logs for details'
-      }, 500);
-    }
-
-    var result = JSON.parse(responseText);
-    var content = '';
-
-    if (result.content && result.content[0] && result.content[0].text) {
-      content = result.content[0].text;
-    } else {
-      Logger.log('ERROR: No content in Claude response');
-      return createJsonResponse({
-        error: 'No content in Claude response'
-      }, 500);
-    }
-
-    Logger.log('Claude response preview: ' + content.substring(0, 200));
-
-    var parsed = {};
-    try {
-      var jsonMatch = content.match(/\{[\s\S]*\}/);
-      if (jsonMatch) {
-        parsed = JSON.parse(jsonMatch[0]);
-        Logger.log('Successfully parsed JSON - Values count: ' + (parsed.values ? parsed.values.length : 0));
+    // Step 2: Raw sheet read
+    const sheet = SheetSync.getSheet();
+    if (sheet) {
+      const lastRow = sheet.getLastRow();
+      const config = getConfig();
+      const numRows = Math.min(20, lastRow - config.dataStartRow + 1);
+      if (numRows > 0) {
+        results.step2_sheetRead = {
+          sheetName: sheet.getName(),
+          lastRow: lastRow,
+          dataStartRow: config.dataStartRow,
+          rowsToRead: numRows,
+          rawData: sheet.getRange(config.dataStartRow, 1, numRows, 5).getValues()
+        };
       } else {
-        Logger.log('No JSON found in response');
-        parsed = { rawText: content, values: [] };
+        results.step2_sheetRead = { error: 'No data rows', lastRow: lastRow };
       }
+    } else {
+      results.step2_sheetRead = { error: 'Sheet not found' };
+    }
+
+    // Step 3: Pull from sheet
+    results.step3_pullFromSheet = SheetSync.pullFromSheet();
+
+    // Step 4: Check Drive file contents
+    try {
+      const file = DataStore.getFile('patients.json', {});
+      const content = file.getBlob().getDataAsString();
+      const parsed = JSON.parse(content || '{}');
+      results.step4_driveContents = {
+        fileId: file.getId(),
+        fileName: file.getName(),
+        contentLength: content.length,
+        patientCount: Object.keys(parsed).length,
+        patientIds: Object.keys(parsed),
+        samplePatient: Object.values(parsed)[0] || null
+      };
     } catch (e) {
-      Logger.log('JSON parse error: ' + e.toString());
-      parsed = { rawText: content, values: [] };
+      results.step4_driveContents = { error: e.toString() };
     }
 
-    return createJsonResponse({
-      success: true,
-      reportType: parsed.reportType || 'GENERAL',
-      values: parsed.values || [],
-      confidence: parsed.confidence || 85,
-      rawText: content,
-      source: 'claude_vision',
-      model: CLAUDE_MODELS.SONNET,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Claude Vision Error: ' + error.toString());
-    Logger.log('Stack: ' + error.stack);
-    return createJsonResponse({
-      error: 'Claude Vision failed: ' + error.toString(),
-      details: error.stack
-    }, 500);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// CLAUDE CONSULT HANDLER
-// ═══════════════════════════════════════════════════════════════════════════
-
-function handleClaudeConsult(data) {
-  try {
-    Logger.log('=== handleClaudeConsult START ===');
-
-    if (!data.query) {
-      return createJsonResponse({ error: 'No query provided' }, 400);
-    }
-
-    if (!CONFIG.anthropicApiKey) {
-      return createJsonResponse({
-        error: 'Anthropic API key not configured',
-        help: 'Add ANTHROPIC_API_KEY to Script Properties'
-      }, 500);
-    }
-
-    Logger.log('Query: ' + data.query.substring(0, 100));
-
-    var prompt = data.query;
-
-    if (data.patientContext) {
-      prompt += '\n\nPatient Context:\n' + data.patientContext;
-    }
-
-    if (data.labValues && data.labValues.length > 0) {
-      prompt += '\n\nRecent Lab Values:\n';
-      for (var i = 0; i < data.labValues.length; i++) {
-        var v = data.labValues[i];
-        var flagText = (v.flag && v.flag !== 'N') ? ' [' + v.flag + ']' : '';
-        prompt += '- ' + v.test + ': ' + v.value + ' ' + (v.unit || '') + flagText + '\n';
-      }
-    }
-
-    var systemPrompt = 'You are an expert medical AI consultant providing evidence-based clinical decision support.\n\n' +
-      'Provide clear, actionable guidance with:\n' +
-      '- Key clinical points\n' +
-      '- Diagnostic considerations\n' +
-      '- Evidence-based treatment recommendations\n' +
-      '- Critical warnings when applicable\n\n' +
-      'Always recommend physician oversight for important clinical decisions.';
-
-    var payload = {
-      model: CLAUDE_MODELS.SONNET,
-      max_tokens: 4096,
-      system: systemPrompt,
-      messages: [{ role: 'user', content: prompt }]
+    // Step 5: PatientService.getAll()
+    const patients = PatientService.getAll();
+    results.step5_patientServiceGetAll = {
+      count: Object.keys(patients).length,
+      ids: Object.keys(patients),
+      sample: Object.values(patients)[0] || null
     };
 
-    Logger.log('Calling Claude API for consultation...');
-
-    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: {
-        'x-api-key': CONFIG.anthropicApiKey,
-        'anthropic-version': '2023-06-01'
-      },
-      payload: JSON.stringify(payload),
-      muteHttpExceptions: true
-    });
-
-    var responseCode = response.getResponseCode();
-    var responseText = response.getContentText();
-
-    Logger.log('Claude response code: ' + responseCode);
-
-    if (responseCode !== 200) {
-      Logger.log('Claude API ERROR: ' + responseText.substring(0, 500));
-      return createJsonResponse({
-        error: 'Claude API error: ' + responseText.substring(0, 200)
-      }, 500);
-    }
-
-    var result = JSON.parse(responseText);
-    var content = '';
-
-    if (result.content && result.content[0] && result.content[0].text) {
-      content = result.content[0].text;
-    }
-
-    Logger.log('Consultation completed - Response length: ' + content.length);
-
-    return createJsonResponse({
-      success: true,
-      response: content,
-      model: CLAUDE_MODELS.SONNET,
-      source: 'claude_ai',
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Claude Consult Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Claude consultation failed: ' + error.toString()
-    }, 500);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LABS STORAGE HANDLERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function handleSaveLabs(data) {
-  try {
-    if (!data.patientId || !data.labData) {
-      return createJsonResponse({
-        error: 'Missing required fields: patientId and labData'
-      }, 400);
-    }
-
-    Logger.log('Saving labs for patient: ' + data.patientId);
-
-    var folder = getOrCreatePatientFolder(data.patientId, data.patientName);
-    var filename = 'labs_' + data.patientId + '_' + Date.now() + '.json';
-    var content = JSON.stringify({
-      patientId: data.patientId,
-      patientName: data.patientName,
-      labData: data.labData,
-      savedAt: new Date().toISOString()
-    }, null, 2);
-
-    var file = folder.createFile(filename, content, MimeType.PLAIN_TEXT);
-
-    Logger.log('Labs saved successfully: ' + filename);
-
-    return createJsonResponse({
-      success: true,
-      filename: filename,
-      fileId: file.getId(),
-      count: data.labData.length
-    });
-
-  } catch (error) {
-    Logger.log('Save Labs Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to save labs: ' + error.toString()
-    }, 500);
-  }
-}
-
-function handleLoadLabs(data) {
-  try {
-    if (!data.patientId) {
-      return createJsonResponse({ error: 'Missing patientId' }, 400);
-    }
-
-    Logger.log('Loading labs for patient: ' + data.patientId);
-
-    var folder = getPatientFolder(data.patientId);
-    if (!folder) {
-      return createJsonResponse({
-        success: true,
-        labData: [],
-        message: 'No labs found for this patient'
-      });
-    }
-
-    var files = folder.getFilesByType(MimeType.PLAIN_TEXT);
-    var latestFile = null;
-    var latestTime = 0;
-
-    while (files.hasNext()) {
-      var file = files.next();
-      if (file.getName().indexOf('labs_') === 0) {
-        var fileTime = file.getDateCreated().getTime();
-        if (fileTime > latestTime) {
-          latestFile = file;
-          latestTime = fileTime;
-        }
-      }
-    }
-
-    if (!latestFile) {
-      return createJsonResponse({
-        success: true,
-        labData: [],
-        message: 'No lab files found'
-      });
-    }
-
-    var content = JSON.parse(latestFile.getBlob().getDataAsString());
-
-    Logger.log('Labs loaded - Count: ' + content.labData.length);
-
-    return createJsonResponse({
-      success: true,
-      labData: content.labData,
-      savedAt: content.savedAt,
-      count: content.labData.length
-    });
-
-  } catch (error) {
-    Logger.log('Load Labs Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to load labs: ' + error.toString()
-    }, 500);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// SHEETS SYNC HANDLER (Legacy - for manual sync)
-// ═══════════════════════════════════════════════════════════════════════════
-
-function handleSyncSheet(data) {
-  try {
-    if (!data.patients) {
-      return createJsonResponse({ error: 'Missing patients data' }, 400);
-    }
-
-    if (!CONFIG.spreadsheetId) {
-      return createJsonResponse({
-        error: 'Spreadsheet not configured',
-        help: 'Add SPREADSHEET_ID to Script Properties'
-      }, 500);
-    }
-
-    Logger.log('Manual sync: ' + data.patients.length + ' patients to sheet');
-
-    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-    var sheet = ss.getSheetByName('Patients');
-
-    if (!sheet) {
-      sheet = ss.insertSheet('Patients');
-    }
-
-    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
-
-    if (sheet.getLastRow() === 0) {
-      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
-    }
-
-    if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clear();
-    }
-
-    var rows = data.patients.map(function(p) {
-      return [
-        p.ward || '',
-        p.bed || '',
-        p.name || '',
-        p.mrn || '',
-        p.doctor || '',
-        p.diagnosis || '',
-        p.plan || '',
-        p.status || '',
-        new Date().toLocaleString()
-      ];
-    });
-
-    if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-    }
-
-    Logger.log('Manual sheet sync completed');
-
-    return createJsonResponse({
-      success: true,
-      synced: rows.length,
-      sheetId: CONFIG.spreadsheetId
-    });
-
-  } catch (error) {
-    Logger.log('Sheet Sync Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to sync sheet: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle save patient request - Save or create patient in Google Drive
- */
-function handleSavePatient(data) {
-  try {
-    var patient = data.patient;
-
-    if (!patient || !patient.id) {
-      throw new Error('Missing required fields: patient with id');
-    }
-
-    Logger.log('Saving patient: ' + patient.id);
-
-    var patientsFile = getOrCreatePatientsFile();
-    var patients = loadPatientsFromFile(patientsFile);
-
-    // Add or update patient
-    patients[patient.id] = patient;
-
-    // Save back to file
-    savePatientsToFile(patientsFile, patients);
-
-    Logger.log('Patient saved successfully');
-
-    return createJsonResponse({
-      success: true,
-      patientId: patient.id,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Save Patient Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to save patient: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle update patient request - Update existing patient
- */
-function handleUpdatePatient(data) {
-  try {
-    var patientId = data.patientId;
-    var updates = data.updates;
-
-    if (!patientId || !updates) {
-      throw new Error('Missing required fields: patientId, updates');
-    }
-
-    Logger.log('Updating patient: ' + patientId);
-
-    var patientsFile = getOrCreatePatientsFile();
-    var patients = loadPatientsFromFile(patientsFile);
-
-    if (!patients[patientId]) {
-      throw new Error('Patient not found: ' + patientId);
-    }
-
-    // Update patient
-    for (var key in updates) {
-      patients[patientId][key] = updates[key];
-    }
-
-    // Save back to file
-    savePatientsToFile(patientsFile, patients);
-
-    Logger.log('Patient updated successfully');
-
-    return createJsonResponse({
-      success: true,
-      patientId: patientId,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Update Patient Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to update patient: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle delete patient request - Delete patient from Google Drive
- */
-function handleDeletePatient(data) {
-  try {
-    var patientId = data.patientId;
-
-    if (!patientId) {
-      throw new Error('Missing required field: patientId');
-    }
-
-    Logger.log('Deleting patient: ' + patientId);
-
-    var patientsFile = getOrCreatePatientsFile();
-    var patients = loadPatientsFromFile(patientsFile);
-
-    if (!patients[patientId]) {
-      throw new Error('Patient not found: ' + patientId);
-    }
-
-    // Delete patient
-    delete patients[patientId];
-
-    // Save back to file
-    savePatientsToFile(patientsFile, patients);
-
-    Logger.log('Patient deleted successfully');
-
-    return createJsonResponse({
-      success: true,
-      patientId: patientId,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Delete Patient Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to delete patient: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle load patients request - Load all patients from Google Drive
- */
-function handleLoadPatients(data) {
-  try {
-    Logger.log('Loading all patients');
-
-    var patientsFile = getOrCreatePatientsFile();
-    var patients = loadPatientsFromFile(patientsFile);
-
-    var count = Object.keys(patients).length;
-    Logger.log('Patients loaded successfully - Count: ' + count);
-
-    return createJsonResponse({
-      success: true,
-      patients: patients,
-      count: count,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Load Patients Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to load patients: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle save notice request - Save notice message to Google Drive
- */
-function handleSaveNotice(data) {
-  try {
-    var notice = data.notice;
-
-    if (!notice) {
-      throw new Error('Missing required field: notice');
-    }
-
-    Logger.log('Saving notice');
-
-    var noticeFile = getOrCreateNoticeFile();
-
-    // Save notice data
-    var noticeData = {
-      text: notice.text || '',
-      updatedAt: notice.updatedAt || Date.now()
-    };
-
-    noticeFile.setContent(JSON.stringify(noticeData));
-
-    Logger.log('Notice saved successfully');
-
-    return createJsonResponse({
-      success: true,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Save Notice Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to save notice: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle load notice request - Load notice message from Google Drive
- */
-function handleLoadNotice(data) {
-  try {
-    Logger.log('Loading notice');
-
-    var noticeFile = getOrCreateNoticeFile();
-    var content = noticeFile.getBlob().getDataAsString();
-    var notice = content ? JSON.parse(content) : { text: '' };
-
-    Logger.log('Notice loaded successfully');
-
-    return createJsonResponse({
-      success: true,
-      notice: notice,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Load Notice Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to load notice: ' + error.toString()
-    }, 500);
-  }
-}
-
-/**
- * Handle save audit log request - Append to audit log in Google Drive
- */
-function handleSaveAuditLog(data) {
-  try {
-    var logEntry = data.logEntry;
-
-    if (!logEntry) {
-      throw new Error('Missing required field: logEntry');
-    }
-
-    Logger.log('Saving audit log entry');
-
-    var auditFile = getOrCreateAuditLogFile();
-    var logs = loadAuditLogsFromFile(auditFile);
-
-    // Add new log entry
-    logEntry.timestamp = logEntry.timestamp || Date.now();
-    logs.push(logEntry);
-
-    // Save back to file
-    saveAuditLogsToFile(auditFile, logs);
-
-    Logger.log('Audit log saved successfully');
-
-    return createJsonResponse({
-      success: true,
-      timestamp: new Date().toISOString()
-    });
-
-  } catch (error) {
-    Logger.log('Save Audit Log Error: ' + error.toString());
-    return createJsonResponse({
-      error: 'Failed to save audit log: ' + error.toString()
-    }, 500);
-  }
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// GOOGLE DRIVE HELPERS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function getOrCreatePatientFolder(patientId, patientName) {
-  var root = CONFIG.driveFolderId === 'root' ?
-    DriveApp.getRootFolder() :
-    DriveApp.getFolderById(CONFIG.driveFolderId);
-
-  var mainFolders = root.getFoldersByName('Unit E Ward Rounds');
-  var mainFolder = mainFolders.hasNext() ?
-    mainFolders.next() :
-    root.createFolder('Unit E Ward Rounds');
-
-  var safeName = (patientName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
-  var patientFolderName = 'Patient_' + patientId + '_' + safeName;
-  var patientFolders = mainFolder.getFoldersByName(patientFolderName);
-
-  return patientFolders.hasNext() ?
-    patientFolders.next() :
-    mainFolder.createFolder(patientFolderName);
-}
-
-function getPatientFolder(patientId) {
-  var root = CONFIG.driveFolderId === 'root' ?
-    DriveApp.getRootFolder() :
-    DriveApp.getFolderById(CONFIG.driveFolderId);
-
-  var mainFolders = root.getFoldersByName('Unit E Ward Rounds');
-  if (!mainFolders.hasNext()) return null;
-
-  var folders = mainFolders.next().getFolders();
-  while (folders.hasNext()) {
-    var f = folders.next();
-    if (f.getName().indexOf('Patient_' + patientId + '_') === 0) {
-      return f;
-    }
-  }
-
-  return null;
-}
-
-/**
- * Get or create patients database file
- */
-function getOrCreatePatientsFile() {
-  var rootFolder = CONFIG.driveFolderId === 'root'
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-
-  var fileName = 'patients_database.json';
-  var files = rootFolder.getFilesByName(fileName);
-
-  if (files.hasNext()) {
-    return files.next();
-  } else {
-    // Create new file with empty object
-    return rootFolder.createFile(fileName, JSON.stringify({}), MimeType.PLAIN_TEXT);
-  }
-}
-
-/**
- * Load patients from file
- */
-function loadPatientsFromFile(file) {
-  try {
-    var content = file.getBlob().getDataAsString();
-    return content ? JSON.parse(content) : {};
   } catch (e) {
-    Logger.log('Error loading patients: ' + e.toString());
-    return {};
+    results.error = e.toString();
+    results.stack = e.stack;
   }
+
+  return results;
 }
 
-/**
- * Save patients to file
- */
-function savePatientsToFile(file, patients) {
-  file.setContent(JSON.stringify(patients));
+function initialSetup() {
+  Logger.log('=== Setup ===');
+
+  // Create folder
+  const folder = DataStore.getAppFolder();
+  Logger.log('Folder: ' + folder.getName());
+
+  // Init files
+  DataStore.getFile('patients.json', {});
+  DataStore.getFile('notice.json', { text: '' });
+  Logger.log('Files ready');
+
+  // Test sheet
+  const sheet = SheetSync.getSheet();
+  Logger.log('Sheet: ' + (sheet ? sheet.getName() : 'NOT FOUND'));
+
+  // Pull data
+  const result = SheetSync.pullFromSheet();
+  Logger.log('Pull result: ' + JSON.stringify(result));
+
+  // Verify
+  const patients = PatientService.getAll();
+  Logger.log('Patients in store: ' + Object.keys(patients).length);
+
+  return {
+    folder: folder.getName(),
+    sheet: sheet ? sheet.getName() : 'NOT FOUND',
+    pullResult: result,
+    patientsInStore: Object.keys(patients).length
+  };
 }
 
-/**
- * Get or create notice file
- */
-function getOrCreateNoticeFile() {
-  var rootFolder = CONFIG.driveFolderId === 'root'
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-
-  var fileName = 'notice.json';
-  var files = rootFolder.getFilesByName(fileName);
-
-  if (files.hasNext()) {
-    return files.next();
-  } else {
-    // Create new file with empty notice
-    return rootFolder.createFile(fileName, JSON.stringify({ text: '' }), MimeType.PLAIN_TEXT);
-  }
-}
-
-/**
- * Get or create audit log file
- */
-function getOrCreateAuditLogFile() {
-  var rootFolder = CONFIG.driveFolderId === 'root'
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-
-  var fileName = 'audit_log.json';
-  var files = rootFolder.getFilesByName(fileName);
-
-  if (files.hasNext()) {
-    return files.next();
-  } else {
-    // Create new file with empty array
-    return rootFolder.createFile(fileName, JSON.stringify([]), MimeType.PLAIN_TEXT);
-  }
-}
-
-/**
- * Load audit logs from file
- */
-function loadAuditLogsFromFile(file) {
-  try {
-    var content = file.getBlob().getDataAsString();
-    return content ? JSON.parse(content) : [];
-  } catch (e) {
-    Logger.log('Error loading audit logs: ' + e.toString());
-    return [];
-  }
-}
-
-/**
- * Save audit logs to file
- */
-function saveAuditLogsToFile(file, logs) {
-  // Keep only last 1000 entries to prevent file from growing too large
-  var limitedLogs = logs.slice(-1000);
-  file.setContent(JSON.stringify(limitedLogs));
-}
-
-// ═══════════════════════════════════════════════════════════════════════════
-// UTILITY FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════════
-
-function createJsonResponse(data, statusCode) {
-  statusCode = statusCode || 200;
-  return ContentService
-    .createTextOutput(JSON.stringify(data))
-    .setMimeType(ContentService.MimeType.JSON);
-}
-
-/**
- * Test function - Run this from Apps Script editor to verify configuration
- */
-function testConfiguration() {
-  Logger.log('=== Configuration Test ===');
-  Logger.log('Version: ' + SCRIPT_VERSION);
-  Logger.log('Vision API Key: ' + (CONFIG.visionApiKey ? '✓ Configured (' + CONFIG.visionApiKey.substring(0, 10) + '...)' : '✗ NOT CONFIGURED'));
-  Logger.log('Anthropic API Key: ' + (CONFIG.anthropicApiKey ? '✓ Configured (' + CONFIG.anthropicApiKey.substring(0, 15) + '...)' : '✗ NOT CONFIGURED'));
-  Logger.log('Spreadsheet ID: ' + (CONFIG.spreadsheetId ? '✓ Configured' : '✗ NOT CONFIGURED'));
-  Logger.log('Drive Folder: ' + CONFIG.driveFolderId);
-  Logger.log('Firebase URL: ' + CONFIG.firebaseUrl);
-  Logger.log('Claude Model: ' + CLAUDE_MODELS.SONNET);
-  Logger.log('Sync: ENABLED (bidirectional)');
-  Logger.log('=== Test Complete ===');
+function manualSync() {
+  return SheetSync.pullFromSheet();
 }
