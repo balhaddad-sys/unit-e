@@ -51,16 +51,25 @@ The Google Apps Script backend has been completely rewritten to fix the sync iss
 5. Click **Authorize access** and complete the authorization
 6. Copy the deployment URL
 
-### 4. Update the Frontend (if needed)
+### 4. Update the Frontend (CRITICAL)
 
-If you created a new deployment or if the URL changed:
+**IMPORTANT**: After deploying the Apps Script, you MUST update the frontend with the deployment URL:
 
-1. Open `/home/user/unit-e/config.js`
-2. Update the `apiUrl` on line 6:
+1. Copy the deployment URL from step 3
+2. Open `/home/user/unit-e/config.js`
+3. Update the `apiUrl` on line 7:
    ```javascript
-   apiUrl: 'YOUR_NEW_DEPLOYMENT_URL_HERE',
+   apiUrl: 'YOUR_DEPLOYMENT_URL_HERE',
    ```
-3. Save the file
+4. Replace `YOUR_DEPLOYMENT_URL_HERE` with your actual deployment URL
+5. Save the file
+
+**Current Status**: The config.js has been pre-configured with the existing deployment URL:
+```
+https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec
+```
+
+If you create a new deployment, you MUST update this URL, or patients will not load in the app.
 
 ### 5. Test the Sync
 
