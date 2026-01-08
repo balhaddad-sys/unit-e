@@ -5,7 +5,7 @@
 
 const CONFIG = {
     // Google Apps Script API URL - UPDATE THIS AFTER DEPLOYING NEW SCRIPT
-    apiUrl: 'https://script.google.com/macros/s/AKfycbyNa3AOc6EMOEgAi9hDM3ktNMhN_Z-s9qkWT1wxTCznVeBul_qNUkqyBEUTa3aSD1Ca/exec',
+    apiUrl: 'YOUR_NEW_DEPLOYMENT_URL_HERE',
     
     // Google Drive Folder ID for data storage
     driveFolderId: '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
@@ -406,33 +406,9 @@ const API = {
     // SYNC OPERATIONS
     // ═══════════════════════════════════════════════════════════════════════
     
-    /**
-     * Sync Drive to Sheets (usually automatic, but can be called manually)
-     */
-    syncDriveToSheets: async () => {
-        try {
-            const result = await API._fetch({ action: 'syncDriveToSheets' });
-            console.log('[Sync] Drive → Sheets:', result);
-            return result;
-        } catch (error) {
-            console.error('[Sync] Failed:', error);
-            throw error;
-        }
-    },
-    
-    /**
-     * Import from Sheets to Drive
-     */
-    syncSheetsToDrive: async () => {
-        try {
-            const result = await API._fetch({ action: 'syncSheetsToDrive' });
-            console.log('[Sync] Sheets → Drive:', result);
-            return result;
-        } catch (error) {
-            console.error('[Sync] Failed:', error);
-            throw error;
-        }
-    },
+    // ═══════════════════════════════════════════════════════════════════════
+    // SYNC OPERATIONS
+    // ═══════════════════════════════════════════════════════════════════════
     
     /**
      * Full bidirectional sync
@@ -444,6 +420,49 @@ const API = {
             return result;
         } catch (error) {
             console.error('[Full Sync] Failed:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Refresh patients from sheet (pull sheet changes into app)
+     * Call this to get the latest changes made in Google Sheets
+     */
+    refreshFromSheet: async () => {
+        try {
+            const result = await API._fetch({ action: 'refreshFromSheet' });
+            console.log('[Sync] Refreshed from sheet:', result);
+            return result;
+        } catch (error) {
+            console.error('[Refresh from Sheet] Failed:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Pull from sheet (Sheet → Drive)
+     */
+    pullFromSheet: async () => {
+        try {
+            const result = await API._fetch({ action: 'pullFromSheet' });
+            console.log('[Sync] Pulled from sheet:', result);
+            return result;
+        } catch (error) {
+            console.error('[Pull from Sheet] Failed:', error);
+            throw error;
+        }
+    },
+    
+    /**
+     * Push to sheet (Drive → Sheet)
+     */
+    pushToSheet: async () => {
+        try {
+            const result = await API._fetch({ action: 'pushToSheet' });
+            console.log('[Sync] Pushed to sheet:', result);
+            return result;
+        } catch (error) {
+            console.error('[Push to Sheet] Failed:', error);
             throw error;
         }
     },
