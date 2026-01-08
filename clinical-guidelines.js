@@ -1894,17 +1894,10 @@
      */
     async function loadLearnedGuidelines() {
         try {
-            if (!window.db) {
-                console.warn('[ClinicalGuidelines] Firebase not initialized, skipping learned guidelines');
-                return;
-            }
-
-            const snapshot = await window.db.ref(LEARNED_GUIDELINES_PATH).once('value');
-            const data = snapshot.val();
-
-            if (data) {
-                learnedGuidelines = data;
-                console.log(`[ClinicalGuidelines] Loaded ${Object.keys(learnedGuidelines).length} learned guidelines from Drive`);
+            const stored = localStorage.getItem(LEARNED_GUIDELINES_PATH);
+            if (stored) {
+                learnedGuidelines = JSON.parse(stored);
+                console.log(`[ClinicalGuidelines] Loaded ${Object.keys(learnedGuidelines).length} learned guidelines from localStorage`);
             }
         } catch (error) {
             console.error('[ClinicalGuidelines] Error loading learned guidelines:', error);
@@ -1916,10 +1909,6 @@
      */
     async function saveLearnedGuideline(name, guideline) {
         try {
-            if (!window.db) {
-                throw new Error('Firebase not initialized');
-            }
-
             // Add timestamp and version
             const guidelineWithMeta = {
                 ...guideline,
@@ -1928,8 +1917,8 @@
                 source: guideline.source || 'custom'
             };
 
-            await window.db.ref(`${LEARNED_GUIDELINES_PATH}/${name}`).set(guidelineWithMeta);
             learnedGuidelines[name] = guidelineWithMeta;
+            localStorage.setItem(LEARNED_GUIDELINES_PATH, JSON.stringify(learnedGuidelines));
 
             console.log(`[ClinicalGuidelines] Saved learned guideline: ${name}`);
             return true;
@@ -1944,12 +1933,8 @@
      */
     async function deleteLearnedGuideline(name) {
         try {
-            if (!window.db) {
-                throw new Error('Firebase not initialized');
-            }
-
-            await window.db.ref(`${LEARNED_GUIDELINES_PATH}/${name}`).remove();
             delete learnedGuidelines[name];
+            localStorage.setItem(LEARNED_GUIDELINES_PATH, JSON.stringify(learnedGuidelines));
 
             console.log(`[ClinicalGuidelines] Deleted learned guideline: ${name}`);
             return true;
@@ -1972,11 +1957,9 @@
      */
     async function loadPearlsCache() {
         try {
-            if (!window.db) return;
-            const snapshot = await window.db.ref(CLINICAL_PEARLS_CACHE_PATH).once('value');
-            const data = snapshot.val();
-            if (data) {
-                pearlsCache = data;
+            const stored = localStorage.getItem(CLINICAL_PEARLS_CACHE_PATH);
+            if (stored) {
+                pearlsCache = JSON.parse(stored);
                 console.log(`[ClinicalGuidelines] Loaded ${Object.keys(pearlsCache).length} cached clinical pearls`);
             }
         } catch (error) {
@@ -1989,7 +1972,6 @@
      */
     async function savePearlsToCache(condition, pearls) {
         try {
-            if (!window.db) return;
             const cacheKey = condition.toLowerCase().trim();
             const cacheEntry = {
                 condition: condition,
@@ -1997,8 +1979,8 @@
                 cachedAt: Date.now(),
                 expiresAt: Date.now() + (7 * 24 * 60 * 60 * 1000) // 7 days
             };
-            await window.db.ref(`${CLINICAL_PEARLS_CACHE_PATH}/${cacheKey}`).set(cacheEntry);
             pearlsCache[cacheKey] = cacheEntry;
+            localStorage.setItem(CLINICAL_PEARLS_CACHE_PATH, JSON.stringify(pearlsCache));
         } catch (error) {
             console.error('[ClinicalGuidelines] Error saving pearls to cache:', error);
         }

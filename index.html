@@ -32,13 +32,12 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <!-- Firebase scripts removed - Now using Google Drive storage via Google Apps Script -->
+    <!-- <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script> -->
+    <!-- <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script> -->
+    <!-- <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script> -->
     <!-- OCR Engine Module -->
     <script src="ocr-engine.js"></script>
-    <!-- API Diagnostics - Debug Helper -->
-    <script src="api-diagnostics.js"></script>
     <!-- Camera Module - Image Capture & Compression -->
     <script src="camera.js"></script>
     <!-- Lab Parser Module -->
@@ -1449,6 +1448,7 @@
         .pill.med-conf { background: #f59e0b; }
         .pill.low-conf { background: #ef4444; }
         .pill.vision { background: #4285f4; }
+        .pill.tesseract { background: #7e22ce; }
         .lab-values-body { padding: 10px 12px; background: white; }
         .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .kv { border: 1px solid #e2e8f0; border-radius: 10px; padding: 10px; background: #f8fafc; }
@@ -1657,6 +1657,14 @@
             color: #b91c1c;
             font-size: 13px;
         }
+        .ocr-engine-toggle {
+            display: flex;
+            gap: 8px;
+            padding: 8px;
+            background: #f8fafc;
+            border-radius: 10px;
+            border: 1px solid #e2e8f0;
+        }
         .engine-btn {
             flex: 1;
             padding: 10px 12px;
@@ -1680,6 +1688,15 @@
             color: white;
             border-color: #1e40af;
         }
+        .engine-btn.tesseract {
+            background: #faf5ff;
+            color: #6b21a8;
+        }
+        .engine-btn.tesseract.active {
+            background: linear-gradient(135deg, #7e22ce 0%, #a855f7 100%);
+            color: white;
+            border-color: #6b21a8;
+        }
         .engine-btn.hybrid {
             background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
             color: #92400e;
@@ -1699,6 +1716,7 @@
             font-weight: 800;
         }
         .source-badge.vision { background: #dbeafe; color: #1e40af; }
+        .source-badge.tesseract { background: #f3e8ff; color: #6b21a8; }
         .debug-panel {
             background: #1e293b;
             border-radius: 8px;
@@ -2585,15 +2603,10 @@ const validatePatient = (patient) => {
     };
 };
 
-// Log audit events to Firebase
+// Log audit events to Google Drive via API
 const logAuditEvent = async (action, details) => {
     try {
-        if (!firebase.apps.length) {
-            console.warn('[Audit] Firebase not initialized, skipping audit log');
-            return;
-        }
-        
-        await db.ref('audit_log').push({
+        await API.saveAuditLog({
             action,
             details,
             timestamp: Date.now(),
@@ -2988,21 +3001,11 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
 };
 
 // ============ CONFIGURATION ============
-const firebaseConfig = {
-    apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
-    authDomain: "unit-e-1d07b.firebaseapp.com",
-    databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "unit-e-1d07b",
-    storageBucket: "unit-e-1d07b.firebasestorage.app",
-    messagingSenderId: "465930916258",
-    appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
-};
-
-if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// NOTE: Firebase has been replaced with Google Drive storage via Google Apps Script
+// All data is now stored in Google Drive folder: 1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbz_2zC2ztoesY0XBd7_M9YzddWzRolYjqnjXF3xr_jM0Ry4nDzqoXOpFgQZJRl1zPdU/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
@@ -4445,58 +4448,8 @@ const AIConsultModal = ({ patient, onClose }) => {
     const [conversation, setConversation] = useState([]);
     const [userInput, setUserInput] = useState('');
     const [loading, setLoading] = useState(false);
-    const [labImages, setLabImages] = useState([]);
-    const [loadingLabs, setLoadingLabs] = useState(true);
     const chatEndRef = useRef(null);
     const inputRef = useRef(null);
-
-    // Load patient lab images
-    useEffect(() => {
-        const loadLabsFromDrive = async () => {
-            setLoadingLabs(true);
-            try {
-                const controller = new AbortController();
-                const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-                const response = await fetch(VISION_API_PROXY_URL, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'loadLabs',
-                        patientId: patient.id,
-                        patientName: patient.name
-                    }),
-                    signal: controller.signal
-                });
-
-                clearTimeout(timeoutId);
-                const result = await response.json();
-
-                if (result.labData && result.labData.length > 0) {
-                    const nonDeletedLabs = result.labData.filter(lab => !lab.deleted);
-                    const labs = nonDeletedLabs.map(lab => ({
-                        id: lab.id,
-                        timestamp: lab.timestamp,
-                        ocr: {
-                            values: lab.values || [],
-                            confidence: lab.confidence || 0
-                        }
-                    }));
-                    setLabImages(labs);
-                }
-            } catch (err) {
-                console.error('Failed to load labs for AI consultation:', err);
-                // Use fallback from patient object if available
-                if (patient.labData && patient.labData.length > 0) {
-                    setLabImages(patient.labData);
-                }
-            } finally {
-                setLoadingLabs(false);
-            }
-        };
-
-        loadLabsFromDrive();
-    }, [patient.id]);
 
     // Initialize AI consultation on mount
     useEffect(() => {
@@ -4518,17 +4471,6 @@ const AIConsultModal = ({ patient, onClose }) => {
         inputRef.current?.focus();
     }, []);
 
-    // Keyboard shortcut: Esc to close
-    useEffect(() => {
-        const handleEsc = (e) => {
-            if (e.key === 'Escape') {
-                onClose();
-            }
-        };
-        document.addEventListener('keydown', handleEsc);
-        return () => document.removeEventListener('keydown', handleEsc);
-    }, [onClose]);
-
     const handleSendMessage = async () => {
         if (!userInput.trim() || loading) return;
 
@@ -4536,74 +4478,33 @@ const AIConsultModal = ({ patient, onClose }) => {
         setUserInput('');
         setLoading(true);
 
-        // Add user message to conversation
-        setConversation(prev => [...prev, {
-            role: 'user',
-            content: message,
-            timestamp: Date.now()
-        }]);
-
         try {
-            // Retry logic for AIMedicalConsultant
-            let retryCount = 0;
-            const maxRetries = 3;
-            const retryDelay = 500;
-            const loadingMessageId = `loading-${Date.now()}`;
+            // Check if AIMedicalConsultant is available
+            if (!window.AIMedicalConsultant) {
+                setConversation(prev => [...prev, {
+                    role: 'assistant',
+                    content: '⚠️ AI Medical Consultant module is not loaded. Please refresh the page.',
+                    timestamp: Date.now()
+                }]);
+                setLoading(false);
+                return;
+            }
 
-            const tryConsultant = () => {
-                if (window.AIMedicalConsultant) {
-                    // Get AI response - include labImages in patient context
-                    const patientWithLabs = {
-                        ...patient,
-                        labImages: labImages
-                    };
-                    const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patientWithLabs);
+            // Get AI response
+            const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
 
-                    if (result.success) {
-                        // Update conversation
-                        const updatedConversation = window.AIMedicalConsultant.getHistory(patient.id);
-                        setConversation(updatedConversation);
-                    } else {
-                        // Show error
-                        setConversation(prev => [...prev, {
-                            role: 'assistant',
-                            content: '⚠️ Error: ' + (result.error || 'Unknown error occurred'),
-                            timestamp: Date.now()
-                        }]);
-                    }
-                    setLoading(false);
-                } else if (retryCount < maxRetries) {
-                    retryCount++;
-                    // Show loading message with unique ID
-                    setConversation(prev => [...prev, {
-                        role: 'assistant',
-                        content: '⏳ AI Medical Consultant is loading, please wait...',
-                        timestamp: Date.now(),
-                        isLoadingMessage: true,
-                        messageId: loadingMessageId
-                    }]);
-                    
-                    setTimeout(() => {
-                        // Remove loading message by ID
-                        setConversation(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
-                        tryConsultant();
-                    }, retryDelay);
-                } else {
-                    // Remove any loading messages and add error message in one call
-                    setConversation(prev => [
-                        ...prev.filter(msg => msg.messageId !== loadingMessageId),
-                        {
-                            role: 'assistant',
-                            content: '⚠️ AI Medical Consultant module did not load after multiple attempts. Please refresh the page to retry.',
-                            timestamp: Date.now()
-                        }
-                    ]);
-                    setLoading(false);
-                }
-            };
-
-            tryConsultant();
-
+            if (result.success) {
+                // Update conversation
+                const updatedConversation = window.AIMedicalConsultant.getHistory(patient.id);
+                setConversation(updatedConversation);
+            } else {
+                // Show error
+                setConversation(prev => [...prev, {
+                    role: 'assistant',
+                    content: '⚠️ Error: ' + (result.error || 'Unknown error occurred'),
+                    timestamp: Date.now()
+                }]);
+            }
         } catch (error) {
             console.error('AI Consultation Error:', error);
             setConversation(prev => [...prev, {
@@ -4611,6 +4512,7 @@ const AIConsultModal = ({ patient, onClose }) => {
                 content: '⚠️ An error occurred while processing your query. Please try again or contact support.',
                 timestamp: Date.now()
             }]);
+        } finally {
             setLoading(false);
         }
     };
@@ -4642,82 +4544,42 @@ const AIConsultModal = ({ patient, onClose }) => {
     };
 
     return (
-        <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: '#ffffff',
-            zIndex: 10000,
-            display: 'flex',
-            flexDirection: 'column',
-            overflow: 'hidden'
-        }}>
-            <div style={{
-                width: '100%',
-                height: '100%',
-                maxWidth: '1200px',
-                margin: '0 auto',
+        <div className="modalOverlay" onClick={onClose}>
+            <div className="modal" onClick={e => e.stopPropagation()} style={{
+                maxWidth: '900px',
+                maxHeight: '85vh',
+                height: '85vh',
+                borderRadius: 'var(--radius-xl)',
+                overflow: 'hidden',
                 display: 'flex',
-                flexDirection: 'column',
-                overflow: 'hidden'
+                flexDirection: 'column'
             }}>
-                {/* Header - Claude/ChatGPT Style */}
-                <div style={{
-                    background: '#ffffff',
-                    padding: '16px 24px',
-                    borderBottom: '1px solid #e5e7eb',
-                    flexShrink: 0,
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between'
+                <div className="modal-head" style={{
+                    background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
+                    padding: '20px 24px',
+                    borderBottom: '3px solid #4338ca',
+                    flexShrink: 0
                 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                         <div style={{
-                            width: '36px',
-                            height: '36px',
-                            borderRadius: '8px',
-                            background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '50%',
+                            background: 'rgba(255, 255, 255, 0.2)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '18px',
-                            boxShadow: '0 2px 8px rgba(99, 102, 241, 0.2)'
+                            fontSize: '20px'
                         }}>
                             🤖
                         </div>
                         <div>
-                            <div style={{ fontSize: '16px', fontWeight: 600, color: '#111827' }}>AI Medical Consultant</div>
-                            <div style={{ fontSize: '12px', color: '#6b7280', marginTop: '2px' }}>
-                                Powered by Claude Opus 4.5 • {patient.name}
+                            <span style={{ fontSize: '18px', fontWeight: 700 }}>AI Medical Consultation</span>
+                            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
+                                {patient.name} • {patient.diagnosis || 'No diagnosis specified'}
                             </div>
                         </div>
                     </div>
-                    <button
-                        onClick={onClose}
-                        style={{
-                            background: 'none',
-                            border: 'none',
-                            padding: '8px',
-                            cursor: 'pointer',
-                            fontSize: '24px',
-                            color: '#9ca3af',
-                            borderRadius: '6px',
-                            transition: 'all 0.2s'
-                        }}
-                        onMouseEnter={e => {
-                            e.target.style.background = '#f3f4f6';
-                            e.target.style.color = '#111827';
-                        }}
-                        onMouseLeave={e => {
-                            e.target.style.background = 'none';
-                            e.target.style.color = '#9ca3af';
-                        }}
-                        title="Close (Esc)"
-                    >
-                        ×
-                    </button>
                 </div>
 
                 {/* Patient Context Summary */}
@@ -4737,12 +4599,12 @@ const AIConsultModal = ({ patient, onClose }) => {
                     </div>
                 </div>
 
-                {/* Chat Container - Claude/ChatGPT Style */}
+                {/* Chat Container */}
                 <div style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '24px',
-                    background: '#f9fafb'
+                    padding: '20px 24px',
+                    background: '#ffffff'
                 }}>
                     {conversation.length === 0 ? (
                         <div style={{
@@ -4760,16 +4622,6 @@ const AIConsultModal = ({ patient, onClose }) => {
                                 Ask me about lab interpretation, drug information, diagnostic criteria, treatment protocols, or differential diagnosis.
                                 I have access to this patient's clinical data and lab values.
                             </div>
-                            {loadingLabs && (
-                                <div style={{ marginTop: '16px', fontSize: '12px', color: '#6366f1' }}>
-                                    ⏳ Loading patient lab data...
-                                </div>
-                            )}
-                            {!loadingLabs && labImages.length > 0 && (
-                                <div style={{ marginTop: '16px', fontSize: '12px', color: '#10b981' }}>
-                                    ✓ {labImages.length} lab result(s) loaded
-                                </div>
-                            )}
                             <div style={{ marginTop: '24px', display: 'flex', flexDirection: 'column', gap: '8px', width: '100%', maxWidth: '500px' }}>
                                 <div style={{ fontSize: '12px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>Try asking:</div>
                                 <button
@@ -4832,38 +4684,19 @@ const AIConsultModal = ({ patient, onClose }) => {
                         <>
                             {conversation.map((msg, idx) => (
                                 <div key={idx} style={{
-                                    marginBottom: '20px',
+                                    marginBottom: '16px',
                                     display: 'flex',
-                                    gap: '12px',
-                                    alignItems: 'flex-start',
-                                    flexDirection: msg.role === 'user' ? 'row-reverse' : 'row'
+                                    justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
                                 }}>
-                                    {/* Avatar */}
                                     <div style={{
-                                        width: '32px',
-                                        height: '32px',
-                                        borderRadius: '8px',
-                                        background: msg.role === 'user' ? 'linear-gradient(135deg, #10b981 0%, #059669 100%)' : 'linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)',
-                                        display: 'flex',
-                                        alignItems: 'center',
-                                        justifyContent: 'center',
-                                        fontSize: '16px',
-                                        flexShrink: 0,
-                                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)'
-                                    }}>
-                                        {msg.role === 'user' ? '👤' : '🤖'}
-                                    </div>
-                                    {/* Message Bubble */}
-                                    <div style={{
-                                        maxWidth: '70%',
-                                        padding: '14px 18px',
+                                        maxWidth: '75%',
+                                        padding: '12px 16px',
                                         borderRadius: '12px',
-                                        background: msg.role === 'user' ? '#ffffff' : '#ffffff',
-                                        color: '#111827',
-                                        fontSize: '14px',
+                                        background: msg.role === 'user' ? '#6366f1' : '#f1f5f9',
+                                        color: msg.role === 'user' ? '#ffffff' : '#0f172a',
+                                        fontSize: '13px',
                                         lineHeight: '1.6',
-                                        boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
-                                        border: '1px solid #e5e7eb'
+                                        boxShadow: msg.role === 'user' ? '0 2px 8px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.05)'
                                     }}>
                                         {msg.role === 'user' ? (
                                             <div>{msg.content}</div>
@@ -4997,9 +4830,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
     const [debugLogs, setDebugLogs] = useState([]);
     const [showInterpretation, setShowInterpretation] = useState({});
     const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+    const [showFabMenu, setShowFabMenu] = useState(false);
     const [chatMessages, setChatMessages] = useState([]);
     const [chatInput, setChatInput] = useState('');
     const fileRef = useRef(null);
+    const cameraRef = useRef(null);
     const chatEndRef = useRef(null);
     
     const addDebugLog = (type, msg) => {
@@ -5091,6 +4926,30 @@ const LabModal = ({ patient, onClose, onSave }) => {
         loadLabsFromDrive();
     }, [patient.id]);
 
+    // Initialize Camera Module
+    useEffect(() => {
+        if (window.CameraModule) {
+            window.CameraModule.init({
+                onFileSelected: (file) => {
+                    addDebugLog('info', `Camera captured file: ${file.name}`);
+                    handleFile(file);
+                },
+                onDebug: (type, message) => {
+                    addDebugLog(type, message);
+                }
+            });
+            addDebugLog('success', 'Camera Module initialized');
+        } else {
+            addDebugLog('warn', 'Camera Module not loaded - using fallback');
+        }
+
+        return () => {
+            if (window.CameraModule && window.CameraModule.destroy) {
+                window.CameraModule.destroy();
+            }
+        };
+    }, []);
+
     // Mark changes when labs are modified
     const updateLabImages = (updater) => {
         setHasUnsavedChanges(true);
@@ -5171,21 +5030,11 @@ const LabModal = ({ patient, onClose, onSave }) => {
         setOcrStage("Starting...");
         setOcrError(null);
         addDebugLog('info', `Starting OCR for image ${imgObj.id}`);
-
+        
         try {
-            // Check if OCR Engine is loaded with retry logic
+            // Check if OCR Engine is loaded
             if (!window.OCREngine || !window.OCREngine.isReady) {
-                addDebugLog('warn', 'OCR Engine not ready, waiting...');
-                // Wait up to 5 seconds for OCR Engine to load
-                let retries = 0;
-                while ((!window.OCREngine || !window.OCREngine.isReady) && retries < 10) {
-                    await new Promise(resolve => setTimeout(resolve, 500));
-                    retries++;
-                }
-                if (!window.OCREngine || !window.OCREngine.isReady) {
-                    throw new Error('OCR Engine not loaded after 5 seconds. Please refresh the page.');
-                }
-                addDebugLog('success', 'OCR Engine loaded successfully');
+                throw new Error('OCR Engine not loaded. Please refresh the page.');
             }
             
             // Run OCR using the modular engine
@@ -5271,27 +5120,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleFile = async (file) => {
-        console.log('[handleFile] Called with file:', file);
-        if (!file || !file.type.startsWith('image/')) {
-            console.log('[handleFile] Invalid file type or no file');
-            addDebugLog('error', 'Invalid file type or no file');
-            return;
-        }
-
+        if (!file || !file.type.startsWith('image/')) return;
         setUploading(true);
         setOcrError(null);
         addDebugLog('info', `Processing file: ${file.name}`);
-        console.log('[handleFile] Starting compression...');
-
         try {
             // Use OCREngine module for compression
-            const compressed = window.OCREngine?.compressImage
+            const compressed = window.OCREngine?.compressImage 
                 ? await window.OCREngine.compressImage(file)
                 : await compressImageFallback(file);
-
-            console.log('[handleFile] Compression complete, size:', compressed.length);
-            addDebugLog('success', `Compressed image (${compressed.length} bytes)`);
-
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
@@ -5299,29 +5136,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 note: "",
                 ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null, labType: null }
             };
-
-            console.log('[handleFile] Created newImage object:', newImage.id);
-            console.log('[handleFile] Current labImages count:', labImages.length);
-
-            updateLabImages(prev => {
-                console.log('[handleFile] updateLabImages prev count:', prev.length);
-                const updated = [newImage, ...prev];
-                console.log('[handleFile] updateLabImages new count:', updated.length);
-                return updated;
-            });
-
-            console.log('[handleFile] Image added to state, switching to Images tab...');
-            setTab("Images"); // Switch to Images tab to show the newly added image
+            updateLabImages(prev => [newImage, ...prev]);
             setUploading(false);
-            addDebugLog('success', `✓ Image added! Running OCR...`);
-
-            setTimeout(() => {
-                console.log('[handleFile] Running OCR on image:', newImage.id);
-                runOcrOnImage(newImage);
-            }, 300);
-
+            setTimeout(() => runOcrOnImage(newImage), 300);
         } catch (err) {
-            console.error('[handleFile] Error:', err);
             addDebugLog('error', `File processing failed: ${err.message}`);
             setOcrError("Failed to process image");
             setUploading(false);
@@ -5329,21 +5147,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
 
     const handleDrop = (e) => { e.preventDefault(); setDragging(false); const file = e.dataTransfer.files?.[0]; if (file) handleFile(file); };
-    const handleFileInput = (e) => {
-        console.log('[handleFileInput] Called, event:', e);
-        const file = e.target.files?.[0];
-        console.log('[handleFileInput] Selected file:', file);
-
-        if (file) {
-            addDebugLog('info', `File selected: ${file.name} (${file.size} bytes, type: ${file.type})`);
-            handleFile(file);
-        } else {
-            addDebugLog('warn', 'No file selected');
-            console.log('[handleFileInput] No file in e.target.files');
-        }
-        e.target.value = '';
-    };
-
+    const handleFileInput = (e) => { const file = e.target.files?.[0]; if (file) handleFile(file); e.target.value = ''; };
     const handleAIChat = (message) => {
         if (!message.trim()) return;
 
@@ -5357,46 +5161,17 @@ const LabModal = ({ patient, onClose, onSave }) => {
             labImages: labImages
         };
 
-        // Get AI response with retry logic
-        let retryCount = 0;
-        const maxRetries = 3;
-        const retryDelay = 500;
-        const loadingMessageId = `loading-${Date.now()}`;
-
-        const getAIResponse = () => {
+        // Get AI response
+        setTimeout(() => {
             if (window.MedicalAIAssistant) {
                 const aiResponse = window.MedicalAIAssistant.chat(message, patientContext);
                 setChatMessages(prev => [...prev, { role: 'assistant', content: aiResponse, timestamp: Date.now() }]);
                 // Auto-scroll to bottom
                 setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
-            } else if (retryCount < maxRetries) {
-                retryCount++;
-                setChatMessages(prev => [...prev, { 
-                    role: 'assistant', 
-                    content: '⏳ AI Assistant is loading, please wait...', 
-                    timestamp: Date.now(),
-                    isLoadingMessage: true,
-                    messageId: loadingMessageId
-                }]);
-                setTimeout(() => {
-                    // Remove loading message by ID
-                    setChatMessages(prev => prev.filter(msg => msg.messageId !== loadingMessageId));
-                    getAIResponse();
-                }, retryDelay);
             } else {
-                // Remove any loading messages and add error message in one call
-                setChatMessages(prev => [
-                    ...prev.filter(msg => msg.messageId !== loadingMessageId),
-                    { 
-                        role: 'assistant', 
-                        content: '⚠️ AI Assistant module did not load. Please refresh the page to retry.', 
-                        timestamp: Date.now() 
-                    }
-                ]);
+                setChatMessages(prev => [...prev, { role: 'assistant', content: 'AI Assistant is loading... Please try again in a moment.', timestamp: Date.now() }]);
             }
-        };
-
-        setTimeout(getAIResponse, 500);
+        }, 500);
     };
     const updateNote = (id, note) => updateLabImages(prev => prev.map(img => img.id === id ? { ...img, note } : img));
     const deleteImage = async (id) => { 
@@ -5485,30 +5260,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
     };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
 
-    // Prevent modal from closing during upload or OCR
-    const handleOverlayClick = () => {
-        if (uploading || ocrBusyId) {
-            addDebugLog('info', 'Please wait for upload/OCR to complete');
-            return;
-        }
-        onClose();
-    };
-
     return (
-        <div className="modalOverlay" onClick={handleOverlayClick}>
+        <div className="modalOverlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()}>
                 <div className="modal-head">
                     <span>🧪 Labs - {patient.name}</span>
-                    <button
-                        onClick={() => {
-                            if (uploading || ocrBusyId) {
-                                addDebugLog('info', 'Please wait for upload/OCR to complete');
-                                return;
-                            }
-                            onClose();
-                        }}
-                        style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}
-                    >×</button>
+                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'white', fontSize: '18px', cursor: 'pointer' }}>×</button>
                 </div>
                 <div className="modal-body">
                     <div className="tabs">
@@ -5517,6 +5274,10 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         <button className={`tab ${tab === "Images" ? "active" : ""}`} onClick={() => setTab("Images")}>🖼 Images</button>
                         <button className={`tab ${tab === "AI Chat" ? "active" : ""}`} onClick={() => setTab("AI Chat")}>🤖 AI Chat</button>
                         <button className={`tab ${tab === "Debug" ? "active" : ""}`} onClick={() => setTab("Debug")}>🔧 Debug</button>
+                    </div>
+
+                    <div className="ocr-engine-toggle">
+
                     </div>
 
                     {tab === "Debug" && (
@@ -5549,7 +5310,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
                     {/* Hidden file inputs - Always rendered so refs remain valid */}
                     <input ref={fileRef} type="file" accept="image/*" onChange={handleFileInput} style={{ display: 'none' }} />
-                    {/* Camera input is created and managed by CameraModule */}
+                    <input ref={cameraRef} type="file" accept="image/*" capture="environment" onChange={handleFileInput} style={{ display: 'none' }} />
 
                     {tab !== "Debug" && (
                         <>
@@ -5591,7 +5352,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                                                 </div>
                                             </div>
                                             <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
-                                                <span className="pill vision">🌐 Cloud Vision</span>
+                                                <span className={`pill ${isVision ? 'vision' : 'tesseract'}`}>{isVision ? '🌐 Vision' : '📱 Tesseract'}</span>
                                                 <span className={`pill ${confClass}-conf`}>{Math.round(item.avgValueConfidence || item.confidence)}%</span>
                                                 <span className="pill">{hasVals ? `${item.values.length} values` : "—"}</span>
                                                 <button className="lab-image-btn" onClick={() => setShowRawText(showRawText === item.id ? null : item.id)}>{showRawText === item.id ? '🔼' : '🔽'} Raw</button>
@@ -6083,16 +5844,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     )}
                 </div>
                 <div className="modal-foot">
-                    <button
-                        className="btn btn-white"
-                        onClick={() => {
-                            if (uploading || ocrBusyId) {
-                                addDebugLog('info', 'Please wait for upload/OCR to complete');
-                                return;
-                            }
-                            onClose();
-                        }}
-                    >Cancel</button>
+                    <button className="btn btn-white" onClick={onClose}>Cancel</button>
                     <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
                         {labImages.length === 0 ? 'Clear All' : 'Save (' + labImages.length + ')'}
                     </button>
@@ -6105,18 +5857,60 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="fab-container">
                     <button
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
-                        onClick={(e) => {
-                            e.stopPropagation(); // Prevent click from bubbling to modal overlay
-                            if (!uploading && fileRef.current) {
-                                addDebugLog('info', 'Upload button clicked');
-                                fileRef.current.click();
+                        onClick={() => {
+                            if (!uploading) {
+                                setShowFabMenu(!showFabMenu);
                             }
                         }}
                         disabled={uploading}
-                        title="Upload lab image"
                     >
-                        {uploading ? '⏳' : '📤'}
+                        {uploading ? '⏳' : '📷'}
                     </button>
+                    {showFabMenu && (
+                        <div className="fab-menu" style={{ display: 'flex' }}>
+                            <button
+                                className="fab-menu-item"
+                                onClick={() => {
+                                    console.log('Camera button clicked');
+                                    addDebugLog('info', 'Camera button clicked');
+
+                                    // Try to use CameraModule first, fallback to ref
+                                    if (window.CameraModule && window.CameraModule.openCamera) {
+                                        const success = window.CameraModule.openCamera();
+                                        if (success) {
+                                            addDebugLog('success', 'Camera opened via CameraModule');
+                                        } else {
+                                            addDebugLog('error', 'Failed to open camera via CameraModule');
+                                        }
+                                    } else if (cameraRef.current) {
+                                        cameraRef.current.click();
+                                        addDebugLog('info', 'Camera opened via fallback method');
+                                    } else {
+                                        addDebugLog('error', 'Camera not available');
+                                    }
+                                    setShowFabMenu(false);
+                                }}
+                            >
+                                📸 Camera
+                            </button>
+                            <button
+                                className="fab-menu-item"
+                                onClick={() => {
+                                    console.log('Gallery button clicked', fileRef.current);
+                                    addDebugLog('info', 'Gallery button clicked');
+                                    if (fileRef.current) {
+                                        fileRef.current.click();
+                                        addDebugLog('info', 'File input triggered');
+                                    } else {
+                                        addDebugLog('error', 'File ref not available');
+                                    }
+                                    setShowFabMenu(false);
+                                }}
+                            >
+                                📁 Gallery
+                            </button>
+                        </div>
+                    )}
                 </div>
             )}
         </div>
@@ -6187,29 +5981,51 @@ const App = () => {
     });
 
     useEffect(() => {
-        db.ref('notice').on('value', snap => setNotice(snap.val() || { text: "" }));
-        db.ref('patients').on('value', snap => { 
-            const val = snap.val(); 
-            setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []); 
-        });
-        
+        // Load notice from Google Drive
+        API.loadNotice()
+            .then(notice => setNotice(notice))
+            .catch(e => console.error('[Load Notice] Failed:', e));
+
+        // Load patients from Google Drive
+        const loadPatientsData = async () => {
+            try {
+                const patientsData = await API.loadPatients();
+                const patientsArray = Object.keys(patientsData).map(k => ({
+                    id: k,
+                    ...patientsData[k],
+                    bed: cleanBed(patientsData[k].bed)
+                }));
+                setPatients(patientsArray);
+            } catch (e) {
+                console.error('[Load Patients] Failed:', e);
+            }
+        };
+        loadPatientsData();
+
         // Sync sheet on initial load (after short delay)
         const initialSync = setTimeout(() => {
             pingSheets();
             console.log('[Init] Initial sheet sync triggered');
         }, 2000);
-        
+
         // Hide loader after app loads
         setTimeout(hideLoader, 1000);
-        
-        return () => { 
-            db.ref('notice').off(); 
-            db.ref('patients').off(); 
+
+        // Poll for updates every 30 seconds
+        const pollInterval = setInterval(() => {
+            loadPatientsData();
+            API.loadNotice()
+                .then(notice => setNotice(notice))
+                .catch(e => console.error('[Poll Notice] Failed:', e));
+        }, 30000);
+
+        return () => {
             clearTimeout(initialSync);
+            clearInterval(pollInterval);
         };
     }, []);
 
-    const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
+    const saveNotice = (text) => API.saveNotice({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
     const saveLabImages = async (patientId, labImages) => {
         console.log('[Save] ═══════════════════════════════════════');
         console.log('[Save] Patient ID:', patientId);
@@ -6265,17 +6081,15 @@ const App = () => {
             console.log('[Save] ✓ SUCCESS - Labs saved to Google Drive');
             console.log('[Save] File:', result.filename);
 
-            // Also save minimal reference to Firebase (just count and timestamp)
-            await db.ref(`patients/${patientId}/labInfo`).set({
-                count: labData.length,
-                lastSaved: Date.now(),
-                driveFolder: result.folderId || null
+            // Update patient record with lab info
+            await API.updatePatient(patientId, {
+                labInfo: {
+                    count: labData.length,
+                    lastSaved: Date.now(),
+                    driveFolder: result.folderId || null
+                }
             });
 
-            // Auto-sync with Google Sheets after saving labs
-            console.log('[Save] Auto-syncing with Google Sheets...');
-            await pingSheets().catch(err => console.log('[Save] Sheet sync error (non-critical):', err));
-            
             showToast("✓ Labs saved to Drive");
             scheduleSync();
             
@@ -6286,28 +6100,37 @@ const App = () => {
         }
     };
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
-    const update = useCallback((id, field, value) => { 
-        const p = patients.find(x => x.id === id); 
-        
+    const update = useCallback((id, field, value) => {
+        const p = patients.find(x => x.id === id);
+
         // Use raw value for duplicate checking before sanitization
-        if (field === 'name' && isDup(p?.ward, value, id)) { 
-            showToast("⚠ Duplicate"); 
-            return; 
-        } 
-        if (field === 'ward' && isDup(value, p?.name, id)) { 
-            showToast("⚠ Duplicate"); 
-            return; 
+        if (field === 'name' && isDup(p?.ward, value, id)) {
+            showToast("⚠ Duplicate");
+            return;
         }
-        
+        if (field === 'ward' && isDup(value, p?.name, id)) {
+            showToast("⚠ Duplicate");
+            return;
+        }
+
         // Sanitize value only for storage
         const sanitizedValue = typeof value === 'string' ? sanitizeInput(value) : value;
-        
-        db.ref(`patients/${id}`).update({ 
-            [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue, 
-            timestamp: Date.now() 
+
+        API.updatePatient(id, {
+            [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue,
+            timestamp: Date.now()
         }).then(() => {
+            // Update local state
+            setPatients(prev => prev.map(patient =>
+                patient.id === id
+                    ? { ...patient, [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue, timestamp: Date.now() }
+                    : patient
+            ));
             scheduleSync();
             logAuditEvent('update_patient', { id, field });
+        }).catch(e => {
+            console.error('[Update Patient] Failed:', e);
+            showToast("❌ Update failed");
         });
     }, [patients, scheduleSync]);
     
@@ -6316,10 +6139,15 @@ const App = () => {
             title: 'Delete Patient',
             message: 'Are you sure you want to delete this patient? This action cannot be undone.',
             onConfirm: () => {
-                db.ref(`patients/${id}`).remove().then(() => { 
-                    showToast("✓ Deleted"); 
+                API.deletePatient(id).then(() => {
+                    // Update local state
+                    setPatients(prev => prev.filter(p => p.id !== id));
+                    showToast("✓ Deleted");
                     pingSheets();
                     logAuditEvent('delete_patient', { id });
+                }).catch(e => {
+                    console.error('[Delete Patient] Failed:', e);
+                    showToast("❌ Delete failed");
                 });
                 setConfirmDialog(null);
             },
@@ -6357,20 +6185,26 @@ const App = () => {
         // Sanitize after validation
         const c = {
             ...rawPatient,
-            name: sanitizeInput(rawPatient.name), 
-            diagnosis: sanitizeInput(rawPatient.diagnosis), 
-            doctor: sanitizeInput(rawPatient.doctor), 
-            plan: sanitizeInput(rawPatient.plan), 
+            id: Utils.generateId(),
+            name: sanitizeInput(rawPatient.name),
+            diagnosis: sanitizeInput(rawPatient.diagnosis),
+            doctor: sanitizeInput(rawPatient.doctor),
+            plan: sanitizeInput(rawPatient.plan),
             mrn: sanitizeInput(rawPatient.mrn)
         };
-        
-        db.ref("patients").push(c).then(() => { 
-            setAddModal(false); 
-            setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); 
-            showToast("✓ Added"); 
+
+        API.savePatient(c).then(() => {
+            // Update local state
+            setPatients(prev => [...prev, c]);
+            setAddModal(false);
+            setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+            showToast("✓ Added");
             pingSheets();
             logAuditEvent('add_patient', { name: c.name, ward: c.ward });
-        }); 
+        }).catch(e => {
+            console.error('[Add Patient] Failed:', e);
+            showToast("❌ Add failed");
+        });
     };
    // MODIFIED: Handle custom wards in sorting
     const groups = useMemo(() => { 
@@ -6415,51 +6249,17 @@ const App = () => {
                     <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 CSV</button>
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
-                    <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')} title="Open Google Sheets">📊 Sheets</button>
-                    <button className="btn btn-blue" onClick={async () => {
-                        setSyncing(true);
-                        showToast("🔄 Syncing with Google Sheets...");
-                        await pingSheets();
-                        showToast("✓ Synced with Google Sheets!");
-                        setTimeout(() => setSyncing(false), 1000);
-                    }} title="Sync with Google Sheets now">🔄 Sync</button>
+                    <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
+                    <button className="btn btn-blue" onClick={async () => { 
+                        setSyncing(true); 
+                        showToast("🔄 Syncing sheet..."); 
+                        await pingSheets(); 
+                        showToast("✓ Sheet synced!"); 
+                        setTimeout(() => setSyncing(false), 1000); 
+                    }}>🔄</button>
                 </div>
             </div>
             <NoticeBanner notice={notice} onSave={saveNotice} />
-            {/* Google Sheets Link Display */}
-            <div style={{
-                background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
-                color: 'white',
-                padding: '8px 16px',
-                borderRadius: '8px',
-                margin: '12px 16px 8px 16px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                fontSize: '13px',
-                fontWeight: 600,
-                boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)'
-            }}>
-                <span>📊 Google Sheets: Real-time sync enabled</span>
-                <button
-                    onClick={() => window.open(SHEET_URL, '_blank')}
-                    style={{
-                        background: 'rgba(255,255,255,0.2)',
-                        border: '1px solid rgba(255,255,255,0.3)',
-                        color: 'white',
-                        padding: '4px 12px',
-                        borderRadius: '6px',
-                        cursor: 'pointer',
-                        fontSize: '12px',
-                        fontWeight: 600,
-                        transition: 'all 0.2s'
-                    }}
-                    onMouseOver={(e) => e.target.style.background = 'rgba(255,255,255,0.3)'}
-                    onMouseOut={(e) => e.target.style.background = 'rgba(255,255,255,0.2)'}
-                >
-                    Open Sheets →
-                </button>
-            </div>
             <div className="controls-container">
                 <div className="filter-row">{['All', 'New', 'Chronic', 'Non-Chronic'].map(f => (<button key={f} className={`filter-btn ${viewFilter === f ? 'active' : ''}`} onClick={() => setViewFilter(f)}>{f}</button>))}</div>
                 <input ref={searchRef} className="search-bar" placeholder="Search patients... (Ctrl+F)" value={search} onChange={e => setSearch(e.target.value)} />
