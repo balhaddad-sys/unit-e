@@ -37,11 +37,11 @@ const USE_SERVICE_ACCOUNT = false; // Set to true to use service account instead
 
 // Get configuration from Script Properties
 const CONFIG = {
-  visionApiKey: PropertiesService.getScriptProperties().getProperty('AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y'),
+  visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
   serviceAccountEmail: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_EMAIL'),
   serviceAccountKey: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_KEY'),
-  spreadsheetId: PropertiesService.getScriptProperties().getProperty('1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4'),
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I') || 'root'
+  spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
+  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I'
 };
 
 // ═══════════════════════════════════════════════════════════════════════
@@ -133,16 +133,37 @@ function doPost(e) {
     switch (action) {
       case 'runOCR':
         return handleRunOCR(requestData);
-        
+
       case 'saveLabs':
         return handleSaveLabs(requestData);
-        
+
       case 'loadLabs':
         return handleLoadLabs(requestData);
-        
+
       case 'syncSheet':
         return handleSyncSheet(requestData);
-        
+
+      case 'savePatient':
+        return handleSavePatient(requestData);
+
+      case 'updatePatient':
+        return handleUpdatePatient(requestData);
+
+      case 'deletePatient':
+        return handleDeletePatient(requestData);
+
+      case 'loadPatients':
+        return handleLoadPatients(requestData);
+
+      case 'saveNotice':
+        return handleSaveNotice(requestData);
+
+      case 'loadNotice':
+        return handleLoadNotice(requestData);
+
+      case 'saveAuditLog':
+        return handleSaveAuditLog(requestData);
+
       case 'test':
         return createJsonResponse({
           success: true,
@@ -150,11 +171,11 @@ function doPost(e) {
           version: SCRIPT_VERSION,
           timestamp: new Date().toISOString()
         });
-        
+
       default:
         return createJsonResponse({
           error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'saveLabs', 'loadLabs', 'syncSheet', 'test']
+          validActions: ['runOCR', 'saveLabs', 'loadLabs', 'syncSheet', 'savePatient', 'updatePatient', 'deletePatient', 'loadPatients', 'saveNotice', 'loadNotice', 'saveAuditLog', 'test']
         }, 400);
     }
     
@@ -407,6 +428,261 @@ function handleSyncSheet(requestData) {
   }
 }
 
+/**
+ * Handle save patient request - Save or create patient in Google Drive
+ */
+function handleSavePatient(requestData) {
+  try {
+    const patientData = requestData.patient;
+
+    if (!patientData || !patientData.id) {
+      throw new Error('Missing required fields: patient with id');
+    }
+
+    Logger.log('Saving patient: ' + patientData.id);
+
+    const patientsFile = getOrCreatePatientsFile();
+    const patients = loadPatientsFromFile(patientsFile);
+
+    // Add or update patient
+    patients[patientData.id] = patientData;
+
+    // Save back to file
+    savePatientsToFile(patientsFile, patients);
+
+    Logger.log('Patient saved successfully');
+
+    return createJsonResponse({
+      success: true,
+      patientId: patientData.id,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Save Patient Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to save patient: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle update patient request - Update existing patient
+ */
+function handleUpdatePatient(requestData) {
+  try {
+    const patientId = requestData.patientId;
+    const updates = requestData.updates;
+
+    if (!patientId || !updates) {
+      throw new Error('Missing required fields: patientId, updates');
+    }
+
+    Logger.log('Updating patient: ' + patientId);
+
+    const patientsFile = getOrCreatePatientsFile();
+    const patients = loadPatientsFromFile(patientsFile);
+
+    if (!patients[patientId]) {
+      throw new Error('Patient not found: ' + patientId);
+    }
+
+    // Update patient
+    Object.assign(patients[patientId], updates);
+
+    // Save back to file
+    savePatientsToFile(patientsFile, patients);
+
+    Logger.log('Patient updated successfully');
+
+    return createJsonResponse({
+      success: true,
+      patientId: patientId,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Update Patient Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to update patient: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle delete patient request - Delete patient from Google Drive
+ */
+function handleDeletePatient(requestData) {
+  try {
+    const patientId = requestData.patientId;
+
+    if (!patientId) {
+      throw new Error('Missing required field: patientId');
+    }
+
+    Logger.log('Deleting patient: ' + patientId);
+
+    const patientsFile = getOrCreatePatientsFile();
+    const patients = loadPatientsFromFile(patientsFile);
+
+    if (!patients[patientId]) {
+      throw new Error('Patient not found: ' + patientId);
+    }
+
+    // Delete patient
+    delete patients[patientId];
+
+    // Save back to file
+    savePatientsToFile(patientsFile, patients);
+
+    Logger.log('Patient deleted successfully');
+
+    return createJsonResponse({
+      success: true,
+      patientId: patientId,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Delete Patient Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to delete patient: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle load patients request - Load all patients from Google Drive
+ */
+function handleLoadPatients(requestData) {
+  try {
+    Logger.log('Loading all patients');
+
+    const patientsFile = getOrCreatePatientsFile();
+    const patients = loadPatientsFromFile(patientsFile);
+
+    Logger.log('Patients loaded successfully - Count: ' + Object.keys(patients).length);
+
+    return createJsonResponse({
+      success: true,
+      patients: patients,
+      count: Object.keys(patients).length,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Load Patients Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to load patients: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle save notice request - Save notice message to Google Drive
+ */
+function handleSaveNotice(requestData) {
+  try {
+    const notice = requestData.notice;
+
+    if (!notice) {
+      throw new Error('Missing required field: notice');
+    }
+
+    Logger.log('Saving notice');
+
+    const noticeFile = getOrCreateNoticeFile();
+
+    // Save notice data
+    const noticeData = {
+      text: notice.text || '',
+      updatedAt: notice.updatedAt || Date.now()
+    };
+
+    noticeFile.setContent(JSON.stringify(noticeData, null, 2));
+
+    Logger.log('Notice saved successfully');
+
+    return createJsonResponse({
+      success: true,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Save Notice Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to save notice: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle load notice request - Load notice message from Google Drive
+ */
+function handleLoadNotice(requestData) {
+  try {
+    Logger.log('Loading notice');
+
+    const noticeFile = getOrCreateNoticeFile();
+    const content = noticeFile.getBlob().getDataAsString();
+    const notice = content ? JSON.parse(content) : { text: '' };
+
+    Logger.log('Notice loaded successfully');
+
+    return createJsonResponse({
+      success: true,
+      notice: notice,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Load Notice Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to load notice: ' + error.toString()
+    }, 500);
+  }
+}
+
+/**
+ * Handle save audit log request - Append to audit log in Google Drive
+ */
+function handleSaveAuditLog(requestData) {
+  try {
+    const logEntry = requestData.logEntry;
+
+    if (!logEntry) {
+      throw new Error('Missing required field: logEntry');
+    }
+
+    Logger.log('Saving audit log entry');
+
+    const auditFile = getOrCreateAuditLogFile();
+    const logs = loadAuditLogsFromFile(auditFile);
+
+    // Add new log entry
+    logs.push({
+      ...logEntry,
+      timestamp: logEntry.timestamp || Date.now()
+    });
+
+    // Save back to file
+    saveAuditLogsToFile(auditFile, logs);
+
+    Logger.log('Audit log saved successfully');
+
+    return createJsonResponse({
+      success: true,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Save Audit Log Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Failed to save audit log: ' + error.toString()
+    }, 500);
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════════════
 // GOOGLE VISION API INTEGRATION
 // ═══════════════════════════════════════════════════════════════════════
@@ -626,6 +902,105 @@ function getPatientFolder(patientId) {
   }
   
   return null;
+}
+
+/**
+ * Get or create patients database file
+ */
+function getOrCreatePatientsFile() {
+  const rootFolder = CONFIG.driveFolderId === 'root'
+    ? DriveApp.getRootFolder()
+    : DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  const fileName = 'patients_database.json';
+  const files = rootFolder.getFilesByName(fileName);
+
+  if (files.hasNext()) {
+    return files.next();
+  } else {
+    // Create new file with empty object
+    return rootFolder.createFile(fileName, JSON.stringify({}, null, 2), MimeType.PLAIN_TEXT);
+  }
+}
+
+/**
+ * Load patients from file
+ */
+function loadPatientsFromFile(file) {
+  try {
+    const content = file.getBlob().getDataAsString();
+    return content ? JSON.parse(content) : {};
+  } catch (e) {
+    Logger.log('Error loading patients: ' + e.toString());
+    return {};
+  }
+}
+
+/**
+ * Save patients to file
+ */
+function savePatientsToFile(file, patients) {
+  file.setContent(JSON.stringify(patients, null, 2));
+}
+
+/**
+ * Get or create notice file
+ */
+function getOrCreateNoticeFile() {
+  const rootFolder = CONFIG.driveFolderId === 'root'
+    ? DriveApp.getRootFolder()
+    : DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  const fileName = 'notice.json';
+  const files = rootFolder.getFilesByName(fileName);
+
+  if (files.hasNext()) {
+    return files.next();
+  } else {
+    // Create new file with empty notice
+    return rootFolder.createFile(fileName, JSON.stringify({ text: '' }, null, 2), MimeType.PLAIN_TEXT);
+  }
+}
+
+/**
+ * Get or create audit log file
+ */
+function getOrCreateAuditLogFile() {
+  const rootFolder = CONFIG.driveFolderId === 'root'
+    ? DriveApp.getRootFolder()
+    : DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  const fileName = 'audit_log.json';
+  const files = rootFolder.getFilesByName(fileName);
+
+  if (files.hasNext()) {
+    return files.next();
+  } else {
+    // Create new file with empty array
+    return rootFolder.createFile(fileName, JSON.stringify([], null, 2), MimeType.PLAIN_TEXT);
+  }
+}
+
+/**
+ * Load audit logs from file
+ */
+function loadAuditLogsFromFile(file) {
+  try {
+    const content = file.getBlob().getDataAsString();
+    return content ? JSON.parse(content) : [];
+  } catch (e) {
+    Logger.log('Error loading audit logs: ' + e.toString());
+    return [];
+  }
+}
+
+/**
+ * Save audit logs to file
+ */
+function saveAuditLogsToFile(file, logs) {
+  // Keep only last 1000 entries to prevent file from growing too large
+  const limitedLogs = logs.slice(-1000);
+  file.setContent(JSON.stringify(limitedLogs, null, 2));
 }
 
 // ═══════════════════════════════════════════════════════════════════════

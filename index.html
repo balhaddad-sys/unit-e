@@ -32,9 +32,10 @@
     <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script crossorigin src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/xlsx-js-style@1.2.0/dist/xlsx.bundle.js"></script>
-    <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
-    <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script>
-    <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script>
+    <!-- Firebase scripts removed - Now using Google Drive storage via Google Apps Script -->
+    <!-- <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script> -->
+    <!-- <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-database-compat.js"></script> -->
+    <!-- <script crossorigin src="https://www.gstatic.com/firebasejs/10.7.1/firebase-auth-compat.js"></script> -->
     <!-- OCR Engine Module -->
     <script src="ocr-engine.js"></script>
     <!-- Camera Module - Image Capture & Compression -->
@@ -2602,15 +2603,10 @@ const validatePatient = (patient) => {
     };
 };
 
-// Log audit events to Firebase
+// Log audit events to Google Drive via API
 const logAuditEvent = async (action, details) => {
     try {
-        if (!firebase.apps.length) {
-            console.warn('[Audit] Firebase not initialized, skipping audit log');
-            return;
-        }
-        
-        await db.ref('audit_log').push({
+        await API.saveAuditLog({
             action,
             details,
             timestamp: Date.now(),
@@ -3005,21 +3001,11 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
 };
 
 // ============ CONFIGURATION ============
-const firebaseConfig = {
-    apiKey: "AIzaSyCTUw2zpoz_lgMrDCt00CsudqvZgGu4xko",
-    authDomain: "unit-e-1d07b.firebaseapp.com",
-    databaseURL: "https://unit-e-1d07b-default-rtdb.europe-west1.firebasedatabase.app",
-    projectId: "unit-e-1d07b",
-    storageBucket: "unit-e-1d07b.firebasestorage.app",
-    messagingSenderId: "465930916258",
-    appId: "1:465930916258:web:0ec4d478bb3d6d7bd262fb"
-};
-
-if (window.firebase && !firebase.apps.length) firebase.initializeApp(firebaseConfig);
-const db = firebase.database();
+// NOTE: Firebase has been replaced with Google Drive storage via Google Apps Script
+// All data is now stored in Google Drive folder: 1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbxOvjUZcjj1WcVjS8d_8bXPRQ603pYoqaFKkC907mjXYpFoo3HMvAcytp9-sqU_XgXGMg/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
@@ -5995,29 +5981,51 @@ const App = () => {
     });
 
     useEffect(() => {
-        db.ref('notice').on('value', snap => setNotice(snap.val() || { text: "" }));
-        db.ref('patients').on('value', snap => { 
-            const val = snap.val(); 
-            setPatients(val ? Object.keys(val).map(k => ({ id: k, ...val[k], bed: cleanBed(val[k].bed) })) : []); 
-        });
-        
+        // Load notice from Google Drive
+        API.loadNotice()
+            .then(notice => setNotice(notice))
+            .catch(e => console.error('[Load Notice] Failed:', e));
+
+        // Load patients from Google Drive
+        const loadPatientsData = async () => {
+            try {
+                const patientsData = await API.loadPatients();
+                const patientsArray = Object.keys(patientsData).map(k => ({
+                    id: k,
+                    ...patientsData[k],
+                    bed: cleanBed(patientsData[k].bed)
+                }));
+                setPatients(patientsArray);
+            } catch (e) {
+                console.error('[Load Patients] Failed:', e);
+            }
+        };
+        loadPatientsData();
+
         // Sync sheet on initial load (after short delay)
         const initialSync = setTimeout(() => {
             pingSheets();
             console.log('[Init] Initial sheet sync triggered');
         }, 2000);
-        
+
         // Hide loader after app loads
         setTimeout(hideLoader, 1000);
-        
-        return () => { 
-            db.ref('notice').off(); 
-            db.ref('patients').off(); 
+
+        // Poll for updates every 30 seconds
+        const pollInterval = setInterval(() => {
+            loadPatientsData();
+            API.loadNotice()
+                .then(notice => setNotice(notice))
+                .catch(e => console.error('[Poll Notice] Failed:', e));
+        }, 30000);
+
+        return () => {
             clearTimeout(initialSync);
+            clearInterval(pollInterval);
         };
     }, []);
 
-    const saveNotice = (text) => db.ref('notice').set({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
+    const saveNotice = (text) => API.saveNotice({ text: text.trim(), updatedAt: Date.now() }).then(() => showToast("✓ Saved")).catch(e => { console.error('Save notice error:', e); showToast("❌ Save failed"); });
     const saveLabImages = async (patientId, labImages) => {
         console.log('[Save] ═══════════════════════════════════════');
         console.log('[Save] Patient ID:', patientId);
@@ -6072,14 +6080,16 @@ const App = () => {
             
             console.log('[Save] ✓ SUCCESS - Labs saved to Google Drive');
             console.log('[Save] File:', result.filename);
-            
-            // Also save minimal reference to Firebase (just count and timestamp)
-            await db.ref(`patients/${patientId}/labInfo`).set({
-                count: labData.length,
-                lastSaved: Date.now(),
-                driveFolder: result.folderId || null
+
+            // Update patient record with lab info
+            await API.updatePatient(patientId, {
+                labInfo: {
+                    count: labData.length,
+                    lastSaved: Date.now(),
+                    driveFolder: result.folderId || null
+                }
             });
-            
+
             showToast("✓ Labs saved to Drive");
             scheduleSync();
             
@@ -6090,28 +6100,37 @@ const App = () => {
         }
     };
     const isDup = (ward, name, excludeId) => patients.some(p => p.id !== excludeId && makeKey(p.ward, p.name) === makeKey(ward, name));
-    const update = useCallback((id, field, value) => { 
-        const p = patients.find(x => x.id === id); 
-        
+    const update = useCallback((id, field, value) => {
+        const p = patients.find(x => x.id === id);
+
         // Use raw value for duplicate checking before sanitization
-        if (field === 'name' && isDup(p?.ward, value, id)) { 
-            showToast("⚠ Duplicate"); 
-            return; 
-        } 
-        if (field === 'ward' && isDup(value, p?.name, id)) { 
-            showToast("⚠ Duplicate"); 
-            return; 
+        if (field === 'name' && isDup(p?.ward, value, id)) {
+            showToast("⚠ Duplicate");
+            return;
         }
-        
+        if (field === 'ward' && isDup(value, p?.name, id)) {
+            showToast("⚠ Duplicate");
+            return;
+        }
+
         // Sanitize value only for storage
         const sanitizedValue = typeof value === 'string' ? sanitizeInput(value) : value;
-        
-        db.ref(`patients/${id}`).update({ 
-            [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue, 
-            timestamp: Date.now() 
+
+        API.updatePatient(id, {
+            [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue,
+            timestamp: Date.now()
         }).then(() => {
+            // Update local state
+            setPatients(prev => prev.map(patient =>
+                patient.id === id
+                    ? { ...patient, [field]: field === 'bed' ? cleanBed(sanitizedValue) : sanitizedValue, timestamp: Date.now() }
+                    : patient
+            ));
             scheduleSync();
             logAuditEvent('update_patient', { id, field });
+        }).catch(e => {
+            console.error('[Update Patient] Failed:', e);
+            showToast("❌ Update failed");
         });
     }, [patients, scheduleSync]);
     
@@ -6120,10 +6139,15 @@ const App = () => {
             title: 'Delete Patient',
             message: 'Are you sure you want to delete this patient? This action cannot be undone.',
             onConfirm: () => {
-                db.ref(`patients/${id}`).remove().then(() => { 
-                    showToast("✓ Deleted"); 
+                API.deletePatient(id).then(() => {
+                    // Update local state
+                    setPatients(prev => prev.filter(p => p.id !== id));
+                    showToast("✓ Deleted");
                     pingSheets();
                     logAuditEvent('delete_patient', { id });
+                }).catch(e => {
+                    console.error('[Delete Patient] Failed:', e);
+                    showToast("❌ Delete failed");
                 });
                 setConfirmDialog(null);
             },
@@ -6161,20 +6185,26 @@ const App = () => {
         // Sanitize after validation
         const c = {
             ...rawPatient,
-            name: sanitizeInput(rawPatient.name), 
-            diagnosis: sanitizeInput(rawPatient.diagnosis), 
-            doctor: sanitizeInput(rawPatient.doctor), 
-            plan: sanitizeInput(rawPatient.plan), 
+            id: Utils.generateId(),
+            name: sanitizeInput(rawPatient.name),
+            diagnosis: sanitizeInput(rawPatient.diagnosis),
+            doctor: sanitizeInput(rawPatient.doctor),
+            plan: sanitizeInput(rawPatient.plan),
             mrn: sanitizeInput(rawPatient.mrn)
         };
-        
-        db.ref("patients").push(c).then(() => { 
-            setAddModal(false); 
-            setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" }); 
-            showToast("✓ Added"); 
+
+        API.savePatient(c).then(() => {
+            // Update local state
+            setPatients(prev => [...prev, c]);
+            setAddModal(false);
+            setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
+            showToast("✓ Added");
             pingSheets();
             logAuditEvent('add_patient', { name: c.name, ward: c.ward });
-        }); 
+        }).catch(e => {
+            console.error('[Add Patient] Failed:', e);
+            showToast("❌ Add failed");
+        });
     };
    // MODIFIED: Handle custom wards in sorting
     const groups = useMemo(() => { 

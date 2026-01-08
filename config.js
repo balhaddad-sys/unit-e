@@ -3,20 +3,19 @@
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
-    // Firebase Configuration
-    firebase: {
-        apiKey: "AIzaSyA5tYolf_gVPsj72AHg0pyJmLMOVaYTfOA",
-        authDomain: "internal-medicine-ward.firebaseapp.com",
-        databaseURL: "https://internal-medicine-ward-default-rtdb.firebaseio.com",
-        projectId: "internal-medicine-ward",
-        storageBucket: "internal-medicine-ward.appspot.com",
-        appId: "1:811476183925:web:c3fe741cf3613fb4940ab6"
-    },
-    
-    // Google Apps Script Proxy URL
-    visionApiUrl: 'https://script.google.com/macros/s/AKfycbwT0sjHKwhPmFk5lgtLkHVUrJBXlmFbhLqfEn5My_rEMwNf4QaJhFqrqxVw9_cFo30/exec',
-    
-    // Google Sheet URL
+    // Google Apps Script API URL - Main backend for all data storage
+    apiUrl: 'https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec',
+
+    // Deprecated - Kept for backward compatibility only
+    visionApiUrl: 'https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec',
+
+    // Google Drive Folder ID for data storage
+    driveFolderId: '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
+
+    // Google Drive Folder URL
+    driveUrl: 'https://drive.google.com/drive/folders/1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
+
+    // Google Sheet URL (for reference)
     sheetUrl: 'https://docs.google.com/spreadsheets/d/1X1Dy5P3S_WPAi-SGKO8ZUwPLl1k4lZwJE6Gk_M62u9o/edit',
     
     // Ward Configuration
@@ -51,9 +50,8 @@ const CONFIG = {
     toastDuration: 3000,
 };
 
-// Initialize Firebase
-firebase.initializeApp(CONFIG.firebase);
-const db = firebase.database();
+// NOTE: Firebase has been replaced with Google Drive storage
+// All data is now stored in Google Drive via Google Apps Script API
 
 // ═══════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS
@@ -151,7 +149,7 @@ const API = {
     // Sync with Google Sheets
     syncSheets: async () => {
         try {
-            await fetch(CONFIG.visionApiUrl, {
+            await fetch(CONFIG.apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({ action: 'syncSheet' })
@@ -163,7 +161,7 @@ const API = {
             return false;
         }
     },
-    
+
     // Process image with OCR
     processOCR: async (base64Image) => {
         try {
@@ -171,12 +169,12 @@ const API = {
             if (window.OCREngine?.isReady) {
                 return await window.OCREngine.processImage(base64Image);
             }
-            
+
             // Fallback to direct API
-            const response = await fetch(CONFIG.visionApiUrl, {
+            const response = await fetch(CONFIG.apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({ action: 'ocr', image: base64Image })
+                body: JSON.stringify({ action: 'runOCR', image: base64Image })
             });
             return await response.json();
         } catch (error) {
@@ -184,7 +182,7 @@ const API = {
             throw error;
         }
     },
-    
+
     // Parse lab results
     parseLabs: (text) => {
         if (window.LabParser?.isReady && text) {
@@ -192,11 +190,11 @@ const API = {
         }
         return { values: [], reportType: 'Unknown', alerts: [], findings: [] };
     },
-    
+
     // Save labs to Google Drive
     saveLabs: async (patientId, patientName, labData) => {
         try {
-            const response = await fetch(CONFIG.visionApiUrl, {
+            const response = await fetch(CONFIG.apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({
@@ -211,9 +209,149 @@ const API = {
             console.error('[Save Labs] Failed:', error);
             throw error;
         }
+    },
+
+    // Save patient to Google Drive
+    savePatient: async (patient) => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'savePatient',
+                    patient
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        } catch (error) {
+            console.error('[Save Patient] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Update patient in Google Drive
+    updatePatient: async (patientId, updates) => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'updatePatient',
+                    patientId,
+                    updates
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        } catch (error) {
+            console.error('[Update Patient] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Delete patient from Google Drive
+    deletePatient: async (patientId) => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'deletePatient',
+                    patientId
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        } catch (error) {
+            console.error('[Delete Patient] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Load all patients from Google Drive
+    loadPatients: async () => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'loadPatients'
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result.patients || {};
+        } catch (error) {
+            console.error('[Load Patients] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Save notice to Google Drive
+    saveNotice: async (notice) => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'saveNotice',
+                    notice
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        } catch (error) {
+            console.error('[Save Notice] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Load notice from Google Drive
+    loadNotice: async () => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'loadNotice'
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result.notice || { text: '' };
+        } catch (error) {
+            console.error('[Load Notice] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Save audit log entry to Google Drive
+    saveAuditLog: async (logEntry) => {
+        try {
+            const response = await fetch(CONFIG.apiUrl, {
+                method: 'POST',
+                headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                body: JSON.stringify({
+                    action: 'saveAuditLog',
+                    logEntry
+                })
+            });
+            const result = await response.json();
+            if (!result.success) throw new Error(result.error);
+            return result;
+        } catch (error) {
+            console.error('[Save Audit Log] Failed:', error);
+            throw error;
+        }
     }
 };
 
 console.log('[Config] Unit E configuration loaded');
 console.log('[Config] Wards:', CONFIG.wards.length);
-console.log('[Config] Firebase initialized');
+console.log('[Config] Google Drive storage initialized');
+console.log('[Config] API URL:', CONFIG.apiUrl);
