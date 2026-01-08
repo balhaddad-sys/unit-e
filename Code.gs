@@ -287,6 +287,198 @@ function syncFirebaseToSheets() {
 }
 
 /**
+ * Sync FROM Google Drive TO Google Sheets
+ * Reads patients from Google Drive and writes to Google Sheets
+ */
+function syncDriveToSheets() {
+  try {
+    Logger.log('=== syncDriveToSheets START ===');
+
+    if (!CONFIG.spreadsheetId) {
+      Logger.log('No spreadsheet configured');
+      return { success: false, error: 'No spreadsheet configured' };
+    }
+
+    // Get patients from Google Drive
+    var patientsFile = getOrCreatePatientsFile();
+    var patientsData = loadPatientsFromFile(patientsFile);
+
+    // Convert object to array
+    var patients = [];
+    for (var key in patientsData) {
+      var patient = patientsData[key];
+      patient.id = key;
+      patients.push(patient);
+    }
+
+    Logger.log('Got ' + patients.length + ' patients from Google Drive');
+
+    // Get the sheet
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('Patients');
+    }
+
+    // Set up headers
+    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    }
+
+    // Clear existing data (but keep headers)
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
+    }
+
+    // Prepare rows
+    var rows = patients.map(function(p) {
+      return [
+        p.ward || '',
+        p.bed || '',
+        p.name || '',
+        p.mrn || '',
+        p.doctor || '',
+        p.diagnosis || '',
+        p.plan || '',
+        p.status || '',
+        new Date(p.timestamp || Date.now()).toLocaleString()
+      ];
+    });
+
+    // Write to sheet
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    Logger.log('Synced ' + rows.length + ' patients to sheet');
+    Logger.log('=== syncDriveToSheets COMPLETE ===');
+
+    return { success: true, count: rows.length, timestamp: new Date().toISOString() };
+
+  } catch (error) {
+    Logger.log('syncDriveToSheets Error: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Sync FROM Google Sheets TO Google Drive
+ * Reads patients from Google Sheets and writes to Google Drive
+ */
+function syncSheetsToDrive() {
+  try {
+    Logger.log('=== syncSheetsToDrive START ===');
+
+    if (!CONFIG.spreadsheetId) {
+      Logger.log('No spreadsheet configured');
+      return { success: false, error: 'No spreadsheet configured' };
+    }
+
+    // Get the sheet
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
+    if (!sheet || sheet.getLastRow() < 2) {
+      Logger.log('No data in sheet');
+      return { success: true, count: 0, message: 'No data in sheet' };
+    }
+
+    // Read data from sheet (skip header row)
+    var data = sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).getValues();
+
+    Logger.log('Read ' + data.length + ' rows from sheet');
+
+    // Get existing patients from Drive
+    var patientsFile = getOrCreatePatientsFile();
+    var existingPatients = loadPatientsFromFile(patientsFile);
+
+    // Create a map of existing patients by ward+name for matching
+    var existingMap = {};
+    for (var key in existingPatients) {
+      var p = existingPatients[key];
+      var mapKey = ((p.ward || '').toLowerCase() + '|' + (p.name || '').toLowerCase()).trim();
+      existingMap[mapKey] = { id: key, patient: p };
+    }
+
+    var imported = 0;
+    var updated = 0;
+    var skipped = 0;
+
+    // Process each row from sheet
+    for (var i = 0; i < data.length; i++) {
+      var row = data[i];
+
+      // Extract fields (matching header order: Ward, Bed, Name, MRN, Doctor, Diagnosis, Plan, Status, Last Updated)
+      var name = (row[2] || '').toString().trim();
+
+      // Skip empty rows
+      if (!name) {
+        skipped++;
+        continue;
+      }
+
+      var ward = (row[0] || '').toString().trim() || 'Unassigned';
+      var bed = (row[1] || '').toString().trim();
+      var mrn = (row[3] || '').toString().trim();
+      var doctor = (row[4] || '').toString().trim();
+      var diagnosis = (row[5] || '').toString().trim();
+      var plan = (row[6] || '').toString().trim();
+      var status = (row[7] || '').toString().trim() || 'New';
+
+      // Check if patient already exists
+      var mapKey = (ward.toLowerCase() + '|' + name.toLowerCase()).trim();
+      var existing = existingMap[mapKey];
+
+      var patient = {
+        ward: ward,
+        bed: bed,
+        name: name,
+        mrn: mrn,
+        doctor: doctor,
+        diagnosis: diagnosis,
+        plan: plan,
+        status: status,
+        timestamp: existing ? existing.patient.timestamp : Date.now(),
+        labData: existing ? existing.patient.labData : []
+      };
+
+      if (existing) {
+        // Update existing patient
+        existingPatients[existing.id] = patient;
+        updated++;
+      } else {
+        // Create new patient with generated ID
+        var newId = Utilities.getUuid();
+        existingPatients[newId] = patient;
+        imported++;
+      }
+    }
+
+    // Save back to Drive
+    savePatientsToFile(patientsFile, existingPatients);
+
+    Logger.log('Sheet sync: ' + imported + ' new, ' + updated + ' updated, ' + skipped + ' skipped');
+    Logger.log('=== syncSheetsToDrive COMPLETE ===');
+
+    return {
+      success: true,
+      imported: imported,
+      updated: updated,
+      skipped: skipped,
+      total: imported + updated,
+      timestamp: new Date().toISOString()
+    };
+
+  } catch (error) {
+    Logger.log('syncSheetsToDrive Error: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
  * Install time-based trigger for auto-sync
  * Run this once to set up automatic syncing every minute
  */
@@ -462,6 +654,12 @@ function doPost(e) {
       case 'syncFirebase':
         var result = syncFirebaseToSheets();
         return createJsonResponse(result);
+      case 'syncDriveToSheets':
+        var result = syncDriveToSheets();
+        return createJsonResponse(result);
+      case 'syncSheetsToDrive':
+        var result = syncSheetsToDrive();
+        return createJsonResponse(result);
       case 'savePatient':
         return handleSavePatient(data);
       case 'updatePatient':
@@ -487,7 +685,7 @@ function doPost(e) {
       default:
         return createJsonResponse({
           error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'syncFirebase', 'savePatient', 'updatePatient', 'deletePatient', 'loadPatients', 'saveNotice', 'loadNotice', 'saveAuditLog', 'test']
+          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'syncFirebase', 'syncDriveToSheets', 'syncSheetsToDrive', 'savePatient', 'updatePatient', 'deletePatient', 'loadPatients', 'saveNotice', 'loadNotice', 'saveAuditLog', 'test']
         }, 400);
     }
 

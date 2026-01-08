@@ -2658,152 +2658,6 @@ const exportToCSV = (patients) => {
     logAuditEvent('export_csv', { count: patients.length });
 };
 
-// Import patients from Excel file
-const importFromExcel = async (file, existingPatients, onImportComplete) => {
-    try {
-        const reader = new FileReader();
-
-        reader.onload = async (e) => {
-            try {
-                const data = new Uint8Array(e.target.result);
-                const workbook = XLSX.read(data, { type: 'array' });
-
-                // Get the first sheet
-                const firstSheetName = workbook.SheetNames[0];
-                const worksheet = workbook.Sheets[firstSheetName];
-
-                // Convert to JSON
-                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
-
-                if (!jsonData || jsonData.length === 0) {
-                    alert('No data found in Excel file');
-                    return;
-                }
-
-                // Map column names (case-insensitive)
-                const normalizeKey = (key) => key.toString().toLowerCase().trim();
-
-                let imported = 0;
-                let skipped = 0;
-                const errors = [];
-
-                for (const row of jsonData) {
-                    try {
-                        // Map row data to patient object (flexible column mapping)
-                        const rowKeys = Object.keys(row).reduce((acc, key) => {
-                            acc[normalizeKey(key)] = key;
-                            return acc;
-                        }, {});
-
-                        const getValue = (possibleNames) => {
-                            for (const name of possibleNames) {
-                                const key = rowKeys[normalizeKey(name)];
-                                if (key && row[key]) return row[key].toString().trim();
-                            }
-                            return '';
-                        };
-
-                        const name = getValue(['name', 'patient name', 'patient']);
-                        const ward = getValue(['ward', 'location']) || 'Unassigned';
-                        const bed = getValue(['bed', 'bed number', 'bed no']);
-                        const mrn = getValue(['mrn', 'medical record number', 'record number']);
-                        const doctor = getValue(['doctor', 'dr', 'physician', 'attending']);
-                        const diagnosis = getValue(['diagnosis', 'dx', 'condition']);
-                        const plan = getValue(['plan', 'treatment plan', 'notes']);
-                        const status = getValue(['status']) || 'New';
-
-                        // Skip rows without a name
-                        if (!name) {
-                            skipped++;
-                            continue;
-                        }
-
-                        // Create patient object
-                        const patient = {
-                            id: Utils.generateId(),
-                            ward: ward,
-                            bed: bed,
-                            name: name,
-                            mrn: mrn,
-                            doctor: doctor,
-                            diagnosis: diagnosis,
-                            plan: plan,
-                            status: status,
-                            timestamp: Date.now(),
-                            labData: []
-                        };
-
-                        // Validate
-                        const validation = validatePatient(patient);
-                        if (!validation.isValid) {
-                            errors.push(`${name}: ${validation.errors.join(', ')}`);
-                            skipped++;
-                            continue;
-                        }
-
-                        // Check for duplicates
-                        const isDuplicate = existingPatients.some(p =>
-                            p.ward === patient.ward &&
-                            p.name.toLowerCase() === patient.name.toLowerCase()
-                        );
-
-                        if (isDuplicate) {
-                            errors.push(`${name} in ${ward}: Duplicate patient`);
-                            skipped++;
-                            continue;
-                        }
-
-                        // Save to Google Drive
-                        await API.savePatient(patient);
-                        imported++;
-
-                    } catch (err) {
-                        console.error('[Import] Row error:', err);
-                        errors.push(`Row error: ${err.message}`);
-                        skipped++;
-                    }
-                }
-
-                // Show results
-                let message = `Import complete!\n\n✓ Imported: ${imported} patients`;
-                if (skipped > 0) {
-                    message += `\n⚠ Skipped: ${skipped} patients`;
-                }
-                if (errors.length > 0 && errors.length <= 10) {
-                    message += '\n\nErrors:\n' + errors.join('\n');
-                } else if (errors.length > 10) {
-                    message += '\n\nErrors: ' + errors.length + ' (check console for details)';
-                    console.log('[Import] Errors:', errors);
-                }
-
-                alert(message);
-
-                // Trigger reload
-                if (imported > 0) {
-                    onImportComplete();
-                }
-
-                logAuditEvent('import_excel', { imported, skipped, errors: errors.length });
-
-            } catch (err) {
-                console.error('[Import] Parse error:', err);
-                alert('Error parsing Excel file: ' + err.message);
-            }
-        };
-
-        reader.onerror = (err) => {
-            console.error('[Import] File read error:', err);
-            alert('Error reading file: ' + err.message);
-        };
-
-        reader.readAsArrayBuffer(file);
-
-    } catch (err) {
-        console.error('[Import] Error:', err);
-        alert('Import error: ' + err.message);
-    }
-};
-
 // Export to PDF (triggers print dialog)
 const exportToPDF = () => {
     logAuditEvent('export_pdf', {});
@@ -3163,23 +3017,28 @@ const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbw8ivv4DC6
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
-// Ping sheets AND trigger sheet sync (date update + yellow highlighting)
-const pingSheets = async () => {
-    const url = `${VISION_API_PROXY_URL}?t=${Date.now()}`;
-    // Simple ping
-    if (navigator.sendBeacon) navigator.sendBeacon(url, new Blob([], { type: "text/plain" }));
-    else fetch(url, { method: "GET", mode: "no-cors", cache: "no-store" }).catch(() => {});
-    
-    // Also trigger explicit sheet sync
+// Sync Drive → Sheets (call after any app changes)
+const syncDriveToSheets = async () => {
     try {
-        await fetch(VISION_API_PROXY_URL, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'syncSheet' })
-        });
-        console.log('[Sync] Sheet sync triggered');
+        await API.syncDriveToSheets();
+        console.log('[Sync] Drive → Sheets complete');
     } catch (e) {
-        console.log('[Sync] Sheet sync failed:', e.message);
+        console.log('[Sync] Drive → Sheets failed:', e.message);
+    }
+};
+
+// Sync Sheets → Drive (call periodically to pick up manual edits in Sheets)
+const syncSheetsToDrive = async () => {
+    try {
+        const result = await API.syncSheetsToDrive();
+        if (result.imported > 0 || result.updated > 0) {
+            console.log('[Sync] Sheets → Drive: ' + result.imported + ' new, ' + result.updated + ' updated');
+            return true; // Signal that we need to reload
+        }
+        return false;
+    } catch (e) {
+        console.log('[Sync] Sheets → Drive failed:', e.message);
+        return false;
     }
 };
 
@@ -6107,18 +5966,24 @@ const App = () => {
     const [confirmDialog, setConfirmDialog] = useState(null);
     const syncTimer = useRef(null);
     const searchRef = useRef(null);
-    const fileInputRef = useRef(null);
     
     // Use new hooks
     const isOnline = useOnlineStatus();
     const { showToast: showToastContext } = useToast();
 
-    const showToast = (msg) => { 
-        setToast(msg); 
+    const showToast = (msg) => {
+        setToast(msg);
         showToastContext(msg);
-        setTimeout(() => setToast(null), 3000); 
+        setTimeout(() => setToast(null), 3000);
     };
-    const scheduleSync = useCallback(() => { setSyncing(true); if (syncTimer.current) clearTimeout(syncTimer.current); syncTimer.current = setTimeout(() => { pingSheets(); setTimeout(() => setSyncing(false), 1000); }, 500); }, []);
+    const scheduleSync = useCallback(() => {
+        setSyncing(true);
+        if (syncTimer.current) clearTimeout(syncTimer.current);
+        syncTimer.current = setTimeout(() => {
+            syncDriveToSheets();
+            setTimeout(() => setSyncing(false), 1000);
+        }, 500);
+    }, []);
     
     // Keyboard shortcuts
     useKeyboardShortcuts({
@@ -6157,23 +6022,35 @@ const App = () => {
         };
         loadPatientsData();
 
-        // Sync sheet on initial load (after short delay)
-        const initialSync = setTimeout(() => {
-            pingSheets();
-            console.log('[Init] Initial sheet sync triggered');
+        // Initial sync: Drive → Sheets
+        const initialSyncTimer = setTimeout(() => {
+            syncDriveToSheets();
+            console.log('[Init] Initial Drive → Sheets sync triggered');
         }, 2000);
 
-        // Poll for updates every 30 seconds
-        const pollInterval = setInterval(() => {
-            loadPatientsData();
+        // Bidirectional sync every 15 seconds
+        const syncInterval = setInterval(async () => {
+            // 1. Sync Sheets → Drive (pick up manual edits in Sheets)
+            const needsReload = await syncSheetsToDrive();
+
+            // 2. If there were changes from Sheets, reload patients
+            if (needsReload) {
+                console.log('[Sync] Reloading patients after Sheets → Drive sync');
+                await loadPatientsData();
+            }
+
+            // 3. Sync Drive → Sheets (update Sheets with any app changes)
+            await syncDriveToSheets();
+
+            // 4. Also reload notice
             API.loadNotice()
                 .then(notice => setNotice(notice))
                 .catch(e => console.error('[Poll Notice] Failed:', e));
-        }, 30000);
+        }, 15000); // Every 15 seconds
 
         return () => {
-            clearTimeout(initialSync);
-            clearInterval(pollInterval);
+            clearTimeout(initialSyncTimer);
+            clearInterval(syncInterval);
         };
     }, []);
 
@@ -6295,7 +6172,7 @@ const App = () => {
                     // Update local state
                     setPatients(prev => prev.filter(p => p.id !== id));
                     showToast("✓ Deleted");
-                    pingSheets();
+                    syncDriveToSheets();
                     logAuditEvent('delete_patient', { id });
                 }).catch(e => {
                     console.error('[Delete Patient] Failed:', e);
@@ -6351,54 +6228,11 @@ const App = () => {
             setAddModal(false);
             setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
             showToast("✓ Added");
-            pingSheets();
+            syncDriveToSheets();
             logAuditEvent('add_patient', { name: c.name, ward: c.ward });
         }).catch(e => {
             console.error('[Add Patient] Failed:', e);
             showToast("❌ Add failed");
-        });
-    };
-
-    // Handle Excel import
-    const handleFileImport = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-
-        // Check file type
-        const validTypes = [
-            'application/vnd.ms-excel',
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-            'application/vnd.oasis.opendocument.spreadsheet'
-        ];
-
-        if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx?|ods)$/i)) {
-            alert('Please select a valid Excel file (.xlsx, .xls, or .ods)');
-            e.target.value = '';
-            return;
-        }
-
-        showToast('📤 Importing patients...');
-        setSyncing(true);
-
-        importFromExcel(file, patients, async () => {
-            // Reload patients after import
-            try {
-                const patientsData = await API.loadPatients();
-                const patientsArray = Object.keys(patientsData).map(k => ({
-                    id: k,
-                    ...patientsData[k],
-                    bed: cleanBed(patientsData[k].bed)
-                }));
-                setPatients(patientsArray);
-                showToast('✓ Import complete!');
-                pingSheets();
-            } catch (err) {
-                console.error('[Import] Reload failed:', err);
-                showToast('⚠ Import complete, but reload failed');
-            } finally {
-                setSyncing(false);
-                e.target.value = ''; // Reset file input
-            }
         });
     };
 
@@ -6442,22 +6276,14 @@ const App = () => {
                 <div className="title"><div className="title-row"><h1>Unit E</h1><span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>{syncing ? '⏳' : '✓'} {patients.length}</span></div></div>
                 <div className="actions">
                     <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
-                    <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept=".xlsx,.xls,.ods"
-                        onChange={handleFileImport}
-                        style={{ display: 'none' }}
-                    />
-                    <button className="btn btn-white" onClick={() => fileInputRef.current?.click()} title="Import patients from Excel">📤 Import</button>
-                    <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 Export</button>
+                    <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 CSV</button>
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
                     <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
                     <button className="btn btn-blue" onClick={async () => { 
                         setSyncing(true); 
                         showToast("🔄 Syncing sheet..."); 
-                        await pingSheets(); 
+                        await syncDriveToSheets(); 
                         showToast("✓ Sheet synced!"); 
                         setTimeout(() => setSyncing(false), 1000); 
                     }}>🔄</button>
