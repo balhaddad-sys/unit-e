@@ -2092,8 +2092,8 @@
             // Skip header lines
             if (HEADER_PATTERN.test(line)) continue;
 
-            // Use optimized findBestMatch (O(1) for exact matches, fast for fuzzy)
-            const bestMatch = findBestMatch(line, 0.75);
+            // Use optimized findBestMatch with higher threshold for precision (0.75 -> 0.80)
+            const bestMatch = findBestMatch(line, 0.80);
 
             if (bestMatch) {
                 const testName = bestMatch.test;
@@ -2124,8 +2124,14 @@
                 let extracted = null;
                 let extractedColumn = '';
 
-                // Try each column to find the first valid numeric value
+                // ENHANCED: Try each column to find the first valid numeric value
+                // Skip columns that look like reference ranges (e.g., "4-11" or "136-145")
                 for (const col of columns) {
+                    // Skip if this column contains a range pattern
+                    if (/\d+\s*[-–—]\s*\d+/.test(col)) {
+                        continue; // This is likely a reference range, not the result value
+                    }
+
                     extracted = extractNumericValue(col, testData.allowNegative);
                     if (extracted && extracted.value !== null) {
                         extractedColumn = col;
@@ -2153,6 +2159,39 @@
                     const corrected = correctValue(testName, finalValue);
                     finalValue = corrected.value;
 
+                    // ENHANCED: Physiological validation - reject impossible values for better precision
+                    const physiologicalLimits = {
+                        WBC: { min: 0.1, max: 100 },
+                        RBC: { min: 1.0, max: 10 },
+                        Hgb: { min: 2, max: 25 },
+                        Hct: { min: 5, max: 75 },
+                        Plt: { min: 1, max: 2000 },
+                        Glucose: { min: 10, max: 900 },
+                        Creatinine: { min: 0.1, max: 25 },
+                        Sodium: { min: 100, max: 180 },
+                        Potassium: { min: 1.5, max: 10 },
+                        Calcium: { min: 4, max: 20 },
+                        Albumin: { min: 1, max: 7 },
+                        Bilirubin: { min: 0.1, max: 50 },
+                        ALT: { min: 1, max: 10000 },
+                        AST: { min: 1, max: 10000 },
+                        ALP: { min: 10, max: 5000 }
+                    };
+
+                    const limits = physiologicalLimits[testName];
+                    if (limits && (finalValue < limits.min || finalValue > limits.max)) {
+                        // Value is physiologically impossible - skip this extraction
+                        console.warn(`Rejected ${testName}: ${finalValue} (outside physiological range ${limits.min}-${limits.max})`);
+                        continue;
+                    }
+
+                    // ENHANCED: Confidence filtering - only accept high-confidence matches (>70%)
+                    const matchConfidence = Math.round(bestMatch.score * 100);
+                    if (matchConfidence < 70) {
+                        console.warn(`Rejected ${testName}: low confidence ${matchConfidence}%`);
+                        continue;
+                    }
+
                     // Determine flag - check for L/H in the extracted column or nearby text
                     let flag = 'N';
                     const [refLow, refHigh] = testData.range;
@@ -2164,6 +2203,18 @@
                         else if (testData.critical.high && finalValue >= testData.critical.high) flag = 'HH';
                     }
 
+                    // ENHANCED: Calculate confidence based on multiple factors for accuracy
+                    let finalConfidence = matchConfidence;
+
+                    // Boost confidence for exact matches
+                    if (bestMatch.score >= 0.95) finalConfidence = Math.min(100, finalConfidence + 5);
+
+                    // Reduce confidence if value was corrected
+                    if (corrected.corrected) finalConfidence = Math.max(70, finalConfidence - 10);
+
+                    // Reduce confidence if unit conversion was needed
+                    if (unitInfo?.needsConversion) finalConfidence = Math.max(70, finalConfidence - 5);
+
                     extractedValues.push({
                         test: testName,
                         value: finalValue.toString(),
@@ -2171,10 +2222,10 @@
                         flag: flag,
                         refLow: refLow,
                         refHigh: refHigh,
-                        confidence: Math.round(bestMatch.score * 100),
+                        confidence: finalConfidence,
                         category: testData.category || 'OTHER',
                         corrected: corrected.corrected,
-                        validation: { status: 'valid' }
+                        validation: { status: 'valid', physiologicallyPlausible: true }
                     });
 
                     seenTests.add(testName);
@@ -2185,11 +2236,21 @@
         // Perform neural analysis on extracted values
         const neuralAnalysis = options.skipNeural ? null : NeuralEngine.analyzeResults(extractedValues, options);
 
+        // ENHANCED: Calculate overall confidence based on individual value confidences for better accuracy
+        let overallConfidence = 0;
+        if (extractedValues.length > 0) {
+            const avgConfidence = extractedValues.reduce((sum, val) => sum + (val.confidence || 0), 0) / extractedValues.length;
+            // Weight by number of values extracted (more values = higher confidence in the report)
+            const countBonus = Math.min(10, extractedValues.length * 2);
+            overallConfidence = Math.min(100, Math.round(avgConfidence + countBonus));
+        }
+
         return {
             values: extractedValues,
             reportType: 'AUTO',
             labType: 'GENERAL',
-            confidence: extractedValues.length > 0 ? 85 : 0,
+            confidence: overallConfidence,
+            avgValueConfidence: extractedValues.length > 0 ? Math.round(extractedValues.reduce((sum, val) => sum + (val.confidence || 0), 0) / extractedValues.length) : 0,
             timestamp: Date.now(),
             processed: true,
 

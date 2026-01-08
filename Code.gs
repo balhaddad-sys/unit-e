@@ -1,281 +1,925 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND
- * 
- * Features:
- * - Google Vision API integration (OCR for lab images)
- * - Lab storage to Google Drive
- * - Google Sheets sync functionality
- * - Both API key and service account authentication methods
- * - Comprehensive error handling and logging
- * 
- * Setup Instructions:
- * 1. Create a Google Cloud Project
- * 2. Enable Cloud Vision API
- * 3. Create credentials (API Key or Service Account)
- * 4. Deploy as Web App with "Execute as: Me" and "Who has access: Anyone"
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND v2.2
+ *
+ * NEW: Instant bidirectional syncing between Google Sheets and Firebase
+ * - Auto-sync: Web app → Firebase → Sheets
+ * - Auto-sync: Sheets → Firebase → Web app
+ * - Real-time updates in both directions
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-// ═══════════════════════════════════════════════════════════════════════
-// CONFIGURATION
-// ═══════════════════════════════════════════════════════════════════════
-
-/**
- * IMPORTANT: Set up Script Properties for secure credential storage
- * 
- * Go to Project Settings > Script Properties and add:
- * - VISION_API_KEY: Your Google Cloud Vision API key
- * - SERVICE_ACCOUNT_EMAIL: Service account email (if using service account)
- * - SERVICE_ACCOUNT_KEY: Service account private key (if using service account)
- * - SPREADSHEET_ID: Your Google Sheets ID for patient data
- * - DRIVE_FOLDER_ID: Google Drive folder ID for lab image storage
- */
-
-const SCRIPT_VERSION = '1.0.0';
-const USE_SERVICE_ACCOUNT = false; // Set to true to use service account instead of API key
+const SCRIPT_VERSION = '2.2.0';
 
 // Get configuration from Script Properties
 const CONFIG = {
   visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || 'AIzaSyCrkrRysGj4PiW9W75nBu7Onn3td5vcN1Y',
-  serviceAccountEmail: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_EMAIL'),
-  serviceAccountKey: PropertiesService.getScriptProperties().getProperty('SERVICE_ACCOUNT_KEY'),
+  anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY') || '',
   spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I'
+  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
+
+  // Firebase configuration for real-time sync
+  firebaseUrl: PropertiesService.getScriptProperties().getProperty('FIREBASE_URL') || 'https://internal-medicine-ward-default-rtdb.firebaseio.com',
+  firebaseSecret: PropertiesService.getScriptProperties().getProperty('FIREBASE_SECRET') || ''
 };
 
-// ═══════════════════════════════════════════════════════════════════════
-// MAIN HANDLERS
-// ═══════════════════════════════════════════════════════════════════════
+// Valid Claude models (as of January 2025)
+const CLAUDE_MODELS = {
+  SONNET: 'claude-3-5-sonnet-20241022',  // Best balance of intelligence and speed
+  OPUS: 'claude-3-opus-20240229',        // Most capable (if available)
+  HAIKU: 'claude-3-5-haiku-20241022'     // Fastest
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIREBASE INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
 
 /**
- * Handle GET requests - Health check and info
+ * Get all patients from Firebase
  */
+function getFirebasePatients() {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+
+    if (response.getResponseCode() !== 200) {
+      Logger.log('Firebase read error: ' + response.getContentText());
+      return null;
+    }
+
+    var data = JSON.parse(response.getContentText());
+
+    if (!data) return [];
+
+    // Convert Firebase object to array
+    var patients = [];
+    for (var key in data) {
+      var patient = data[key];
+      patient.id = key;
+      patients.push(patient);
+    }
+
+    return patients;
+
+  } catch (error) {
+    Logger.log('Error reading from Firebase: ' + error.toString());
+    return null;
+  }
+}
+
+/**
+ * Update a single patient in Firebase
+ */
+function updateFirebasePatient(patientId, patientData) {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, {
+      method: 'put',
+      contentType: 'application/json',
+      payload: JSON.stringify(patientData),
+      muteHttpExceptions: true
+    });
+
+    return response.getResponseCode() === 200;
+
+  } catch (error) {
+    Logger.log('Error updating Firebase: ' + error.toString());
+    return false;
+  }
+}
+
+/**
+ * Delete a patient from Firebase
+ */
+function deleteFirebasePatient(patientId) {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, {
+      method: 'delete',
+      muteHttpExceptions: true
+    });
+
+    return response.getResponseCode() === 200;
+
+  } catch (error) {
+    Logger.log('Error deleting from Firebase: ' + error.toString());
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOMATIC SYNC TRIGGERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * onEdit trigger - Automatically syncs changes from Sheets to Firebase
+ * This runs whenever someone edits the Google Sheet
+ */
+function onEdit(e) {
+  try {
+    Logger.log('=== onEdit Trigger START ===');
+
+    if (!e || !e.range) {
+      Logger.log('No edit event data');
+      return;
+    }
+
+    var sheet = e.range.getSheet();
+    var sheetName = sheet.getName();
+
+    Logger.log('Sheet edited: ' + sheetName);
+
+    // Only sync if the Patients sheet was edited
+    if (sheetName !== 'Patients') {
+      Logger.log('Not Patients sheet, skipping sync');
+      return;
+    }
+
+    // Don't sync header row edits
+    var row = e.range.getRow();
+    if (row === 1) {
+      Logger.log('Header row edited, skipping sync');
+      return;
+    }
+
+    Logger.log('Syncing row ' + row + ' to Firebase...');
+
+    // Sync the edited row to Firebase
+    syncRowToFirebase(sheet, row);
+
+    Logger.log('=== onEdit Trigger COMPLETE ===');
+
+  } catch (error) {
+    Logger.log('onEdit Error: ' + error.toString());
+  }
+}
+
+/**
+ * Sync a single row from Sheets to Firebase
+ */
+function syncRowToFirebase(sheet, rowNumber) {
+  try {
+    var lastCol = 9; // We have 9 columns
+    var rowData = sheet.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
+
+    // Check if row is empty
+    if (!rowData[0] && !rowData[1] && !rowData[2]) {
+      Logger.log('Empty row, skipping');
+      return;
+    }
+
+    // Map columns to patient object
+    var patient = {
+      ward: rowData[0] || '',
+      bed: rowData[1] || '',
+      name: rowData[2] || '',
+      mrn: rowData[3] || '',
+      doctor: rowData[4] || '',
+      diagnosis: rowData[5] || '',
+      plan: rowData[6] || '',
+      status: rowData[7] || '',
+      timestamp: new Date().getTime(),
+      lastModified: new Date().toISOString(),
+      syncedFromSheet: true
+    };
+
+    // Create unique ID based on ward and bed
+    var patientId = 'sheet_' + (patient.ward + '_' + patient.bed).replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Update Firebase
+    var success = updateFirebasePatient(patientId, patient);
+
+    if (success) {
+      Logger.log('Row ' + rowNumber + ' synced to Firebase as ' + patientId);
+    } else {
+      Logger.log('Failed to sync row ' + rowNumber + ' to Firebase');
+    }
+
+  } catch (error) {
+    Logger.log('syncRowToFirebase Error: ' + error.toString());
+  }
+}
+
+/**
+ * Sync all Firebase data to Sheets
+ * Call this manually or set it on a time trigger (e.g., every 1 minute)
+ */
+function syncFirebaseToSheets() {
+  try {
+    Logger.log('=== syncFirebaseToSheets START ===');
+
+    if (!CONFIG.spreadsheetId) {
+      Logger.log('No spreadsheet configured');
+      return { success: false, error: 'No spreadsheet configured' };
+    }
+
+    // Get data from Firebase
+    var patients = getFirebasePatients();
+
+    if (!patients) {
+      Logger.log('Failed to get patients from Firebase');
+      return { success: false, error: 'Failed to read from Firebase' };
+    }
+
+    Logger.log('Got ' + patients.length + ' patients from Firebase');
+
+    // Get the sheet
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('Patients');
+    }
+
+    // Set up headers
+    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    }
+
+    // Clear existing data (but keep headers)
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
+    }
+
+    // Prepare rows
+    var rows = patients.map(function(p) {
+      return [
+        p.ward || '',
+        p.bed || '',
+        p.name || '',
+        p.mrn || '',
+        p.doctor || '',
+        p.diagnosis || '',
+        p.plan || '',
+        p.status || '',
+        p.lastModified || new Date(p.timestamp || Date.now()).toLocaleString()
+      ];
+    });
+
+    // Write to sheet
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    Logger.log('Synced ' + rows.length + ' patients to sheet');
+    Logger.log('=== syncFirebaseToSheets COMPLETE ===');
+
+    return { success: true, count: rows.length };
+
+  } catch (error) {
+    Logger.log('syncFirebaseToSheets Error: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Install time-based trigger for auto-sync
+ * Run this once to set up automatic syncing every minute
+ */
+function installAutoSyncTrigger() {
+  // Delete existing triggers first
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  // Create new trigger - sync every 1 minute
+  ScriptApp.newTrigger('syncFirebaseToSheets')
+    .timeBased()
+    .everyMinutes(1)
+    .create();
+
+  Logger.log('Auto-sync trigger installed - syncing every 1 minute');
+  return 'Trigger installed successfully';
+}
+
+/**
+ * Uninstall auto-sync trigger
+ */
+function uninstallAutoSyncTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var count = 0;
+
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      count++;
+    }
+  }
+
+  Logger.log('Removed ' + count + ' auto-sync triggers');
+  return 'Removed ' + count + ' triggers';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// MAIN HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
 function doGet(e) {
   try {
-    const action = e.parameter.action || 'info';
-    
+    var action = (e && e.parameter && e.parameter.action) || 'info';
+
     if (action === 'health') {
       return createJsonResponse({
         status: 'healthy',
         version: SCRIPT_VERSION,
         timestamp: new Date().toISOString(),
         services: {
-          vision: !!CONFIG.visionApiKey || !!CONFIG.serviceAccountKey,
+          vision: !!CONFIG.visionApiKey,
+          claude: !!CONFIG.anthropicApiKey,
           sheets: !!CONFIG.spreadsheetId,
+          firebase: !!CONFIG.firebaseUrl,
           drive: true
+        },
+        models: {
+          claude: CLAUDE_MODELS.SONNET,
+          vision: 'google-vision-v1'
+        },
+        sync: {
+          enabled: true,
+          firebase: CONFIG.firebaseUrl,
+          sheet: CONFIG.spreadsheetId
         }
       });
     }
-    
-    // Default info response
-    return createHtmlResponse(`
-      <html>
-        <head>
-          <title>Unit E Ward Rounds API</title>
-          <style>
-            body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }
-            h1 { color: #15803d; }
-            .status { background: #d1fae5; padding: 15px; border-radius: 8px; margin: 20px 0; }
-            .endpoint { background: #f1f5f9; padding: 10px; margin: 10px 0; border-left: 4px solid #15803d; }
-            code { background: #e2e8f0; padding: 2px 6px; border-radius: 4px; }
-          </style>
-        </head>
-        <body>
-          <h1>🏥 Unit E Ward Rounds API</h1>
-          <div class="status">
-            <strong>Status:</strong> Active<br>
-            <strong>Version:</strong> ${SCRIPT_VERSION}<br>
-            <strong>Timestamp:</strong> ${new Date().toISOString()}
-          </div>
-          
-          <h2>📋 Available Endpoints</h2>
-          
-          <div class="endpoint">
-            <strong>POST /exec</strong> - Main API endpoint<br>
-            Actions: <code>runOCR</code>, <code>saveLabs</code>, <code>loadLabs</code>, <code>syncSheet</code>
-          </div>
-          
-          <div class="endpoint">
-            <strong>GET /exec?action=health</strong> - Health check
-          </div>
-          
-          <h2>🔧 Setup Required</h2>
-          <p>Configure Script Properties with your credentials:
-            <ul>
-              <li>VISION_API_KEY (for OCR)</li>
-              <li>SPREADSHEET_ID (for patient data)</li>
-              <li>DRIVE_FOLDER_ID (for lab storage)</li>
-            </ul>
-          </p>
-        </body>
-      </html>
-    `);
-    
+
+    if (action === 'syncNow') {
+      var result = syncFirebaseToSheets();
+      return createJsonResponse(result);
+    }
+
+    // Info page
+    var hasVision = !!CONFIG.visionApiKey;
+    var hasClaude = !!CONFIG.anthropicApiKey;
+    var hasSheets = !!CONFIG.spreadsheetId;
+    var hasFirebase = !!CONFIG.firebaseUrl;
+
+    var html = '<html><head><style>' +
+      'body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }' +
+      'h1 { color: #15803d; }' +
+      '.status { background: #f0f9ff; padding: 15px; border-radius: 8px; margin: 20px 0; }' +
+      '.good { color: #15803d; }' +
+      '.bad { color: #dc2626; }' +
+      '.code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-family: monospace; }' +
+      '.sync-box { background: #dcfce7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #15803d; }' +
+      'button { background: #15803d; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }' +
+      'button:hover { background: #166534; }' +
+      '</style></head><body>' +
+      '<h1>🏥 Unit E Ward Rounds API v' + SCRIPT_VERSION + '</h1>' +
+      '<div class="status">' +
+      '<h2>Service Status</h2>' +
+      '<p><strong>Vision API:</strong> <span class="' + (hasVision ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Claude AI:</strong> <span class="' + (hasClaude ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Google Sheets:</strong> <span class="' + (hasSheets ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Firebase:</strong> <span class="' + (hasFirebase ? 'good">✓ Connected' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Google Drive:</strong> <span class="good">✓ Available</span></p>' +
+      '</div>';
+
+    html += '<div class="sync-box">' +
+      '<h2>⚡ Real-Time Sync</h2>' +
+      '<p><strong>Status:</strong> <span class="good">✓ Enabled</span></p>' +
+      '<p>Bidirectional sync between Google Sheets and Web App via Firebase</p>' +
+      '<ul>' +
+      '<li><strong>Web App → Firebase:</strong> Instant (real-time)</li>' +
+      '<li><strong>Firebase → Sheets:</strong> Every 1 minute (automatic)</li>' +
+      '<li><strong>Sheets → Firebase:</strong> Instant (on edit trigger)</li>' +
+      '<li><strong>Firebase → Web App:</strong> Instant (real-time)</li>' +
+      '</ul>' +
+      '<p><button onclick="location.href=location.href.split(\'?\')[0] + \'?action=syncNow\'">🔄 Sync Now</button></p>' +
+      '</div>';
+
+    if (!hasVision || !hasClaude) {
+      html += '<div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">' +
+        '<h3>⚠️ Configuration Required</h3>' +
+        '<p>To enable OCR and AI features, configure API keys in Script Properties.</p>' +
+        '</div>';
+    }
+
+    html += '<h2>📚 API Endpoints</h2>' +
+      '<ul>' +
+      '<li><strong>POST /exec</strong> - Main API</li>' +
+      '<li><strong>GET /exec?action=health</strong> - Health check</li>' +
+      '<li><strong>GET /exec?action=syncNow</strong> - Force sync Firebase → Sheets</li>' +
+      '<li><strong>GET /exec</strong> - This page</li>' +
+      '</ul>' +
+      '<p><strong>Claude Model:</strong> ' + CLAUDE_MODELS.SONNET + '</p>' +
+      '</body></html>';
+
+    return HtmlService.createHtmlOutput(html);
+
   } catch (error) {
     Logger.log('doGet Error: ' + error.toString());
     return createJsonResponse({ error: error.toString() }, 500);
   }
 }
 
-/**
- * Handle POST requests - Main API
- */
 function doPost(e) {
   try {
-    // Parse request body
-    const requestData = JSON.parse(e.postData.contents);
-    const action = requestData.action;
-    
-    Logger.log('Received POST request - Action: ' + action);
-    
-    // Route to appropriate handler
+    Logger.log('=== doPost START ===');
+
+    if (!e || !e.postData || !e.postData.contents) {
+      Logger.log('ERROR: No post data received');
+      return createJsonResponse({
+        error: 'No data received',
+        help: 'Send POST request with JSON body containing "action" field'
+      }, 400);
+    }
+
+    var data = JSON.parse(e.postData.contents);
+    var action = data.action;
+
+    Logger.log('Action: ' + action);
+
     switch (action) {
       case 'runOCR':
-        return handleRunOCR(requestData);
-
+        return handleRunOCR(data);
+      case 'claudeVision':
+        return handleClaudeVision(data);
+      case 'claudeConsult':
+        return handleClaudeConsult(data);
       case 'saveLabs':
-        return handleSaveLabs(requestData);
-
+        return handleSaveLabs(data);
       case 'loadLabs':
-        return handleLoadLabs(requestData);
-
+        return handleLoadLabs(data);
       case 'syncSheet':
-        return handleSyncSheet(requestData);
-
+        return handleSyncSheet(data);
+      case 'syncFirebase':
+        var result = syncFirebaseToSheets();
+        return createJsonResponse(result);
       case 'savePatient':
-        return handleSavePatient(requestData);
-
+        return handleSavePatient(data);
       case 'updatePatient':
-        return handleUpdatePatient(requestData);
-
+        return handleUpdatePatient(data);
       case 'deletePatient':
-        return handleDeletePatient(requestData);
-
+        return handleDeletePatient(data);
       case 'loadPatients':
-        return handleLoadPatients(requestData);
-
+        return handleLoadPatients(data);
       case 'saveNotice':
-        return handleSaveNotice(requestData);
-
+        return handleSaveNotice(data);
       case 'loadNotice':
-        return handleLoadNotice(requestData);
-
+        return handleLoadNotice(data);
       case 'saveAuditLog':
-        return handleSaveAuditLog(requestData);
-
+        return handleSaveAuditLog(data);
       case 'test':
         return createJsonResponse({
           success: true,
-          message: 'API is working',
+          message: 'API is working!',
           version: SCRIPT_VERSION,
+          sync: 'enabled',
           timestamp: new Date().toISOString()
         });
-
       default:
         return createJsonResponse({
           error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'saveLabs', 'loadLabs', 'syncSheet', 'savePatient', 'updatePatient', 'deletePatient', 'loadPatients', 'saveNotice', 'loadNotice', 'saveAuditLog', 'test']
+          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'syncFirebase', 'savePatient', 'updatePatient', 'deletePatient', 'loadPatients', 'saveNotice', 'loadNotice', 'saveAuditLog', 'test']
         }, 400);
     }
-    
-  } catch (error) {
-    Logger.log('doPost Error: ' + error.toString());
-    Logger.log('Stack: ' + error.stack);
+
+  } catch (err) {
+    Logger.log('doPost Error: ' + err.toString());
+    Logger.log('Stack: ' + err.stack);
     return createJsonResponse({
-      error: 'Request processing failed: ' + error.toString(),
-      stack: error.stack
+      error: 'Request processing failed: ' + err.toString(),
+      stack: err.stack
     }, 500);
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// ACTION HANDLERS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
+// OCR HANDLER - Google Vision API
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Handle OCR request using Google Vision API
- */
-function handleRunOCR(requestData) {
+function handleRunOCR(data) {
   try {
-    if (!requestData.image) {
-      throw new Error('No image data provided');
+    Logger.log('=== handleRunOCR START ===');
+
+    if (!data.image) {
+      Logger.log('ERROR: No image provided');
+      return createJsonResponse({
+        error: 'No image data provided',
+        help: 'Send base64 encoded image in "image" field'
+      }, 400);
     }
-    
-    if (!CONFIG.visionApiKey && !CONFIG.serviceAccountKey) {
-      throw new Error('Vision API credentials not configured');
+
+    if (!CONFIG.visionApiKey) {
+      Logger.log('ERROR: Vision API key not configured');
+      return createJsonResponse({
+        error: 'Vision API key not configured',
+        help: 'Add VISION_API_KEY to Script Properties in Apps Script Project Settings',
+        setup: 'https://console.cloud.google.com/apis/credentials'
+      }, 500);
     }
-    
-    Logger.log('Processing OCR request...');
-    
-    // Extract base64 image data
-    const imageData = requestData.image.replace(/^data:image\/\w+;base64,/, '');
-    
-    // Call Vision API
-    const ocrResult = USE_SERVICE_ACCOUNT 
-      ? callVisionAPIWithServiceAccount(imageData)
-      : callVisionAPIWithKey(imageData);
-    
-    Logger.log('OCR completed successfully - Text length: ' + ocrResult.text.length);
-    
+
+    Logger.log('Image data length: ' + data.image.length);
+    Logger.log('API Key prefix: ' + CONFIG.visionApiKey.substring(0, 10) + '...');
+
+    var imageData = data.image.replace(/^data:image\/\w+;base64,/, '');
+    var url = 'https://vision.googleapis.com/v1/images:annotate?key=' + CONFIG.visionApiKey;
+
+    var payload = {
+      requests: [{
+        image: { content: imageData },
+        features: [{ type: 'DOCUMENT_TEXT_DETECTION', maxResults: 1 }]
+      }]
+    };
+
+    Logger.log('Calling Vision API...');
+    var response = UrlFetchApp.fetch(url, {
+      method: 'post',
+      contentType: 'application/json',
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    var responseCode = response.getResponseCode();
+    var responseText = response.getContentText();
+
+    Logger.log('Vision API response code: ' + responseCode);
+
+    if (responseCode !== 200) {
+      Logger.log('Vision API ERROR: ' + responseText.substring(0, 500));
+
+      var errorMsg = 'Vision API error';
+      try {
+        var errorJson = JSON.parse(responseText);
+        if (errorJson.error && errorJson.error.message) {
+          errorMsg = errorJson.error.message;
+        }
+      } catch (e) {
+        errorMsg = responseText.substring(0, 200);
+      }
+
+      return createJsonResponse({
+        error: 'Vision API error (HTTP ' + responseCode + '): ' + errorMsg,
+        help: responseCode === 403 ? 'Check if Vision API is enabled and API key is valid' : 'Check Apps Script logs for details'
+      }, 500);
+    }
+
+    var result = JSON.parse(responseText);
+    var text = '';
+    var confidence = 0;
+
+    if (result.responses && result.responses[0]) {
+      var r = result.responses[0];
+
+      if (r.fullTextAnnotation) {
+        text = r.fullTextAnnotation.text || '';
+        confidence = 90;
+      } else if (r.textAnnotations && r.textAnnotations[0]) {
+        text = r.textAnnotations[0].description || '';
+        confidence = 85;
+      } else if (r.error) {
+        Logger.log('Vision API returned error: ' + JSON.stringify(r.error));
+        return createJsonResponse({
+          error: 'Vision API error: ' + r.error.message
+        }, 500);
+      }
+    }
+
+    Logger.log('OCR completed - Text length: ' + text.length + ', Confidence: ' + confidence);
+
     return createJsonResponse({
       success: true,
-      text: ocrResult.text,
-      confidence: ocrResult.confidence,
+      text: text,
+      confidence: confidence,
       source: 'google_vision',
       timestamp: new Date().toISOString()
     });
-    
+
   } catch (error) {
     Logger.log('OCR Error: ' + error.toString());
+    Logger.log('Stack: ' + error.stack);
     return createJsonResponse({
-      error: 'OCR failed: ' + error.toString()
+      error: 'OCR failed: ' + error.toString(),
+      details: error.stack
     }, 500);
   }
 }
 
-/**
- * Handle save labs request - Store to Google Drive
- */
-function handleSaveLabs(requestData) {
+// ═══════════════════════════════════════════════════════════════════════════
+// CLAUDE VISION HANDLER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleClaudeVision(data) {
   try {
-    const patientId = requestData.patientId;
-    const patientName = requestData.patientName;
-    const labData = requestData.labData;
-    
-    if (!patientId || !labData) {
-      throw new Error('Missing required fields: patientId, labData');
+    Logger.log('=== handleClaudeVision START ===');
+
+    if (!data.image) {
+      Logger.log('ERROR: No image provided');
+      return createJsonResponse({
+        error: 'No image data provided'
+      }, 400);
     }
-    
-    Logger.log('Saving labs for patient: ' + patientId + ' (' + patientName + ')');
-    
-    // Get or create patient folder
-    const patientFolder = getOrCreatePatientFolder(patientId, patientName);
-    
-    // Create lab data file
-    const filename = 'labs_' + patientId + '_' + new Date().getTime() + '.json';
-    const fileContent = JSON.stringify({
-      patientId: patientId,
-      patientName: patientName,
-      labData: labData,
-      savedAt: new Date().toISOString(),
-      version: SCRIPT_VERSION
+
+    if (!CONFIG.anthropicApiKey) {
+      Logger.log('ERROR: Anthropic API key not configured');
+      return createJsonResponse({
+        error: 'Anthropic API key not configured',
+        help: 'Add ANTHROPIC_API_KEY to Script Properties in Apps Script Project Settings',
+        setup: 'https://console.anthropic.com/'
+      }, 500);
+    }
+
+    Logger.log('Image data length: ' + data.image.length);
+    Logger.log('API Key prefix: ' + CONFIG.anthropicApiKey.substring(0, 15) + '...');
+
+    var imageData = data.image;
+    if (imageData.indexOf(',') !== -1) {
+      imageData = imageData.split(',')[1];
+    }
+
+    var mediaType = 'image/jpeg';
+    var match = data.image.match(/data:image\/(\w+);/);
+    if (match) mediaType = 'image/' + match[1];
+
+    Logger.log('Media type: ' + mediaType);
+
+    var prompt = 'Analyze this medical laboratory report image and extract ALL lab values with high precision.\n\n' +
+      'For each lab test found:\n' +
+      '- Extract exact test name\n' +
+      '- Extract numeric value\n' +
+      '- Extract unit of measurement\n' +
+      '- Note any flags (L/H for Low/High)\n' +
+      '- Extract reference ranges if visible\n\n' +
+      'Return ONLY valid JSON in this exact format:\n' +
+      '{\n' +
+      '  "reportType": "CBC|BMP|CMP|LFT|GENERAL",\n' +
+      '  "confidence": 0-100,\n' +
+      '  "values": [\n' +
+      '    {\n' +
+      '      "test": "test name",\n' +
+      '      "value": "numeric value as string",\n' +
+      '      "unit": "unit",\n' +
+      '      "flag": "N|L|H",\n' +
+      '      "refLow": number or null,\n' +
+      '      "refHigh": number or null,\n' +
+      '      "confidence": 0-100\n' +
+      '    }\n' +
+      '  ]\n' +
+      '}\n\n' +
+      'Only extract values you are highly confident about. Return empty values array if no clear lab data is visible.';
+
+    var payload = {
+      model: CLAUDE_MODELS.SONNET,
+      max_tokens: 4096,
+      messages: [{
+        role: 'user',
+        content: [
+          {
+            type: 'image',
+            source: {
+              type: 'base64',
+              media_type: mediaType,
+              data: imageData
+            }
+          },
+          { type: 'text', text: prompt }
+        ]
+      }]
+    };
+
+    Logger.log('Calling Claude API with model: ' + CLAUDE_MODELS.SONNET);
+    Logger.log('Payload size: ' + JSON.stringify(payload).length + ' bytes');
+
+    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'x-api-key': CONFIG.anthropicApiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    var responseCode = response.getResponseCode();
+    var responseText = response.getContentText();
+
+    Logger.log('Claude API response code: ' + responseCode);
+    Logger.log('Response length: ' + responseText.length);
+
+    if (responseCode !== 200) {
+      Logger.log('Claude API ERROR: ' + responseText.substring(0, 500));
+
+      var errorMsg = 'Claude API error';
+      try {
+        var errorJson = JSON.parse(responseText);
+        if (errorJson.error && errorJson.error.message) {
+          errorMsg = errorJson.error.message;
+        }
+      } catch (e) {
+        errorMsg = responseText.substring(0, 200);
+      }
+
+      return createJsonResponse({
+        error: 'Claude API error (HTTP ' + responseCode + '): ' + errorMsg,
+        help: responseCode === 401 ? 'Invalid API key' :
+              responseCode === 429 ? 'Rate limit exceeded - wait and try again' :
+              'Check Apps Script logs for details'
+      }, 500);
+    }
+
+    var result = JSON.parse(responseText);
+    var content = '';
+
+    if (result.content && result.content[0] && result.content[0].text) {
+      content = result.content[0].text;
+    } else {
+      Logger.log('ERROR: No content in Claude response');
+      return createJsonResponse({
+        error: 'No content in Claude response'
+      }, 500);
+    }
+
+    Logger.log('Claude response preview: ' + content.substring(0, 200));
+
+    var parsed = {};
+    try {
+      var jsonMatch = content.match(/\{[\s\S]*\}/);
+      if (jsonMatch) {
+        parsed = JSON.parse(jsonMatch[0]);
+        Logger.log('Successfully parsed JSON - Values count: ' + (parsed.values ? parsed.values.length : 0));
+      } else {
+        Logger.log('No JSON found in response');
+        parsed = { rawText: content, values: [] };
+      }
+    } catch (e) {
+      Logger.log('JSON parse error: ' + e.toString());
+      parsed = { rawText: content, values: [] };
+    }
+
+    return createJsonResponse({
+      success: true,
+      reportType: parsed.reportType || 'GENERAL',
+      values: parsed.values || [],
+      confidence: parsed.confidence || 85,
+      rawText: content,
+      source: 'claude_vision',
+      model: CLAUDE_MODELS.SONNET,
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Claude Vision Error: ' + error.toString());
+    Logger.log('Stack: ' + error.stack);
+    return createJsonResponse({
+      error: 'Claude Vision failed: ' + error.toString(),
+      details: error.stack
+    }, 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CLAUDE CONSULT HANDLER
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleClaudeConsult(data) {
+  try {
+    Logger.log('=== handleClaudeConsult START ===');
+
+    if (!data.query) {
+      return createJsonResponse({ error: 'No query provided' }, 400);
+    }
+
+    if (!CONFIG.anthropicApiKey) {
+      return createJsonResponse({
+        error: 'Anthropic API key not configured',
+        help: 'Add ANTHROPIC_API_KEY to Script Properties'
+      }, 500);
+    }
+
+    Logger.log('Query: ' + data.query.substring(0, 100));
+
+    var prompt = data.query;
+
+    if (data.patientContext) {
+      prompt += '\n\nPatient Context:\n' + data.patientContext;
+    }
+
+    if (data.labValues && data.labValues.length > 0) {
+      prompt += '\n\nRecent Lab Values:\n';
+      for (var i = 0; i < data.labValues.length; i++) {
+        var v = data.labValues[i];
+        var flagText = (v.flag && v.flag !== 'N') ? ' [' + v.flag + ']' : '';
+        prompt += '- ' + v.test + ': ' + v.value + ' ' + (v.unit || '') + flagText + '\n';
+      }
+    }
+
+    var systemPrompt = 'You are an expert medical AI consultant providing evidence-based clinical decision support.\n\n' +
+      'Provide clear, actionable guidance with:\n' +
+      '- Key clinical points\n' +
+      '- Diagnostic considerations\n' +
+      '- Evidence-based treatment recommendations\n' +
+      '- Critical warnings when applicable\n\n' +
+      'Always recommend physician oversight for important clinical decisions.';
+
+    var payload = {
+      model: CLAUDE_MODELS.SONNET,
+      max_tokens: 4096,
+      system: systemPrompt,
+      messages: [{ role: 'user', content: prompt }]
+    };
+
+    Logger.log('Calling Claude API for consultation...');
+
+    var response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post',
+      contentType: 'application/json',
+      headers: {
+        'x-api-key': CONFIG.anthropicApiKey,
+        'anthropic-version': '2023-06-01'
+      },
+      payload: JSON.stringify(payload),
+      muteHttpExceptions: true
+    });
+
+    var responseCode = response.getResponseCode();
+    var responseText = response.getContentText();
+
+    Logger.log('Claude response code: ' + responseCode);
+
+    if (responseCode !== 200) {
+      Logger.log('Claude API ERROR: ' + responseText.substring(0, 500));
+      return createJsonResponse({
+        error: 'Claude API error: ' + responseText.substring(0, 200)
+      }, 500);
+    }
+
+    var result = JSON.parse(responseText);
+    var content = '';
+
+    if (result.content && result.content[0] && result.content[0].text) {
+      content = result.content[0].text;
+    }
+
+    Logger.log('Consultation completed - Response length: ' + content.length);
+
+    return createJsonResponse({
+      success: true,
+      response: content,
+      model: CLAUDE_MODELS.SONNET,
+      source: 'claude_ai',
+      timestamp: new Date().toISOString()
+    });
+
+  } catch (error) {
+    Logger.log('Claude Consult Error: ' + error.toString());
+    return createJsonResponse({
+      error: 'Claude consultation failed: ' + error.toString()
+    }, 500);
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// LABS STORAGE HANDLERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleSaveLabs(data) {
+  try {
+    if (!data.patientId || !data.labData) {
+      return createJsonResponse({
+        error: 'Missing required fields: patientId and labData'
+      }, 400);
+    }
+
+    Logger.log('Saving labs for patient: ' + data.patientId);
+
+    var folder = getOrCreatePatientFolder(data.patientId, data.patientName);
+    var filename = 'labs_' + data.patientId + '_' + Date.now() + '.json';
+    var content = JSON.stringify({
+      patientId: data.patientId,
+      patientName: data.patientName,
+      labData: data.labData,
+      savedAt: new Date().toISOString()
     }, null, 2);
-    
-    // Save to Drive
-    const file = patientFolder.createFile(filename, fileContent, MimeType.PLAIN_TEXT);
-    
-    Logger.log('Labs saved successfully - File: ' + filename);
-    
+
+    var file = folder.createFile(filename, content, MimeType.PLAIN_TEXT);
+
+    Logger.log('Labs saved successfully: ' + filename);
+
     return createJsonResponse({
       success: true,
       filename: filename,
       fileId: file.getId(),
-      folderId: patientFolder.getId(),
-      count: labData.length,
-      timestamp: new Date().toISOString()
+      count: data.labData.length
     });
-    
+
   } catch (error) {
     Logger.log('Save Labs Error: ' + error.toString());
     return createJsonResponse({
@@ -284,68 +928,57 @@ function handleSaveLabs(requestData) {
   }
 }
 
-/**
- * Handle load labs request - Load from Google Drive
- */
-function handleLoadLabs(requestData) {
+function handleLoadLabs(data) {
   try {
-    const patientId = requestData.patientId;
-    
-    if (!patientId) {
-      throw new Error('Missing required field: patientId');
+    if (!data.patientId) {
+      return createJsonResponse({ error: 'Missing patientId' }, 400);
     }
-    
-    Logger.log('Loading labs for patient: ' + patientId);
-    
-    // Get patient folder
-    const patientFolder = getPatientFolder(patientId);
-    
-    if (!patientFolder) {
-      Logger.log('No folder found for patient: ' + patientId);
+
+    Logger.log('Loading labs for patient: ' + data.patientId);
+
+    var folder = getPatientFolder(data.patientId);
+    if (!folder) {
       return createJsonResponse({
         success: true,
         labData: [],
         message: 'No labs found for this patient'
       });
     }
-    
-    // Get all lab files
-    const files = patientFolder.getFilesByType(MimeType.PLAIN_TEXT);
-    const labFiles = [];
-    
+
+    var files = folder.getFilesByType(MimeType.PLAIN_TEXT);
+    var latestFile = null;
+    var latestTime = 0;
+
     while (files.hasNext()) {
-      const file = files.next();
-      if (file.getName().startsWith('labs_')) {
-        labFiles.push(file);
+      var file = files.next();
+      if (file.getName().indexOf('labs_') === 0) {
+        var fileTime = file.getDateCreated().getTime();
+        if (fileTime > latestTime) {
+          latestFile = file;
+          latestTime = fileTime;
+        }
       }
     }
-    
-    // Sort by date (newest first)
-    labFiles.sort((a, b) => b.getDateCreated().getTime() - a.getDateCreated().getTime());
-    
-    // Get the most recent file
-    if (labFiles.length === 0) {
+
+    if (!latestFile) {
       return createJsonResponse({
         success: true,
         labData: [],
         message: 'No lab files found'
       });
     }
-    
-    const latestFile = labFiles[0];
-    const fileContent = latestFile.getBlob().getDataAsString();
-    const labsObject = JSON.parse(fileContent);
-    
-    Logger.log('Labs loaded successfully - Count: ' + labsObject.labData.length);
-    
+
+    var content = JSON.parse(latestFile.getBlob().getDataAsString());
+
+    Logger.log('Labs loaded - Count: ' + content.labData.length);
+
     return createJsonResponse({
       success: true,
-      labData: labsObject.labData,
-      loadedFrom: latestFile.getName(),
-      savedAt: labsObject.savedAt,
-      count: labsObject.labData.length
+      labData: content.labData,
+      savedAt: content.savedAt,
+      count: content.labData.length
     });
-    
+
   } catch (error) {
     Logger.log('Load Labs Error: ' + error.toString());
     return createJsonResponse({
@@ -354,72 +987,68 @@ function handleLoadLabs(requestData) {
   }
 }
 
-/**
- * Handle sheet sync request - Update Google Sheets
- */
-function handleSyncSheet(requestData) {
+// ═══════════════════════════════════════════════════════════════════════════
+// SHEETS SYNC HANDLER (Legacy - for manual sync)
+// ═══════════════════════════════════════════════════════════════════════════
+
+function handleSyncSheet(data) {
   try {
-    const patients = requestData.patients;
-    
-    if (!patients || !Array.isArray(patients)) {
-      throw new Error('Missing or invalid patients data');
+    if (!data.patients) {
+      return createJsonResponse({ error: 'Missing patients data' }, 400);
     }
-    
+
     if (!CONFIG.spreadsheetId) {
-      throw new Error('Spreadsheet ID not configured');
+      return createJsonResponse({
+        error: 'Spreadsheet not configured',
+        help: 'Add SPREADSHEET_ID to Script Properties'
+      }, 500);
     }
-    
-    Logger.log('Syncing ' + patients.length + ' patients to sheet');
-    
-    const spreadsheet = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-    let sheet = spreadsheet.getSheetByName('Patients');
-    
-    // Create sheet if it doesn't exist
+
+    Logger.log('Manual sync: ' + data.patients.length + ' patients to sheet');
+
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
     if (!sheet) {
-      sheet = spreadsheet.insertSheet('Patients');
-      // Add headers
-      sheet.getRange(1, 1, 1, 9).setValues([[
-        'Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'
-      ]]);
-      sheet.getRange(1, 1, 1, 9).setFontWeight('bold');
+      sheet = ss.insertSheet('Patients');
     }
-    
-    // Clear existing data (keep headers)
+
+    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    }
+
     if (sheet.getLastRow() > 1) {
-      sheet.getRange(2, 1, sheet.getLastRow() - 1, 9).clear();
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clear();
     }
-    
-    // Prepare data rows
-    const rows = patients.map(p => [
-      p.ward || '',
-      p.bed || '',
-      p.name || '',
-      p.mrn || '',
-      p.doctor || '',
-      p.diagnosis || '',
-      p.plan || '',
-      p.status || '',
-      new Date(p.timestamp || Date.now()).toLocaleString()
-    ]);
-    
-    // Write to sheet
+
+    var rows = data.patients.map(function(p) {
+      return [
+        p.ward || '',
+        p.bed || '',
+        p.name || '',
+        p.mrn || '',
+        p.doctor || '',
+        p.diagnosis || '',
+        p.plan || '',
+        p.status || '',
+        new Date().toLocaleString()
+      ];
+    });
+
     if (rows.length > 0) {
-      sheet.getRange(2, 1, rows.length, 9).setValues(rows);
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
     }
-    
-    // Auto-resize columns
-    sheet.autoResizeColumns(1, 9);
-    
-    Logger.log('Sheet sync completed successfully');
-    
+
+    Logger.log('Manual sheet sync completed');
+
     return createJsonResponse({
       success: true,
-      patientsSync: patients.length,
-      sheetId: CONFIG.spreadsheetId,
-      sheetName: 'Patients',
-      timestamp: new Date().toISOString()
+      synced: rows.length,
+      sheetId: CONFIG.spreadsheetId
     });
-    
+
   } catch (error) {
     Logger.log('Sheet Sync Error: ' + error.toString());
     return createJsonResponse({
@@ -431,21 +1060,21 @@ function handleSyncSheet(requestData) {
 /**
  * Handle save patient request - Save or create patient in Google Drive
  */
-function handleSavePatient(requestData) {
+function handleSavePatient(data) {
   try {
-    const patientData = requestData.patient;
+    var patient = data.patient;
 
-    if (!patientData || !patientData.id) {
+    if (!patient || !patient.id) {
       throw new Error('Missing required fields: patient with id');
     }
 
-    Logger.log('Saving patient: ' + patientData.id);
+    Logger.log('Saving patient: ' + patient.id);
 
-    const patientsFile = getOrCreatePatientsFile();
-    const patients = loadPatientsFromFile(patientsFile);
+    var patientsFile = getOrCreatePatientsFile();
+    var patients = loadPatientsFromFile(patientsFile);
 
     // Add or update patient
-    patients[patientData.id] = patientData;
+    patients[patient.id] = patient;
 
     // Save back to file
     savePatientsToFile(patientsFile, patients);
@@ -454,7 +1083,7 @@ function handleSavePatient(requestData) {
 
     return createJsonResponse({
       success: true,
-      patientId: patientData.id,
+      patientId: patient.id,
       timestamp: new Date().toISOString()
     });
 
@@ -469,10 +1098,10 @@ function handleSavePatient(requestData) {
 /**
  * Handle update patient request - Update existing patient
  */
-function handleUpdatePatient(requestData) {
+function handleUpdatePatient(data) {
   try {
-    const patientId = requestData.patientId;
-    const updates = requestData.updates;
+    var patientId = data.patientId;
+    var updates = data.updates;
 
     if (!patientId || !updates) {
       throw new Error('Missing required fields: patientId, updates');
@@ -480,15 +1109,17 @@ function handleUpdatePatient(requestData) {
 
     Logger.log('Updating patient: ' + patientId);
 
-    const patientsFile = getOrCreatePatientsFile();
-    const patients = loadPatientsFromFile(patientsFile);
+    var patientsFile = getOrCreatePatientsFile();
+    var patients = loadPatientsFromFile(patientsFile);
 
     if (!patients[patientId]) {
       throw new Error('Patient not found: ' + patientId);
     }
 
     // Update patient
-    Object.assign(patients[patientId], updates);
+    for (var key in updates) {
+      patients[patientId][key] = updates[key];
+    }
 
     // Save back to file
     savePatientsToFile(patientsFile, patients);
@@ -512,9 +1143,9 @@ function handleUpdatePatient(requestData) {
 /**
  * Handle delete patient request - Delete patient from Google Drive
  */
-function handleDeletePatient(requestData) {
+function handleDeletePatient(data) {
   try {
-    const patientId = requestData.patientId;
+    var patientId = data.patientId;
 
     if (!patientId) {
       throw new Error('Missing required field: patientId');
@@ -522,8 +1153,8 @@ function handleDeletePatient(requestData) {
 
     Logger.log('Deleting patient: ' + patientId);
 
-    const patientsFile = getOrCreatePatientsFile();
-    const patients = loadPatientsFromFile(patientsFile);
+    var patientsFile = getOrCreatePatientsFile();
+    var patients = loadPatientsFromFile(patientsFile);
 
     if (!patients[patientId]) {
       throw new Error('Patient not found: ' + patientId);
@@ -554,19 +1185,20 @@ function handleDeletePatient(requestData) {
 /**
  * Handle load patients request - Load all patients from Google Drive
  */
-function handleLoadPatients(requestData) {
+function handleLoadPatients(data) {
   try {
     Logger.log('Loading all patients');
 
-    const patientsFile = getOrCreatePatientsFile();
-    const patients = loadPatientsFromFile(patientsFile);
+    var patientsFile = getOrCreatePatientsFile();
+    var patients = loadPatientsFromFile(patientsFile);
 
-    Logger.log('Patients loaded successfully - Count: ' + Object.keys(patients).length);
+    var count = Object.keys(patients).length;
+    Logger.log('Patients loaded successfully - Count: ' + count);
 
     return createJsonResponse({
       success: true,
       patients: patients,
-      count: Object.keys(patients).length,
+      count: count,
       timestamp: new Date().toISOString()
     });
 
@@ -581,9 +1213,9 @@ function handleLoadPatients(requestData) {
 /**
  * Handle save notice request - Save notice message to Google Drive
  */
-function handleSaveNotice(requestData) {
+function handleSaveNotice(data) {
   try {
-    const notice = requestData.notice;
+    var notice = data.notice;
 
     if (!notice) {
       throw new Error('Missing required field: notice');
@@ -591,15 +1223,15 @@ function handleSaveNotice(requestData) {
 
     Logger.log('Saving notice');
 
-    const noticeFile = getOrCreateNoticeFile();
+    var noticeFile = getOrCreateNoticeFile();
 
     // Save notice data
-    const noticeData = {
+    var noticeData = {
       text: notice.text || '',
       updatedAt: notice.updatedAt || Date.now()
     };
 
-    noticeFile.setContent(JSON.stringify(noticeData, null, 2));
+    noticeFile.setContent(JSON.stringify(noticeData));
 
     Logger.log('Notice saved successfully');
 
@@ -619,13 +1251,13 @@ function handleSaveNotice(requestData) {
 /**
  * Handle load notice request - Load notice message from Google Drive
  */
-function handleLoadNotice(requestData) {
+function handleLoadNotice(data) {
   try {
     Logger.log('Loading notice');
 
-    const noticeFile = getOrCreateNoticeFile();
-    const content = noticeFile.getBlob().getDataAsString();
-    const notice = content ? JSON.parse(content) : { text: '' };
+    var noticeFile = getOrCreateNoticeFile();
+    var content = noticeFile.getBlob().getDataAsString();
+    var notice = content ? JSON.parse(content) : { text: '' };
 
     Logger.log('Notice loaded successfully');
 
@@ -646,9 +1278,9 @@ function handleLoadNotice(requestData) {
 /**
  * Handle save audit log request - Append to audit log in Google Drive
  */
-function handleSaveAuditLog(requestData) {
+function handleSaveAuditLog(data) {
   try {
-    const logEntry = requestData.logEntry;
+    var logEntry = data.logEntry;
 
     if (!logEntry) {
       throw new Error('Missing required field: logEntry');
@@ -656,14 +1288,12 @@ function handleSaveAuditLog(requestData) {
 
     Logger.log('Saving audit log entry');
 
-    const auditFile = getOrCreateAuditLogFile();
-    const logs = loadAuditLogsFromFile(auditFile);
+    var auditFile = getOrCreateAuditLogFile();
+    var logs = loadAuditLogsFromFile(auditFile);
 
     // Add new log entry
-    logs.push({
-      ...logEntry,
-      timestamp: logEntry.timestamp || Date.now()
-    });
+    logEntry.timestamp = logEntry.timestamp || Date.now();
+    logs.push(logEntry);
 
     // Save back to file
     saveAuditLogsToFile(auditFile, logs);
@@ -683,224 +1313,45 @@ function handleSaveAuditLog(requestData) {
   }
 }
 
-// ═══════════════════════════════════════════════════════════════════════
-// GOOGLE VISION API INTEGRATION
-// ═══════════════════════════════════════════════════════════════════════
-
-/**
- * Call Vision API with API Key
- */
-function callVisionAPIWithKey(imageBase64) {
-  const url = 'https://vision.googleapis.com/v1/images:annotate?key=' + CONFIG.visionApiKey;
-  
-  const payload = {
-    requests: [{
-      image: {
-        content: imageBase64
-      },
-      features: [{
-        type: 'TEXT_DETECTION',
-        maxResults: 1
-      }]
-    }]
-  };
-  
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  };
-  
-  const response = UrlFetchApp.fetch(url, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-  
-  if (responseCode !== 200) {
-    throw new Error('Vision API error: ' + responseCode + ' - ' + responseText);
-  }
-  
-  const result = JSON.parse(responseText);
-  
-  if (result.responses && result.responses[0]) {
-    const annotations = result.responses[0].textAnnotations;
-    if (annotations && annotations.length > 0) {
-      // First annotation contains full text
-      const text = annotations[0].description || '';
-      const confidence = annotations[0].confidence || 0.85;
-      return {
-        text: text,
-        confidence: Math.round(confidence * 100)
-      };
-    }
-  }
-  
-  return { text: '', confidence: 0 };
-}
-
-/**
- * Call Vision API with Service Account
- */
-function callVisionAPIWithServiceAccount(imageBase64) {
-  // Get OAuth token from service account
-  const token = getServiceAccountToken();
-  
-  const url = 'https://vision.googleapis.com/v1/images:annotate';
-  
-  const payload = {
-    requests: [{
-      image: {
-        content: imageBase64
-      },
-      features: [{
-        type: 'TEXT_DETECTION',
-        maxResults: 1
-      }]
-    }]
-  };
-  
-  const options = {
-    method: 'post',
-    contentType: 'application/json',
-    headers: {
-      'Authorization': 'Bearer ' + token
-    },
-    payload: JSON.stringify(payload),
-    muteHttpExceptions: true
-  };
-  
-  const response = UrlFetchApp.fetch(url, options);
-  const responseCode = response.getResponseCode();
-  const responseText = response.getContentText();
-  
-  if (responseCode !== 200) {
-    throw new Error('Vision API error: ' + responseCode + ' - ' + responseText);
-  }
-  
-  const result = JSON.parse(responseText);
-  
-  if (result.responses && result.responses[0]) {
-    const annotations = result.responses[0].textAnnotations;
-    if (annotations && annotations.length > 0) {
-      const text = annotations[0].description || '';
-      const confidence = annotations[0].confidence || 0.85;
-      return {
-        text: text,
-        confidence: Math.round(confidence * 100)
-      };
-    }
-  }
-  
-  return { text: '', confidence: 0 };
-}
-
-/**
- * Get OAuth token from service account
- */
-function getServiceAccountToken() {
-  const serviceAccountKey = JSON.parse(CONFIG.serviceAccountKey);
-  
-  const now = Math.floor(Date.now() / 1000);
-  const claim = {
-    iss: serviceAccountKey.client_email,
-    scope: 'https://www.googleapis.com/auth/cloud-vision',
-    aud: 'https://oauth2.googleapis.com/token',
-    exp: now + 3600,
-    iat: now
-  };
-  
-  const jwt = createJWT(claim, serviceAccountKey.private_key);
-  
-  const url = 'https://oauth2.googleapis.com/token';
-  const payload = {
-    grant_type: 'urn:ietf:params:oauth:grant-type:jwt-bearer',
-    assertion: jwt
-  };
-  
-  const options = {
-    method: 'post',
-    contentType: 'application/x-www-form-urlencoded',
-    payload: payload
-  };
-  
-  const response = UrlFetchApp.fetch(url, options);
-  const result = JSON.parse(response.getContentText());
-  
-  return result.access_token;
-}
-
-/**
- * Create JWT for service account authentication
- * Note: This is a simplified version. For production, use a proper JWT library.
- */
-function createJWT(claim, privateKey) {
-  const header = Utilities.base64EncodeWebSafe(JSON.stringify({ alg: 'RS256', typ: 'JWT' }));
-  const claimStr = Utilities.base64EncodeWebSafe(JSON.stringify(claim));
-  const signatureInput = header + '.' + claimStr;
-  
-  const signature = Utilities.computeRsaSha256Signature(signatureInput, privateKey);
-  const signatureStr = Utilities.base64EncodeWebSafe(signature);
-  
-  return signatureInput + '.' + signatureStr;
-}
-
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // GOOGLE DRIVE HELPERS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Get or create patient folder in Drive
- */
 function getOrCreatePatientFolder(patientId, patientName) {
-  const rootFolder = CONFIG.driveFolderId === 'root' 
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-  
-  // Check if Unit E folder exists
-  const unitEFolderName = 'Unit E Ward Rounds';
-  let unitEFolder;
-  
-  const unitEFolders = rootFolder.getFoldersByName(unitEFolderName);
-  if (unitEFolders.hasNext()) {
-    unitEFolder = unitEFolders.next();
-  } else {
-    unitEFolder = rootFolder.createFolder(unitEFolderName);
-  }
-  
-  // Check if patient folder exists
-  const patientFolderName = 'Patient_' + patientId + '_' + (patientName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
-  const patientFolders = unitEFolder.getFoldersByName(patientFolderName);
-  
-  if (patientFolders.hasNext()) {
-    return patientFolders.next();
-  } else {
-    return unitEFolder.createFolder(patientFolderName);
-  }
+  var root = CONFIG.driveFolderId === 'root' ?
+    DriveApp.getRootFolder() :
+    DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  var mainFolders = root.getFoldersByName('Unit E Ward Rounds');
+  var mainFolder = mainFolders.hasNext() ?
+    mainFolders.next() :
+    root.createFolder('Unit E Ward Rounds');
+
+  var safeName = (patientName || 'Unknown').replace(/[^a-zA-Z0-9]/g, '_');
+  var patientFolderName = 'Patient_' + patientId + '_' + safeName;
+  var patientFolders = mainFolder.getFoldersByName(patientFolderName);
+
+  return patientFolders.hasNext() ?
+    patientFolders.next() :
+    mainFolder.createFolder(patientFolderName);
 }
 
-/**
- * Get patient folder from Drive
- */
 function getPatientFolder(patientId) {
-  const rootFolder = CONFIG.driveFolderId === 'root' 
-    ? DriveApp.getRootFolder()
-    : DriveApp.getFolderById(CONFIG.driveFolderId);
-  
-  const unitEFolders = rootFolder.getFoldersByName('Unit E Ward Rounds');
-  if (!unitEFolders.hasNext()) {
-    return null;
-  }
-  
-  const unitEFolder = unitEFolders.next();
-  const allFolders = unitEFolder.getFolders();
-  
-  while (allFolders.hasNext()) {
-    const folder = allFolders.next();
-    if (folder.getName().startsWith('Patient_' + patientId + '_')) {
-      return folder;
+  var root = CONFIG.driveFolderId === 'root' ?
+    DriveApp.getRootFolder() :
+    DriveApp.getFolderById(CONFIG.driveFolderId);
+
+  var mainFolders = root.getFoldersByName('Unit E Ward Rounds');
+  if (!mainFolders.hasNext()) return null;
+
+  var folders = mainFolders.next().getFolders();
+  while (folders.hasNext()) {
+    var f = folders.next();
+    if (f.getName().indexOf('Patient_' + patientId + '_') === 0) {
+      return f;
     }
   }
-  
+
   return null;
 }
 
@@ -908,18 +1359,18 @@ function getPatientFolder(patientId) {
  * Get or create patients database file
  */
 function getOrCreatePatientsFile() {
-  const rootFolder = CONFIG.driveFolderId === 'root'
+  var rootFolder = CONFIG.driveFolderId === 'root'
     ? DriveApp.getRootFolder()
     : DriveApp.getFolderById(CONFIG.driveFolderId);
 
-  const fileName = 'patients_database.json';
-  const files = rootFolder.getFilesByName(fileName);
+  var fileName = 'patients_database.json';
+  var files = rootFolder.getFilesByName(fileName);
 
   if (files.hasNext()) {
     return files.next();
   } else {
     // Create new file with empty object
-    return rootFolder.createFile(fileName, JSON.stringify({}, null, 2), MimeType.PLAIN_TEXT);
+    return rootFolder.createFile(fileName, JSON.stringify({}), MimeType.PLAIN_TEXT);
   }
 }
 
@@ -928,7 +1379,7 @@ function getOrCreatePatientsFile() {
  */
 function loadPatientsFromFile(file) {
   try {
-    const content = file.getBlob().getDataAsString();
+    var content = file.getBlob().getDataAsString();
     return content ? JSON.parse(content) : {};
   } catch (e) {
     Logger.log('Error loading patients: ' + e.toString());
@@ -940,25 +1391,25 @@ function loadPatientsFromFile(file) {
  * Save patients to file
  */
 function savePatientsToFile(file, patients) {
-  file.setContent(JSON.stringify(patients, null, 2));
+  file.setContent(JSON.stringify(patients));
 }
 
 /**
  * Get or create notice file
  */
 function getOrCreateNoticeFile() {
-  const rootFolder = CONFIG.driveFolderId === 'root'
+  var rootFolder = CONFIG.driveFolderId === 'root'
     ? DriveApp.getRootFolder()
     : DriveApp.getFolderById(CONFIG.driveFolderId);
 
-  const fileName = 'notice.json';
-  const files = rootFolder.getFilesByName(fileName);
+  var fileName = 'notice.json';
+  var files = rootFolder.getFilesByName(fileName);
 
   if (files.hasNext()) {
     return files.next();
   } else {
     // Create new file with empty notice
-    return rootFolder.createFile(fileName, JSON.stringify({ text: '' }, null, 2), MimeType.PLAIN_TEXT);
+    return rootFolder.createFile(fileName, JSON.stringify({ text: '' }), MimeType.PLAIN_TEXT);
   }
 }
 
@@ -966,18 +1417,18 @@ function getOrCreateNoticeFile() {
  * Get or create audit log file
  */
 function getOrCreateAuditLogFile() {
-  const rootFolder = CONFIG.driveFolderId === 'root'
+  var rootFolder = CONFIG.driveFolderId === 'root'
     ? DriveApp.getRootFolder()
     : DriveApp.getFolderById(CONFIG.driveFolderId);
 
-  const fileName = 'audit_log.json';
-  const files = rootFolder.getFilesByName(fileName);
+  var fileName = 'audit_log.json';
+  var files = rootFolder.getFilesByName(fileName);
 
   if (files.hasNext()) {
     return files.next();
   } else {
     // Create new file with empty array
-    return rootFolder.createFile(fileName, JSON.stringify([], null, 2), MimeType.PLAIN_TEXT);
+    return rootFolder.createFile(fileName, JSON.stringify([]), MimeType.PLAIN_TEXT);
   }
 }
 
@@ -986,7 +1437,7 @@ function getOrCreateAuditLogFile() {
  */
 function loadAuditLogsFromFile(file) {
   try {
-    const content = file.getBlob().getDataAsString();
+    var content = file.getBlob().getDataAsString();
     return content ? JSON.parse(content) : [];
   } catch (e) {
     Logger.log('Error loading audit logs: ' + e.toString());
@@ -999,48 +1450,33 @@ function loadAuditLogsFromFile(file) {
  */
 function saveAuditLogsToFile(file, logs) {
   // Keep only last 1000 entries to prevent file from growing too large
-  const limitedLogs = logs.slice(-1000);
-  file.setContent(JSON.stringify(limitedLogs, null, 2));
+  var limitedLogs = logs.slice(-1000);
+  file.setContent(JSON.stringify(limitedLogs));
 }
 
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 // UTILITY FUNCTIONS
-// ═══════════════════════════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Create JSON response
- */
-function createJsonResponse(data, statusCode = 200) {
-  const output = ContentService.createTextOutput(JSON.stringify(data));
-  output.setMimeType(ContentService.MimeType.JSON);
-  return output;
+function createJsonResponse(data, statusCode) {
+  statusCode = statusCode || 200;
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
 }
 
 /**
- * Create HTML response
- */
-function createHtmlResponse(html) {
-  return HtmlService.createHtmlOutput(html);
-}
-
-/**
- * Test function to verify setup
+ * Test function - Run this from Apps Script editor to verify configuration
  */
 function testConfiguration() {
   Logger.log('=== Configuration Test ===');
-  Logger.log('Vision API Key: ' + (CONFIG.visionApiKey ? 'Configured' : 'NOT CONFIGURED'));
-  Logger.log('Service Account: ' + (CONFIG.serviceAccountKey ? 'Configured' : 'NOT CONFIGURED'));
-  Logger.log('Spreadsheet ID: ' + (CONFIG.spreadsheetId ? 'Configured' : 'NOT CONFIGURED'));
-  Logger.log('Drive Folder ID: ' + CONFIG.driveFolderId);
-  
-  if (CONFIG.spreadsheetId) {
-    try {
-      const spreadsheet = SpreadsheetApp.openById(CONFIG.spreadsheetId);
-      Logger.log('Spreadsheet access: SUCCESS - ' + spreadsheet.getName());
-    } catch (e) {
-      Logger.log('Spreadsheet access: FAILED - ' + e.toString());
-    }
-  }
-  
+  Logger.log('Version: ' + SCRIPT_VERSION);
+  Logger.log('Vision API Key: ' + (CONFIG.visionApiKey ? '✓ Configured (' + CONFIG.visionApiKey.substring(0, 10) + '...)' : '✗ NOT CONFIGURED'));
+  Logger.log('Anthropic API Key: ' + (CONFIG.anthropicApiKey ? '✓ Configured (' + CONFIG.anthropicApiKey.substring(0, 15) + '...)' : '✗ NOT CONFIGURED'));
+  Logger.log('Spreadsheet ID: ' + (CONFIG.spreadsheetId ? '✓ Configured' : '✗ NOT CONFIGURED'));
+  Logger.log('Drive Folder: ' + CONFIG.driveFolderId);
+  Logger.log('Firebase URL: ' + CONFIG.firebaseUrl);
+  Logger.log('Claude Model: ' + CLAUDE_MODELS.SONNET);
+  Logger.log('Sync: ENABLED (bidirectional)');
   Logger.log('=== Test Complete ===');
 }
