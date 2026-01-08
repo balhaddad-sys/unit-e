@@ -2627,7 +2627,7 @@ const exportToCSV = (patients) => {
         alert('No patients to export');
         return;
     }
-    
+
     const headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status'];
     const rows = patients.map(p => [
         p.ward || '',
@@ -2639,12 +2639,12 @@ const exportToCSV = (patients) => {
         p.plan || '',
         p.status || ''
     ]);
-    
+
     const csvContent = [
         headers.join(','),
         ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
     ].join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
@@ -2654,8 +2654,154 @@ const exportToCSV = (patients) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    
+
     logAuditEvent('export_csv', { count: patients.length });
+};
+
+// Import patients from Excel file
+const importFromExcel = async (file, existingPatients, onImportComplete) => {
+    try {
+        const reader = new FileReader();
+
+        reader.onload = async (e) => {
+            try {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+
+                // Get the first sheet
+                const firstSheetName = workbook.SheetNames[0];
+                const worksheet = workbook.Sheets[firstSheetName];
+
+                // Convert to JSON
+                const jsonData = XLSX.utils.sheet_to_json(worksheet, { defval: '' });
+
+                if (!jsonData || jsonData.length === 0) {
+                    alert('No data found in Excel file');
+                    return;
+                }
+
+                // Map column names (case-insensitive)
+                const normalizeKey = (key) => key.toString().toLowerCase().trim();
+
+                let imported = 0;
+                let skipped = 0;
+                const errors = [];
+
+                for (const row of jsonData) {
+                    try {
+                        // Map row data to patient object (flexible column mapping)
+                        const rowKeys = Object.keys(row).reduce((acc, key) => {
+                            acc[normalizeKey(key)] = key;
+                            return acc;
+                        }, {});
+
+                        const getValue = (possibleNames) => {
+                            for (const name of possibleNames) {
+                                const key = rowKeys[normalizeKey(name)];
+                                if (key && row[key]) return row[key].toString().trim();
+                            }
+                            return '';
+                        };
+
+                        const name = getValue(['name', 'patient name', 'patient']);
+                        const ward = getValue(['ward', 'location']) || 'Unassigned';
+                        const bed = getValue(['bed', 'bed number', 'bed no']);
+                        const mrn = getValue(['mrn', 'medical record number', 'record number']);
+                        const doctor = getValue(['doctor', 'dr', 'physician', 'attending']);
+                        const diagnosis = getValue(['diagnosis', 'dx', 'condition']);
+                        const plan = getValue(['plan', 'treatment plan', 'notes']);
+                        const status = getValue(['status']) || 'New';
+
+                        // Skip rows without a name
+                        if (!name) {
+                            skipped++;
+                            continue;
+                        }
+
+                        // Create patient object
+                        const patient = {
+                            id: Utils.generateId(),
+                            ward: ward,
+                            bed: bed,
+                            name: name,
+                            mrn: mrn,
+                            doctor: doctor,
+                            diagnosis: diagnosis,
+                            plan: plan,
+                            status: status,
+                            timestamp: Date.now(),
+                            labData: []
+                        };
+
+                        // Validate
+                        const validation = validatePatient(patient);
+                        if (!validation.isValid) {
+                            errors.push(`${name}: ${validation.errors.join(', ')}`);
+                            skipped++;
+                            continue;
+                        }
+
+                        // Check for duplicates
+                        const isDuplicate = existingPatients.some(p =>
+                            p.ward === patient.ward &&
+                            p.name.toLowerCase() === patient.name.toLowerCase()
+                        );
+
+                        if (isDuplicate) {
+                            errors.push(`${name} in ${ward}: Duplicate patient`);
+                            skipped++;
+                            continue;
+                        }
+
+                        // Save to Google Drive
+                        await API.savePatient(patient);
+                        imported++;
+
+                    } catch (err) {
+                        console.error('[Import] Row error:', err);
+                        errors.push(`Row error: ${err.message}`);
+                        skipped++;
+                    }
+                }
+
+                // Show results
+                let message = `Import complete!\n\n✓ Imported: ${imported} patients`;
+                if (skipped > 0) {
+                    message += `\n⚠ Skipped: ${skipped} patients`;
+                }
+                if (errors.length > 0 && errors.length <= 10) {
+                    message += '\n\nErrors:\n' + errors.join('\n');
+                } else if (errors.length > 10) {
+                    message += '\n\nErrors: ' + errors.length + ' (check console for details)';
+                    console.log('[Import] Errors:', errors);
+                }
+
+                alert(message);
+
+                // Trigger reload
+                if (imported > 0) {
+                    onImportComplete();
+                }
+
+                logAuditEvent('import_excel', { imported, skipped, errors: errors.length });
+
+            } catch (err) {
+                console.error('[Import] Parse error:', err);
+                alert('Error parsing Excel file: ' + err.message);
+            }
+        };
+
+        reader.onerror = (err) => {
+            console.error('[Import] File read error:', err);
+            alert('Error reading file: ' + err.message);
+        };
+
+        reader.readAsArrayBuffer(file);
+
+    } catch (err) {
+        console.error('[Import] Error:', err);
+        alert('Import error: ' + err.message);
+    }
 };
 
 // Export to PDF (triggers print dialog)
@@ -5961,6 +6107,7 @@ const App = () => {
     const [confirmDialog, setConfirmDialog] = useState(null);
     const syncTimer = useRef(null);
     const searchRef = useRef(null);
+    const fileInputRef = useRef(null);
     
     // Use new hooks
     const isOnline = useOnlineStatus();
@@ -6211,6 +6358,50 @@ const App = () => {
             showToast("❌ Add failed");
         });
     };
+
+    // Handle Excel import
+    const handleFileImport = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // Check file type
+        const validTypes = [
+            'application/vnd.ms-excel',
+            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+            'application/vnd.oasis.opendocument.spreadsheet'
+        ];
+
+        if (!validTypes.includes(file.type) && !file.name.match(/\.(xlsx?|ods)$/i)) {
+            alert('Please select a valid Excel file (.xlsx, .xls, or .ods)');
+            e.target.value = '';
+            return;
+        }
+
+        showToast('📤 Importing patients...');
+        setSyncing(true);
+
+        importFromExcel(file, patients, async () => {
+            // Reload patients after import
+            try {
+                const patientsData = await API.loadPatients();
+                const patientsArray = Object.keys(patientsData).map(k => ({
+                    id: k,
+                    ...patientsData[k],
+                    bed: cleanBed(patientsData[k].bed)
+                }));
+                setPatients(patientsArray);
+                showToast('✓ Import complete!');
+                pingSheets();
+            } catch (err) {
+                console.error('[Import] Reload failed:', err);
+                showToast('⚠ Import complete, but reload failed');
+            } finally {
+                setSyncing(false);
+                e.target.value = ''; // Reset file input
+            }
+        });
+    };
+
    // MODIFIED: Handle custom wards in sorting
     const groups = useMemo(() => { 
         const g = {}; 
@@ -6251,7 +6442,15 @@ const App = () => {
                 <div className="title"><div className="title-row"><h1>Unit E</h1><span className={`sync-badge ${syncing ? 'syncing' : 'idle'}`}>{syncing ? '⏳' : '✓'} {patients.length}</span></div></div>
                 <div className="actions">
                     <button className="btn btn-white" onClick={() => setAddModal(true)}>+ Add</button>
-                    <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 CSV</button>
+                    <input
+                        ref={fileInputRef}
+                        type="file"
+                        accept=".xlsx,.xls,.ods"
+                        onChange={handleFileImport}
+                        style={{ display: 'none' }}
+                    />
+                    <button className="btn btn-white" onClick={() => fileInputRef.current?.click()} title="Import patients from Excel">📤 Import</button>
+                    <button className="btn btn-white" onClick={() => exportToCSV(patients)} title="Export to CSV (Ctrl+E)">📥 Export</button>
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
                     <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
