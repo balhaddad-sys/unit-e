@@ -2933,6 +2933,10 @@ const ShortcutsModal = ({ onClose }) => {
                     <span className="shortcut-key">Ctrl + E</span>
                 </div>
                 <div className="shortcut-row">
+                    <span>Import from sheet</span>
+                    <span className="shortcut-key">Ctrl + I</span>
+                </div>
+                <div className="shortcut-row">
                     <span>Print / Export PDF</span>
                     <span className="shortcut-key">Ctrl + P</span>
                 </div>
@@ -2974,7 +2978,13 @@ const useKeyboardShortcuts = (handlers) => {
                 e.preventDefault();
                 handlers.onExportCSV?.();
             }
-            
+
+            // Ctrl/Cmd + I - Import from sheet
+            if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
+                e.preventDefault();
+                handlers.onImportFromSheet?.();
+            }
+
             // Escape - Close modals
             if (e.key === 'Escape') {
                 handlers.onEscape?.();
@@ -5984,13 +5994,40 @@ const App = () => {
             setTimeout(() => setSyncing(false), 1000);
         }, 500);
     }, []);
-    
+
+    // Import from sheet handler
+    const handleImportFromSheet = useCallback(async () => {
+        setSyncing(true);
+        showToast("⬇️ Importing from sheet...");
+        try {
+            const result = await API.refreshFromSheet();
+            if (result.success) {
+                // Reload patients after import
+                const patientsData = await API.loadPatients();
+                const patientsArray = Object.keys(patientsData).map(k => ({
+                    id: k,
+                    ...patientsData[k],
+                    bed: cleanBed(patientsData[k].bed)
+                }));
+                setPatients(patientsArray);
+                showToast(`✓ Imported ${result.syncResult?.count || 0} patients from sheet!`);
+            } else {
+                showToast("❌ Import failed: " + (result.error || 'Unknown error'));
+            }
+        } catch (e) {
+            console.error('[Import] Failed:', e);
+            showToast("❌ Import failed: " + e.message);
+        }
+        setTimeout(() => setSyncing(false), 1000);
+    }, []);
+
     // Keyboard shortcuts
     useKeyboardShortcuts({
         onShowShortcuts: () => setShowShortcuts(true),
         onAddPatient: () => setAddModal(true),
         onFocusSearch: () => searchRef.current?.focus(),
         onExportCSV: () => exportToCSV(patients),
+        onImportFromSheet: handleImportFromSheet,
         onEscape: () => {
             if (showShortcuts) setShowShortcuts(false);
             else if (confirmDialog) setConfirmDialog(null);
@@ -6280,13 +6317,14 @@ const App = () => {
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
                     <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
-                    <button className="btn btn-blue" onClick={async () => { 
-                        setSyncing(true); 
-                        showToast("🔄 Syncing sheet..."); 
-                        await syncDriveToSheets(); 
-                        showToast("✓ Sheet synced!"); 
-                        setTimeout(() => setSyncing(false), 1000); 
-                    }}>🔄</button>
+                    <button className="btn btn-blue" onClick={handleImportFromSheet} title="Import patients from Google Sheet (Ctrl+I)">⬇️ Import</button>
+                    <button className="btn btn-blue" onClick={async () => {
+                        setSyncing(true);
+                        showToast("🔄 Syncing to sheet...");
+                        await syncDriveToSheets();
+                        showToast("✓ Sheet synced!");
+                        setTimeout(() => setSyncing(false), 1000);
+                    }} title="Sync app data to Google Sheet">🔄 Sync</button>
                 </div>
             </div>
             <NoticeBanner notice={notice} onSave={saveNotice} />
