@@ -478,6 +478,36 @@ const API = {
             console.error('[Save Audit Log] Failed:', error);
             throw error;
         }
+    },
+
+    // Sync FROM Google Drive TO Google Sheets (automatic after app changes)
+    syncDriveToSheets: async () => {
+        try {
+            const result = await API._fetch({
+                action: 'syncDriveToSheets'
+            });
+            if (!result.success) throw new Error(result.error);
+            console.log('[Sync] Drive → Sheets:', result.count, 'patients');
+            return result;
+        } catch (error) {
+            console.error('[Sync Drive→Sheets] Failed:', error);
+            throw error;
+        }
+    },
+
+    // Sync FROM Google Sheets TO Google Drive (automatic polling)
+    syncSheetsToDrive: async () => {
+        try {
+            const result = await API._fetch({
+                action: 'syncSheetsToDrive'
+            });
+            if (!result.success) throw new Error(result.error);
+            console.log('[Sync] Sheets → Drive:', result.imported, 'new,', result.updated, 'updated');
+            return result;
+        } catch (error) {
+            console.error('[Sync Sheets→Drive] Failed:', error);
+            throw error;
+        }
     }
 };
 
