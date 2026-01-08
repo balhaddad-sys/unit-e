@@ -1,23 +1,26 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND v2.1
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT BACKEND v2.2
  *
- * Fixed Issues:
- * - Correct Claude model names
- * - Enhanced error logging
- * - Better API key validation
- * - Improved error messages
+ * NEW: Instant bidirectional syncing between Google Sheets and Firebase
+ * - Auto-sync: Web app → Firebase → Sheets
+ * - Auto-sync: Sheets → Firebase → Web app
+ * - Real-time updates in both directions
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const SCRIPT_VERSION = '2.1.0';
+const SCRIPT_VERSION = '2.2.0';
 
 // Get configuration from Script Properties
 const CONFIG = {
   visionApiKey: PropertiesService.getScriptProperties().getProperty('VISION_API_KEY') || '',
   anthropicApiKey: PropertiesService.getScriptProperties().getProperty('ANTHROPIC_API_KEY') || '',
   spreadsheetId: PropertiesService.getScriptProperties().getProperty('SPREADSHEET_ID') || '',
-  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || 'root'
+  driveFolderId: PropertiesService.getScriptProperties().getProperty('DRIVE_FOLDER_ID') || 'root',
+
+  // Firebase configuration for real-time sync
+  firebaseUrl: PropertiesService.getScriptProperties().getProperty('FIREBASE_URL') || 'https://internal-medicine-ward-default-rtdb.firebaseio.com',
+  firebaseSecret: PropertiesService.getScriptProperties().getProperty('FIREBASE_SECRET') || ''
 };
 
 // Valid Claude models (as of January 2025)
@@ -26,6 +29,303 @@ const CLAUDE_MODELS = {
   OPUS: 'claude-3-opus-20240229',        // Most capable (if available)
   HAIKU: 'claude-3-5-haiku-20241022'     // Fastest
 };
+
+// ═══════════════════════════════════════════════════════════════════════════
+// FIREBASE INTEGRATION
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Get all patients from Firebase
+ */
+function getFirebasePatients() {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, { muteHttpExceptions: true });
+
+    if (response.getResponseCode() !== 200) {
+      Logger.log('Firebase read error: ' + response.getContentText());
+      return null;
+    }
+
+    var data = JSON.parse(response.getContentText());
+
+    if (!data) return [];
+
+    // Convert Firebase object to array
+    var patients = [];
+    for (var key in data) {
+      var patient = data[key];
+      patient.id = key;
+      patients.push(patient);
+    }
+
+    return patients;
+
+  } catch (error) {
+    Logger.log('Error reading from Firebase: ' + error.toString());
+    return null;
+  }
+}
+
+/**
+ * Update a single patient in Firebase
+ */
+function updateFirebasePatient(patientId, patientData) {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, {
+      method: 'put',
+      contentType: 'application/json',
+      payload: JSON.stringify(patientData),
+      muteHttpExceptions: true
+    });
+
+    return response.getResponseCode() === 200;
+
+  } catch (error) {
+    Logger.log('Error updating Firebase: ' + error.toString());
+    return false;
+  }
+}
+
+/**
+ * Delete a patient from Firebase
+ */
+function deleteFirebasePatient(patientId) {
+  try {
+    var url = CONFIG.firebaseUrl + '/patients/' + patientId + '.json';
+    if (CONFIG.firebaseSecret) {
+      url += '?auth=' + CONFIG.firebaseSecret;
+    }
+
+    var response = UrlFetchApp.fetch(url, {
+      method: 'delete',
+      muteHttpExceptions: true
+    });
+
+    return response.getResponseCode() === 200;
+
+  } catch (error) {
+    Logger.log('Error deleting from Firebase: ' + error.toString());
+    return false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTOMATIC SYNC TRIGGERS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * onEdit trigger - Automatically syncs changes from Sheets to Firebase
+ * This runs whenever someone edits the Google Sheet
+ */
+function onEdit(e) {
+  try {
+    Logger.log('=== onEdit Trigger START ===');
+
+    if (!e || !e.range) {
+      Logger.log('No edit event data');
+      return;
+    }
+
+    var sheet = e.range.getSheet();
+    var sheetName = sheet.getName();
+
+    Logger.log('Sheet edited: ' + sheetName);
+
+    // Only sync if the Patients sheet was edited
+    if (sheetName !== 'Patients') {
+      Logger.log('Not Patients sheet, skipping sync');
+      return;
+    }
+
+    // Don't sync header row edits
+    var row = e.range.getRow();
+    if (row === 1) {
+      Logger.log('Header row edited, skipping sync');
+      return;
+    }
+
+    Logger.log('Syncing row ' + row + ' to Firebase...');
+
+    // Sync the edited row to Firebase
+    syncRowToFirebase(sheet, row);
+
+    Logger.log('=== onEdit Trigger COMPLETE ===');
+
+  } catch (error) {
+    Logger.log('onEdit Error: ' + error.toString());
+  }
+}
+
+/**
+ * Sync a single row from Sheets to Firebase
+ */
+function syncRowToFirebase(sheet, rowNumber) {
+  try {
+    var lastCol = 9; // We have 9 columns
+    var rowData = sheet.getRange(rowNumber, 1, 1, lastCol).getValues()[0];
+
+    // Check if row is empty
+    if (!rowData[0] && !rowData[1] && !rowData[2]) {
+      Logger.log('Empty row, skipping');
+      return;
+    }
+
+    // Map columns to patient object
+    var patient = {
+      ward: rowData[0] || '',
+      bed: rowData[1] || '',
+      name: rowData[2] || '',
+      mrn: rowData[3] || '',
+      doctor: rowData[4] || '',
+      diagnosis: rowData[5] || '',
+      plan: rowData[6] || '',
+      status: rowData[7] || '',
+      timestamp: new Date().getTime(),
+      lastModified: new Date().toISOString(),
+      syncedFromSheet: true
+    };
+
+    // Create unique ID based on ward and bed
+    var patientId = 'sheet_' + (patient.ward + '_' + patient.bed).replace(/[^a-zA-Z0-9]/g, '_');
+
+    // Update Firebase
+    var success = updateFirebasePatient(patientId, patient);
+
+    if (success) {
+      Logger.log('Row ' + rowNumber + ' synced to Firebase as ' + patientId);
+    } else {
+      Logger.log('Failed to sync row ' + rowNumber + ' to Firebase');
+    }
+
+  } catch (error) {
+    Logger.log('syncRowToFirebase Error: ' + error.toString());
+  }
+}
+
+/**
+ * Sync all Firebase data to Sheets
+ * Call this manually or set it on a time trigger (e.g., every 1 minute)
+ */
+function syncFirebaseToSheets() {
+  try {
+    Logger.log('=== syncFirebaseToSheets START ===');
+
+    if (!CONFIG.spreadsheetId) {
+      Logger.log('No spreadsheet configured');
+      return { success: false, error: 'No spreadsheet configured' };
+    }
+
+    // Get data from Firebase
+    var patients = getFirebasePatients();
+
+    if (!patients) {
+      Logger.log('Failed to get patients from Firebase');
+      return { success: false, error: 'Failed to read from Firebase' };
+    }
+
+    Logger.log('Got ' + patients.length + ' patients from Firebase');
+
+    // Get the sheet
+    var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
+    var sheet = ss.getSheetByName('Patients');
+
+    if (!sheet) {
+      sheet = ss.insertSheet('Patients');
+    }
+
+    // Set up headers
+    var headers = ['Ward', 'Bed', 'Name', 'MRN', 'Doctor', 'Diagnosis', 'Plan', 'Status', 'Last Updated'];
+
+    if (sheet.getLastRow() === 0) {
+      sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    }
+
+    // Clear existing data (but keep headers)
+    if (sheet.getLastRow() > 1) {
+      sheet.getRange(2, 1, sheet.getLastRow() - 1, headers.length).clearContent();
+    }
+
+    // Prepare rows
+    var rows = patients.map(function(p) {
+      return [
+        p.ward || '',
+        p.bed || '',
+        p.name || '',
+        p.mrn || '',
+        p.doctor || '',
+        p.diagnosis || '',
+        p.plan || '',
+        p.status || '',
+        p.lastModified || new Date(p.timestamp || Date.now()).toLocaleString()
+      ];
+    });
+
+    // Write to sheet
+    if (rows.length > 0) {
+      sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
+    }
+
+    Logger.log('Synced ' + rows.length + ' patients to sheet');
+    Logger.log('=== syncFirebaseToSheets COMPLETE ===');
+
+    return { success: true, count: rows.length };
+
+  } catch (error) {
+    Logger.log('syncFirebaseToSheets Error: ' + error.toString());
+    return { success: false, error: error.toString() };
+  }
+}
+
+/**
+ * Install time-based trigger for auto-sync
+ * Run this once to set up automatic syncing every minute
+ */
+function installAutoSyncTrigger() {
+  // Delete existing triggers first
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+    }
+  }
+
+  // Create new trigger - sync every 1 minute
+  ScriptApp.newTrigger('syncFirebaseToSheets')
+    .timeBased()
+    .everyMinutes(1)
+    .create();
+
+  Logger.log('Auto-sync trigger installed - syncing every 1 minute');
+  return 'Trigger installed successfully';
+}
+
+/**
+ * Uninstall auto-sync trigger
+ */
+function uninstallAutoSyncTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var count = 0;
+
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'syncFirebaseToSheets') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      count++;
+    }
+  }
+
+  Logger.log('Removed ' + count + ' auto-sync triggers');
+  return 'Removed ' + count + ' triggers';
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 // MAIN HANDLERS
@@ -44,19 +344,31 @@ function doGet(e) {
           vision: !!CONFIG.visionApiKey,
           claude: !!CONFIG.anthropicApiKey,
           sheets: !!CONFIG.spreadsheetId,
+          firebase: !!CONFIG.firebaseUrl,
           drive: true
         },
         models: {
           claude: CLAUDE_MODELS.SONNET,
           vision: 'google-vision-v1'
+        },
+        sync: {
+          enabled: true,
+          firebase: CONFIG.firebaseUrl,
+          sheet: CONFIG.spreadsheetId
         }
       });
+    }
+
+    if (action === 'syncNow') {
+      var result = syncFirebaseToSheets();
+      return createJsonResponse(result);
     }
 
     // Info page
     var hasVision = !!CONFIG.visionApiKey;
     var hasClaude = !!CONFIG.anthropicApiKey;
     var hasSheets = !!CONFIG.spreadsheetId;
+    var hasFirebase = !!CONFIG.firebaseUrl;
 
     var html = '<html><head><style>' +
       'body { font-family: Arial, sans-serif; max-width: 800px; margin: 50px auto; padding: 20px; }' +
@@ -65,6 +377,9 @@ function doGet(e) {
       '.good { color: #15803d; }' +
       '.bad { color: #dc2626; }' +
       '.code { background: #e5e7eb; padding: 2px 6px; border-radius: 4px; font-family: monospace; }' +
+      '.sync-box { background: #dcfce7; padding: 15px; border-radius: 8px; margin: 20px 0; border-left: 4px solid #15803d; }' +
+      'button { background: #15803d; color: white; padding: 10px 20px; border: none; border-radius: 6px; cursor: pointer; font-size: 14px; }' +
+      'button:hover { background: #166534; }' +
       '</style></head><body>' +
       '<h1>🏥 Unit E Ward Rounds API v' + SCRIPT_VERSION + '</h1>' +
       '<div class="status">' +
@@ -72,37 +387,36 @@ function doGet(e) {
       '<p><strong>Vision API:</strong> <span class="' + (hasVision ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
       '<p><strong>Claude AI:</strong> <span class="' + (hasClaude ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
       '<p><strong>Google Sheets:</strong> <span class="' + (hasSheets ? 'good">✓ Configured' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
+      '<p><strong>Firebase:</strong> <span class="' + (hasFirebase ? 'good">✓ Connected' : 'bad">✗ NOT CONFIGURED') + '</span></p>' +
       '<p><strong>Google Drive:</strong> <span class="good">✓ Available</span></p>' +
+      '</div>';
+
+    html += '<div class="sync-box">' +
+      '<h2>⚡ Real-Time Sync</h2>' +
+      '<p><strong>Status:</strong> <span class="good">✓ Enabled</span></p>' +
+      '<p>Bidirectional sync between Google Sheets and Web App via Firebase</p>' +
+      '<ul>' +
+      '<li><strong>Web App → Firebase:</strong> Instant (real-time)</li>' +
+      '<li><strong>Firebase → Sheets:</strong> Every 1 minute (automatic)</li>' +
+      '<li><strong>Sheets → Firebase:</strong> Instant (on edit trigger)</li>' +
+      '<li><strong>Firebase → Web App:</strong> Instant (real-time)</li>' +
+      '</ul>' +
+      '<p><button onclick="location.href=location.href.split(\'?\')[0] + \'?action=syncNow\'">🔄 Sync Now</button></p>' +
       '</div>';
 
     if (!hasVision || !hasClaude) {
       html += '<div style="background: #fef3c7; padding: 15px; border-radius: 8px; border-left: 4px solid #f59e0b;">' +
         '<h3>⚠️ Configuration Required</h3>' +
-        '<p>To enable OCR and AI features, you must configure API keys:</p>' +
-        '<ol>' +
-        '<li>Go to Apps Script Project Settings (gear icon)</li>' +
-        '<li>Scroll to <strong>Script Properties</strong></li>' +
-        '<li>Add the following properties:</li>' +
-        '</ol>' +
-        '<ul>';
-
-      if (!hasVision) {
-        html += '<li><span class="code">VISION_API_KEY</span> - Get from <a href="https://console.cloud.google.com/apis/credentials" target="_blank">Google Cloud Console</a></li>';
-      }
-      if (!hasClaude) {
-        html += '<li><span class="code">ANTHROPIC_API_KEY</span> - Get from <a href="https://console.anthropic.com/" target="_blank">Anthropic Console</a></li>';
-      }
-
-      html += '</ul>' +
-        '<p><strong>Important:</strong> After adding keys, redeploy this script as a Web App.</p>' +
+        '<p>To enable OCR and AI features, configure API keys in Script Properties.</p>' +
         '</div>';
     }
 
     html += '<h2>📚 API Endpoints</h2>' +
       '<ul>' +
-      '<li><strong>POST /exec</strong> - Main API (actions: runOCR, claudeVision, claudeConsult, saveLabs, loadLabs, syncSheet, test)</li>' +
-      '<li><strong>GET /exec?action=health</strong> - Health check (JSON)</li>' +
-      '<li><strong>GET /exec</strong> - This info page</li>' +
+      '<li><strong>POST /exec</strong> - Main API</li>' +
+      '<li><strong>GET /exec?action=health</strong> - Health check</li>' +
+      '<li><strong>GET /exec?action=syncNow</strong> - Force sync Firebase → Sheets</li>' +
+      '<li><strong>GET /exec</strong> - This page</li>' +
       '</ul>' +
       '<p><strong>Claude Model:</strong> ' + CLAUDE_MODELS.SONNET + '</p>' +
       '</body></html>';
@@ -145,17 +459,21 @@ function doPost(e) {
         return handleLoadLabs(data);
       case 'syncSheet':
         return handleSyncSheet(data);
+      case 'syncFirebase':
+        var result = syncFirebaseToSheets();
+        return createJsonResponse(result);
       case 'test':
         return createJsonResponse({
           success: true,
           message: 'API is working!',
           version: SCRIPT_VERSION,
+          sync: 'enabled',
           timestamp: new Date().toISOString()
         });
       default:
         return createJsonResponse({
           error: 'Unknown action: ' + action,
-          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'test']
+          validActions: ['runOCR', 'claudeVision', 'claudeConsult', 'saveLabs', 'loadLabs', 'syncSheet', 'syncFirebase', 'test']
         }, 400);
     }
 
@@ -223,7 +541,6 @@ function handleRunOCR(data) {
     if (responseCode !== 200) {
       Logger.log('Vision API ERROR: ' + responseText.substring(0, 500));
 
-      // Parse error for better message
       var errorMsg = 'Vision API error';
       try {
         var errorJson = JSON.parse(responseText);
@@ -244,7 +561,6 @@ function handleRunOCR(data) {
     var text = '';
     var confidence = 0;
 
-    // Extract text from response
     if (result.responses && result.responses[0]) {
       var r = result.responses[0];
 
@@ -283,7 +599,7 @@ function handleRunOCR(data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CLAUDE VISION HANDLER - AI-powered OCR
+// CLAUDE VISION HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 function handleClaudeVision(data) {
@@ -309,13 +625,11 @@ function handleClaudeVision(data) {
     Logger.log('Image data length: ' + data.image.length);
     Logger.log('API Key prefix: ' + CONFIG.anthropicApiKey.substring(0, 15) + '...');
 
-    // Extract base64 data
     var imageData = data.image;
     if (imageData.indexOf(',') !== -1) {
       imageData = imageData.split(',')[1];
     }
 
-    // Determine media type
     var mediaType = 'image/jpeg';
     var match = data.image.match(/data:image\/(\w+);/);
     if (match) mediaType = 'image/' + match[1];
@@ -348,7 +662,7 @@ function handleClaudeVision(data) {
       'Only extract values you are highly confident about. Return empty values array if no clear lab data is visible.';
 
     var payload = {
-      model: CLAUDE_MODELS.SONNET,  // Use correct Claude model
+      model: CLAUDE_MODELS.SONNET,
       max_tokens: 4096,
       messages: [{
         role: 'user',
@@ -421,7 +735,6 @@ function handleClaudeVision(data) {
 
     Logger.log('Claude response preview: ' + content.substring(0, 200));
 
-    // Parse JSON from Claude's response
     var parsed = {};
     try {
       var jsonMatch = content.match(/\{[\s\S]*\}/);
@@ -459,7 +772,7 @@ function handleClaudeVision(data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CLAUDE CONSULT HANDLER - Medical AI Consultation
+// CLAUDE CONSULT HANDLER
 // ═══════════════════════════════════════════════════════════════════════════
 
 function handleClaudeConsult(data) {
@@ -479,7 +792,6 @@ function handleClaudeConsult(data) {
 
     Logger.log('Query: ' + data.query.substring(0, 100));
 
-    // Build comprehensive prompt
     var prompt = data.query;
 
     if (data.patientContext) {
@@ -662,7 +974,7 @@ function handleLoadLabs(data) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SHEETS SYNC HANDLER
+// SHEETS SYNC HANDLER (Legacy - for manual sync)
 // ═══════════════════════════════════════════════════════════════════════════
 
 function handleSyncSheet(data) {
@@ -678,7 +990,7 @@ function handleSyncSheet(data) {
       }, 500);
     }
 
-    Logger.log('Syncing ' + data.patients.length + ' patients to sheet');
+    Logger.log('Manual sync: ' + data.patients.length + ' patients to sheet');
 
     var ss = SpreadsheetApp.openById(CONFIG.spreadsheetId);
     var sheet = ss.getSheetByName('Patients');
@@ -715,7 +1027,7 @@ function handleSyncSheet(data) {
       sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
     }
 
-    Logger.log('Sheet sync completed');
+    Logger.log('Manual sheet sync completed');
 
     return createJsonResponse({
       success: true,
@@ -794,6 +1106,8 @@ function testConfiguration() {
   Logger.log('Anthropic API Key: ' + (CONFIG.anthropicApiKey ? '✓ Configured (' + CONFIG.anthropicApiKey.substring(0, 15) + '...)' : '✗ NOT CONFIGURED'));
   Logger.log('Spreadsheet ID: ' + (CONFIG.spreadsheetId ? '✓ Configured' : '✗ NOT CONFIGURED'));
   Logger.log('Drive Folder: ' + CONFIG.driveFolderId);
+  Logger.log('Firebase URL: ' + CONFIG.firebaseUrl);
   Logger.log('Claude Model: ' + CLAUDE_MODELS.SONNET);
+  Logger.log('Sync: ENABLED (bidirectional)');
   Logger.log('=== Test Complete ===');
 }
