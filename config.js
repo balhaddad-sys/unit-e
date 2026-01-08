@@ -5,7 +5,7 @@
 
 const CONFIG = {
     // Google Apps Script API URL - UPDATE THIS AFTER DEPLOYING NEW SCRIPT
-    apiUrl: 'YOUR_NEW_DEPLOYMENT_URL_HERE',
+    apiUrl: 'https://script.google.com/macros/s/AKfycbyNa3AOc6EMOEgAi9hDM3ktNMhN_Z-s9qkWT1wxTCznVeBul_qNUkqyBEUTa3aSD1Ca/exec',
     
     // Google Drive Folder ID for data storage
     driveFolderId: '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
