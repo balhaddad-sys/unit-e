@@ -64,12 +64,12 @@ The Google Apps Script backend has been completely rewritten to fix the sync iss
 4. Replace `YOUR_DEPLOYMENT_URL_HERE` with your actual deployment URL
 5. Save the file
 
-**Current Status**: The config.js has been pre-configured with the existing deployment URL:
+**Current Status**: The config.js has been configured with your web app deployment URL:
 ```
-https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec
+https://script.google.com/macros/s/AKfycbyNa3AOc6EMOEgAi9hDM3ktNMhN_Z-s9qkWT1wxTCznVeBul_qNUkqyBEUTa3aSD1Ca/exec
 ```
 
-If you create a new deployment, you MUST update this URL, or patients will not load in the app.
+✅ This URL is already set in config.js - no frontend changes needed!
 
 ### 5. Test the Sync
 
