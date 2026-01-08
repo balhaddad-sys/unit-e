@@ -2686,10 +2686,16 @@ class ErrorBoundary extends React.Component {
     
     componentDidCatch(error, errorInfo) {
         console.error('Error caught by boundary:', error, errorInfo);
-        logAuditEvent('error', { 
-            message: error.message, 
+        // Hide loader if there's an error
+        const loader = document.getElementById('loader');
+        if (loader) {
+            loader.classList.add('hidden');
+            setTimeout(() => { loader.style.display = 'none'; }, 300);
+        }
+        logAuditEvent('error', {
+            message: error.message,
             stack: error.stack,
-            componentStack: errorInfo.componentStack 
+            componentStack: errorInfo.componentStack
         });
     }
     
@@ -6008,9 +6014,6 @@ const App = () => {
             console.log('[Init] Initial sheet sync triggered');
         }, 2000);
 
-        // Hide loader after app loads
-        setTimeout(hideLoader, 1000);
-
         // Poll for updates every 30 seconds
         const pollInterval = setInterval(() => {
             loadPatientsData();
@@ -6329,17 +6332,24 @@ const App = () => {
 // ============ MAIN RENDER WITH PROVIDERS ============
 const MainApp = () => {
     const { user, loading } = useAuth();
-    
+
+    // Hide loader as soon as MainApp mounts (regardless of auth state)
+    useEffect(() => {
+        // Give React a moment to render, then hide the loader
+        const timer = setTimeout(hideLoader, 500);
+        return () => clearTimeout(timer);
+    }, []);
+
     // Show login screen if auth is enabled and user is not logged in
     if (AUTH_ENABLED && !loading && !user) {
         return <LoginScreen />;
     }
-    
+
     // Show loading while checking auth
     if (AUTH_ENABLED && loading) {
         return null; // Loader will show from body
     }
-    
+
     return <App />;
 };
 
@@ -6352,6 +6362,15 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </ToastProvider>
     </ErrorBoundary>
 );
+
+// Fallback: Force hide loader after 3 seconds maximum (in case React fails to initialize)
+setTimeout(() => {
+    const loader = document.getElementById('loader');
+    if (loader && !loader.classList.contains('hidden')) {
+        console.warn('[Init] Forcing loader hide - React may have failed to initialize');
+        hideLoader();
+    }
+}, 3000);
 </script>
 
 <!-- Neural Expansion System - Visual Indicator -->
