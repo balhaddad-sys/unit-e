@@ -218,7 +218,7 @@ const SheetSync = {
 
       return {
         success: true,
-        count: count,
+        imported: count,
         saved: Object.keys(verification).length,
         timestamp: new Date().toISOString()
       };
