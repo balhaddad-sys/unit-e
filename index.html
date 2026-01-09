@@ -2931,10 +2931,6 @@ const ShortcutsModal = ({ onClose }) => {
                     <span className="shortcut-key">Ctrl + E</span>
                 </div>
                 <div className="shortcut-row">
-                    <span>Import from sheet</span>
-                    <span className="shortcut-key">Ctrl + I</span>
-                </div>
-                <div className="shortcut-row">
                     <span>Print / Export PDF</span>
                     <span className="shortcut-key">Ctrl + P</span>
                 </div>
@@ -2975,12 +2971,6 @@ const useKeyboardShortcuts = (handlers) => {
             if ((e.ctrlKey || e.metaKey) && e.key === 'e') {
                 e.preventDefault();
                 handlers.onExportCSV?.();
-            }
-
-            // Ctrl/Cmd + I - Import from sheet
-            if ((e.ctrlKey || e.metaKey) && e.key === 'i') {
-                e.preventDefault();
-                handlers.onImportFromSheet?.();
             }
 
             // Escape - Close modals
@@ -6025,7 +6015,6 @@ const App = () => {
         onAddPatient: () => setAddModal(true),
         onFocusSearch: () => searchRef.current?.focus(),
         onExportCSV: () => exportToCSV(patients),
-        onImportFromSheet: handleImportFromSheet,
         onEscape: () => {
             if (showShortcuts) setShowShortcuts(false);
             else if (confirmDialog) setConfirmDialog(null);
@@ -6063,7 +6052,7 @@ const App = () => {
             console.log('[Init] Initial Drive → Sheets sync triggered');
         }, 2000);
 
-        // Bidirectional sync every 15 seconds
+        // Periodic check for manual edits in Google Sheets every 15 seconds
         const syncInterval = setInterval(async () => {
             // 1. Sync Sheets → Drive (pick up manual edits in Sheets)
             const needsReload = await syncSheetsToDrive();
@@ -6074,10 +6063,7 @@ const App = () => {
                 await loadPatientsData();
             }
 
-            // 3. Sync Drive → Sheets (update Sheets with any app changes)
-            await syncDriveToSheets();
-
-            // 4. Also reload notice
+            // 3. Also reload notice
             API.loadNotice()
                 .then(notice => setNotice(notice))
                 .catch(e => console.error('[Poll Notice] Failed:', e));
@@ -6315,14 +6301,6 @@ const App = () => {
                     <button className="btn btn-white" onClick={exportToPDF} title="Print / Export PDF (Ctrl+P)">🖨 PDF</button>
                     <button className="btn btn-white" onClick={() => setShowShortcuts(true)} title="Keyboard Shortcuts (Ctrl+?)">⌨️</button>
                     <button className="btn btn-green" onClick={() => window.open(SHEET_URL, '_blank')}>📊</button>
-                    <button className="btn btn-blue" onClick={handleImportFromSheet} title="Import patients from Google Sheet (Ctrl+I)">⬇️ Import</button>
-                    <button className="btn btn-blue" onClick={async () => {
-                        setSyncing(true);
-                        showToast("🔄 Syncing to sheet...");
-                        await syncDriveToSheets();
-                        showToast("✓ Sheet synced!");
-                        setTimeout(() => setSyncing(false), 1000);
-                    }} title="Sync app data to Google Sheet">🔄 Sync</button>
                 </div>
             </div>
             <NoticeBanner notice={notice} onSave={saveNotice} />
