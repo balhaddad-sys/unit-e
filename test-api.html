@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Unit E API Test</title>
+    <style>
+        body { font-family: monospace; padding: 20px; background: #1e1e1e; color: #d4d4d4; }
+        button { padding: 10px 20px; margin: 5px; font-size: 14px; cursor: pointer; }
+        .success { color: #4ec9b0; }
+        .error { color: #f48771; }
+        .info { color: #ce9178; }
+        pre { background: #252526; padding: 10px; border-radius: 4px; overflow-x: auto; }
+        #output { margin-top: 20px; }
+    </style>
+</head>
+<body>
+    <h1>Unit E Apps Script API Tester</h1>
+
+    <div>
+        <button onclick="testHealth()">Test Health Check</button>
+        <button onclick="testLoadPatients()">Test Load Patients</button>
+        <button onclick="testPullFromSheet()">Test Pull From Sheet</button>
+        <button onclick="testRefreshFromSheet()">Test Refresh From Sheet</button>
+        <button onclick="clearOutput()">Clear Output</button>
+    </div>
+
+    <div id="output"></div>
+
+    <script>
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyNa3AOc6EMOEgAi9hDM3ktNMhN_Z-s9qkWT1wxTCznVeBul_qNUkqyBEUTa3aSD1Ca/exec';
+        const output = document.getElementById('output');
+
+        function log(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = type;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            output.appendChild(div);
+        }
+
+        function logJson(obj) {
+            const pre = document.createElement('pre');
+            pre.textContent = JSON.stringify(obj, null, 2);
+            output.appendChild(pre);
+        }
+
+        function clearOutput() {
+            output.innerHTML = '';
+        }
+
+        async function testAPI(action, additionalData = {}) {
+            log(`Testing: ${action}`, 'info');
+
+            try {
+                const payload = { action, ...additionalData };
+                log(`Sending: ${JSON.stringify(payload)}`, 'info');
+
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 60000);
+
+                const response = await fetch(API_URL, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload),
+                    signal: controller.signal
+                });
+
+                clearTimeout(timeoutId);
+
+                log(`Status: ${response.status} ${response.statusText}`, response.ok ? 'success' : 'error');
+
+                const text = await response.text();
+                log(`Response length: ${text.length} bytes`, 'info');
+
+                try {
+                    const json = JSON.parse(text);
+                    log('✓ Valid JSON response', 'success');
+                    logJson(json);
+                    return json;
+                } catch (e) {
+                    log('✗ Invalid JSON response', 'error');
+                    log(`Raw response: ${text.substring(0, 500)}`, 'error');
+                }
+
+            } catch (error) {
+                log(`✗ Error: ${error.name} - ${error.message}`, 'error');
+                if (error.name === 'AbortError') {
+                    log('Request timed out after 60 seconds', 'error');
+                } else if (error.message.includes('Failed to fetch')) {
+                    log('NETWORK ERROR - Possible causes:', 'error');
+                    log('1. Apps Script not deployed as Web App', 'error');
+                    log('2. Deployment access set to wrong permissions', 'error');
+                    log('3. CORS issue (unlikely with Apps Script)', 'error');
+                    log('4. Browser blocking the request', 'error');
+                }
+            }
+        }
+
+        async function testHealth() {
+            await testAPI('health');
+        }
+
+        async function testLoadPatients() {
+            await testAPI('loadPatients');
+        }
+
+        async function testPullFromSheet() {
+            await testAPI('pullFromSheet');
+        }
+
+        async function testRefreshFromSheet() {
+            await testAPI('refreshFromSheet');
+        }
+
+        // Auto-run health check on load
+        window.onload = () => {
+            log('API Tester loaded. API URL:', 'info');
+            log(API_URL, 'info');
+            log('Click a button to test the endpoint.', 'info');
+        };
+    </script>
+</body>
+</html>
