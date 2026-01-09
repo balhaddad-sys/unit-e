@@ -1,14 +1,15 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v3.2
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v3.6
  *
- * Matches YOUR sheet format exactly:
- * Row 5: Room/Ward | Patient name | Diagnosis | Assigned Doctor | Status
- * Ward headers (Ward 20, Ward 21, etc.) in column A
+ * FIXED: 
+ * - Response format matches frontend expectations
+ * - Bed numbers formatted as dates handled
+ * - Better error messages
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const SCRIPT_VERSION = '3.2.0';
+const SCRIPT_VERSION = '3.6.0';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -22,66 +23,42 @@ function getConfig() {
     spreadsheetId: props.getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
     driveFolderId: props.getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
     sheetName: props.getProperty('SHEET_NAME') || 'Unit e',
-    dataStartRow: 6  // Data starts at row 6 (after headers at row 5)
+    dataStartRow: 4
   };
 }
 
 const CLAUDE_MODEL = 'claude-sonnet-4-20250514';
 
 // ═══════════════════════════════════════════════════════════════════════════
-// DATA STORE - Google Drive Storage
+// DATA STORE
 // ═══════════════════════════════════════════════════════════════════════════
 
 const DataStore = {
-
   getAppFolder: function() {
     const config = getConfig();
-    let root;
-
-    if (config.driveFolderId === 'root') {
-      root = DriveApp.getRootFolder();
-    } else {
-      root = DriveApp.getFolderById(config.driveFolderId);
-    }
+    let root = config.driveFolderId === 'root' ? 
+      DriveApp.getRootFolder() : 
+      DriveApp.getFolderById(config.driveFolderId);
 
     const folderName = 'Unit E Ward Rounds Data';
     const folders = root.getFoldersByName(folderName);
-
-    if (folders.hasNext()) {
-      const folder = folders.next();
-      Logger.log('Using existing folder: ' + folder.getName() + ' (ID: ' + folder.getId() + ')');
-      return folder;
-    }
-
-    const newFolder = root.createFolder(folderName);
-    Logger.log('Created new folder: ' + newFolder.getName() + ' (ID: ' + newFolder.getId() + ')');
-    return newFolder;
+    return folders.hasNext() ? folders.next() : root.createFolder(folderName);
   },
 
   getFile: function(fileName, defaultData) {
     const folder = this.getAppFolder();
     const files = folder.getFilesByName(fileName);
-
-    if (files.hasNext()) {
-      const file = files.next();
-      Logger.log('Using existing file: ' + fileName + ' (ID: ' + file.getId() + ')');
-      return file;
-    }
-
-    const newFile = folder.createFile(fileName, JSON.stringify(defaultData || {}), MimeType.PLAIN_TEXT);
-    Logger.log('Created new file: ' + fileName + ' (ID: ' + newFile.getId() + ')');
-    return newFile;
+    if (files.hasNext()) return files.next();
+    return folder.createFile(fileName, JSON.stringify(defaultData || {}), MimeType.PLAIN_TEXT);
   },
 
   read: function(fileName, defaultData) {
     try {
       const file = this.getFile(fileName, defaultData);
       const content = file.getBlob().getDataAsString();
-      const parsed = content ? JSON.parse(content) : (defaultData || {});
-      Logger.log('Read from ' + fileName + ': ' + Object.keys(parsed).length + ' items');
-      return parsed;
+      return content ? JSON.parse(content) : (defaultData || {});
     } catch (e) {
-      Logger.log('Read error for ' + fileName + ': ' + e.toString());
+      Logger.log('DataStore.read error: ' + e.toString());
       return defaultData || {};
     }
   },
@@ -89,19 +66,73 @@ const DataStore = {
   write: function(fileName, data) {
     try {
       const file = this.getFile(fileName, {});
-      const content = JSON.stringify(data, null, 2);
-      file.setContent(content);
-      Logger.log('Wrote to ' + fileName + ': ' + content.length + ' bytes, ' + Object.keys(data).length + ' items');
+      file.setContent(JSON.stringify(data, null, 2));
       return true;
     } catch (e) {
-      Logger.log('Write error for ' + fileName + ': ' + e.toString());
+      Logger.log('DataStore.write error: ' + e.toString());
       return false;
     }
   }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// SHEET SYNC - Reads YOUR exact format
+// HELPER FUNCTIONS
+// ═══════════════════════════════════════════════════════════════════════════
+
+/**
+ * Convert cell value to string
+ * Handles dates that might be bed numbers (like "11-1" → Nov 1)
+ */
+function cellToString(value, columnIndex) {
+  if (value === null || value === undefined || value === '') return '';
+  
+  // Handle Date objects
+  if (value instanceof Date) {
+    // For column A (bed numbers), convert back to bed format
+    if (columnIndex === 0) {
+      const month = value.getMonth() + 1;
+      const day = value.getDate();
+      return month + '-' + day;
+    }
+    // Skip dates in other columns
+    return '';
+  }
+  
+  let str = String(value).trim();
+  
+  // Skip date strings in non-bed columns
+  if (columnIndex !== 0) {
+    if (str.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i)) return '';
+    if (str.match(/GMT[+-]\d{4}/)) return '';
+  }
+  
+  return str;
+}
+
+function getCell(row, index) {
+  return cellToString(row[index], index);
+}
+
+function isSectionHeader(text) {
+  if (!text) return false;
+  const lower = text.toLowerCase();
+  return lower.includes('male list') || lower.includes('female list') || lower === 'er/unassigned';
+}
+
+function isColumnHeader(colA, colB) {
+  const a = (colA || '').toLowerCase();
+  const b = (colB || '').toLowerCase();
+  return a.includes('room') || b.includes('patient name');
+}
+
+function isWardHeader(colA, colB) {
+  if (!colA || colB) return false;
+  const lower = colA.toLowerCase();
+  return lower.startsWith('ward') || lower === 'icu' || lower === 'er' || lower === 'ccu';
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHEET SYNC
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SheetSync = {
@@ -109,131 +140,122 @@ const SheetSync = {
   getSheet: function() {
     const config = getConfig();
     if (!config.spreadsheetId) return null;
-
     try {
       const ss = SpreadsheetApp.openById(config.spreadsheetId);
-      // Try configured name first, then fallbacks
-      return ss.getSheetByName(config.sheetName) ||
-             ss.getSheetByName('Unit e') ||
-             ss.getSheetByName('Patients') ||
-             ss.getSheets()[0];
+      return ss.getSheetByName(config.sheetName) || ss.getSheets()[0];
     } catch (e) {
-      Logger.log('getSheet error: ' + e);
+      Logger.log('getSheet error: ' + e.toString());
       return null;
     }
   },
 
-  /**
-   * Pull from YOUR sheet format:
-   * Col A: Room/Ward (ward headers like "Ward 20" + bed numbers like "11-1")
-   * Col B: Patient name
-   * Col C: Diagnosis
-   * Col D: Assigned Doctor
-   * Col E: Status
-   */
   pullFromSheet: function() {
     const sheet = this.getSheet();
-    if (!sheet) return { success: false, error: 'Sheet not found' };
+    if (!sheet) {
+      return { success: false, error: 'Sheet not found', count: 0, imported: 0 };
+    }
 
     const config = getConfig();
 
     try {
       const lastRow = sheet.getLastRow();
       Logger.log('Sheet: ' + sheet.getName() + ', Last row: ' + lastRow);
-
+      
       if (lastRow < config.dataStartRow) {
-        return { success: true, imported: 0, message: 'No data' };
+        return { success: true, count: 0, imported: 0, message: 'No data' };
       }
 
       const numRows = lastRow - config.dataStartRow + 1;
       const data = sheet.getRange(config.dataStartRow, 1, numRows, 5).getValues();
 
       Logger.log('Reading ' + numRows + ' rows from row ' + config.dataStartRow);
-      Logger.log('First few rows: ' + JSON.stringify(data.slice(0, 5)));
 
       const patients = {};
       let currentWard = 'Unassigned';
+      let currentSection = 'active';
       let count = 0;
 
-      data.forEach(function(row, idx) {
-        const colA = (row[0] || '').toString().trim();  // Room/Ward
-        const colB = (row[1] || '').toString().trim();  // Patient name
-        const colC = (row[2] || '').toString().trim();  // Diagnosis
-        const colD = (row[3] || '').toString().trim();  // Doctor
-        const colE = (row[4] || '').toString().trim();  // Status
+      for (let idx = 0; idx < data.length; idx++) {
+        const row = data[idx];
+        const rowNum = idx + config.dataStartRow;
+        
+        const colA = getCell(row, 0);
+        const colB = getCell(row, 1);
+        const colC = getCell(row, 2);
+        const colD = getCell(row, 3);
+        const colE = getCell(row, 4);
 
-        // Check if this is a ward header row (Ward X in col A, nothing in col B)
-        if (colA && colA.toLowerCase().startsWith('ward') && !colB) {
+        // Skip empty rows
+        if (!colA && !colB && !colC && !colD && !colE) continue;
+
+        // Section headers
+        if (isSectionHeader(colA)) {
+          currentSection = colA.toLowerCase().includes('chronic') ? 'chronic' : 'active';
+          Logger.log('Row ' + rowNum + ': Section -> ' + currentSection);
+          continue;
+        }
+
+        // Column headers
+        if (isColumnHeader(colA, colB)) continue;
+
+        // Ward headers
+        if (isWardHeader(colA, colB)) {
           currentWard = colA;
-          Logger.log('Row ' + (idx + config.dataStartRow) + ': Ward header -> ' + currentWard);
-          return;
+          Logger.log('Row ' + rowNum + ': Ward -> ' + currentWard);
+          continue;
         }
 
-        // Skip empty rows or header-like rows
-        if (!colB || colB.toLowerCase().includes('patient') || colB.toLowerCase().includes('name')) {
-          return;
-        }
+        // Patient row - must have name in column B
+        if (colB && !colB.toLowerCase().includes('patient') && !colB.toLowerCase().includes('name')) {
+          const patientId = (currentWard + '_' + colB).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          const status = colE || (currentSection === 'chronic' ? 'Chronic' : 'Non-Chronic');
 
-        // This is a patient row
-        const patientId = (currentWard + '_' + colB).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
+          patients[patientId] = {
+            id: patientId,
+            ward: currentWard,
+            bed: colA || '',
+            name: colB,
+            diagnosis: colC || '',
+            doctor: colD || '',
+            status: status,
+            section: currentSection,
+            labData: [],
+            createdAt: Date.now(),
+            updatedAt: Date.now()
+          };
 
-        patients[patientId] = {
-          id: patientId,
-          ward: currentWard,
-          bed: colA,
-          name: colB,
-          diagnosis: colC,
-          doctor: colD,
-          status: colE || 'Non-Chronic',
-          labData: [],
-          createdAt: Date.now(),
-          updatedAt: Date.now()
-        };
-
-        count++;
-        Logger.log('Row ' + (idx + config.dataStartRow) + ': Patient "' + colB + '" in ' + currentWard + ' bed ' + colA);
-      });
-
-      Logger.log('Total patients parsed: ' + count);
-      Logger.log('Patient IDs: ' + Object.keys(patients).join(', '));
-
-      // Merge with existing data (preserve lab data)
-      const existing = DataStore.read('patients.json', {});
-      Logger.log('Existing patients in Drive: ' + Object.keys(existing).length);
-
-      for (const id in patients) {
-        if (existing[id] && existing[id].labData && existing[id].labData.length > 0) {
-          patients[id].labData = existing[id].labData;
-          Logger.log('Preserved lab data for: ' + id);
+          count++;
+          Logger.log('Row ' + rowNum + ': PATIENT "' + colB + '" bed=' + (colA || 'none') + ' ward=' + currentWard);
         }
       }
 
-      // Save to Drive
-      const writeResult = DataStore.write('patients.json', patients);
-      Logger.log('Write to Drive result: ' + writeResult);
+      Logger.log('Total patients parsed: ' + count);
 
-      // Verify write
-      const verification = DataStore.read('patients.json', {});
-      Logger.log('Verification - patients in Drive after write: ' + Object.keys(verification).length);
+      // Preserve existing lab data
+      const existing = DataStore.read('patients.json', {});
+      for (const id in patients) {
+        if (existing[id]?.labData?.length > 0) {
+          patients[id].labData = existing[id].labData;
+        }
+      }
 
+      DataStore.write('patients.json', patients);
+
+      // Return with BOTH count and imported for compatibility
       return {
         success: true,
+        count: count,
         imported: count,
-        saved: Object.keys(verification).length,
+        saved: Object.keys(patients).length,
         timestamp: new Date().toISOString()
       };
 
     } catch (e) {
       Logger.log('pullFromSheet error: ' + e.toString());
-      Logger.log('Stack: ' + e.stack);
-      return { success: false, error: e.toString() };
+      return { success: false, error: e.toString(), count: 0, imported: 0 };
     }
   },
 
-  /**
-   * Push to sheet (Drive → Sheet)
-   * Writes back in YOUR format
-   */
   pushToSheet: function(patients) {
     const sheet = this.getSheet();
     if (!sheet) return { success: false, error: 'Sheet not found' };
@@ -241,66 +263,63 @@ const SheetSync = {
     const config = getConfig();
 
     try {
-      // Group by ward
-      const byWard = {};
+      const sections = { active: {}, chronic: {} };
+      
       for (const id in patients) {
         const p = patients[id];
+        const section = p.section || (p.status === 'Chronic' ? 'chronic' : 'active');
         const ward = p.ward || 'Unassigned';
-        if (!byWard[ward]) byWard[ward] = [];
-        byWard[ward].push(p);
+        if (!sections[section][ward]) sections[section][ward] = [];
+        sections[section][ward].push(p);
       }
 
-      // Sort within wards by bed
-      for (const ward in byWard) {
-        byWard[ward].sort((a, b) => (a.bed || '').localeCompare(b.bed || '', undefined, { numeric: true }));
+      for (const section in sections) {
+        for (const ward in sections[section]) {
+          sections[section][ward].sort((a, b) => 
+            (a.bed || 'zzz').localeCompare(b.bed || 'zzz', undefined, { numeric: true })
+          );
+        }
       }
 
-      // Clear existing data
       const lastRow = sheet.getLastRow();
       if (lastRow >= config.dataStartRow) {
         sheet.getRange(config.dataStartRow, 1, lastRow - config.dataStartRow + 1, 5).clearContent();
       }
 
-      // Build rows
       const rows = [];
       const wardOrder = ['Ward 20', 'Ward 21', 'Ward 22', 'Ward 5', 'Ward 27', 'Ward 4', 'Ward 19', 'Ward 10', 'ICU', 'ER'];
 
-      wardOrder.forEach(function(ward) {
-        if (byWard[ward] && byWard[ward].length > 0) {
-          rows.push([ward, '', '', '', '']);  // Ward header
-          byWard[ward].forEach(function(p) {
-            rows.push([p.bed || '', p.name || '', p.diagnosis || '', p.doctor || '', p.status || '']);
+      rows.push(['Male list (active)', '', '', '', '']);
+      rows.push(['Room / Ward', 'Patient name', 'Diagnosis', 'Assigned Doctor', 'Status']);
+      
+      wardOrder.forEach(ward => {
+        if (sections.active[ward]?.length > 0) {
+          rows.push([ward, '', '', '', '']);
+          sections.active[ward].forEach(p => {
+            rows.push([p.bed || '', p.name, p.diagnosis, p.doctor, p.status || 'Non-Chronic']);
           });
         }
       });
 
-      // Any remaining wards
-      for (const ward in byWard) {
-        if (wardOrder.indexOf(ward) === -1 && byWard[ward].length > 0) {
+      rows.push(['ER/Unassigned', '', '', '', '']);
+      rows.push(['Male list (chronic)', '', '', '', '']);
+      rows.push(['Room / Ward', 'Patient name', 'Diagnosis', 'Assigned Doctor', 'Status']);
+      
+      wardOrder.forEach(ward => {
+        if (sections.chronic[ward]?.length > 0) {
           rows.push([ward, '', '', '', '']);
-          byWard[ward].forEach(function(p) {
-            rows.push([p.bed || '', p.name || '', p.diagnosis || '', p.doctor || '', p.status || '']);
+          sections.chronic[ward].forEach(p => {
+            rows.push([p.bed || '', p.name, p.diagnosis, p.doctor, p.status || 'Chronic']);
           });
         }
-      }
+      });
 
       if (rows.length > 0) {
         sheet.getRange(config.dataStartRow, 1, rows.length, 5).setValues(rows);
-
-        // Format ward headers
-        let rowNum = config.dataStartRow;
-        rows.forEach(function(row) {
-          if (row[0].toLowerCase().startsWith('ward') && !row[1]) {
-            sheet.getRange(rowNum, 1, 1, 5).setBackground('#c8e6c9').setFontWeight('bold');
-          }
-          rowNum++;
-        });
       }
 
       return { success: true, count: rows.length };
-
     } catch (e) {
-      Logger.log('pushToSheet error: ' + e);
       return { success: false, error: e.toString() };
     }
   }
@@ -311,66 +330,49 @@ const SheetSync = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PatientService = {
-
-  getAll: function() {
-    return DataStore.read('patients.json', {});
-  },
-
-  getById: function(id) {
-    return this.getAll()[id] || null;
-  },
-
+  getAll: () => DataStore.read('patients.json', {}),
+  getById: (id) => PatientService.getAll()[id] || null,
+  
   create: function(data) {
     const patients = this.getAll();
     const id = data.id || Utilities.getUuid();
-
     patients[id] = {
-      id: id,
-      ward: data.ward || 'Unassigned',
-      bed: data.bed || '',
-      name: data.name || '',
-      diagnosis: data.diagnosis || '',
-      doctor: data.doctor || '',
-      status: data.status || 'New',
-      labData: data.labData || [],
-      createdAt: Date.now(),
-      updatedAt: Date.now()
+      id, ward: data.ward || 'Unassigned', bed: data.bed || '',
+      name: data.name || '', diagnosis: data.diagnosis || '',
+      doctor: data.doctor || '', status: data.status || 'New',
+      section: data.section || 'active', labData: data.labData || [],
+      createdAt: Date.now(), updatedAt: Date.now()
     };
-
     DataStore.write('patients.json', patients);
-    return { success: true, patient: patients[id], id: id };
+    return { success: true, patient: patients[id], id };
   },
 
   update: function(id, updates) {
     const patients = this.getAll();
-    if (!patients[id]) return { success: false, error: 'Not found' };
-
+    if (!patients[id]) return { success: false, error: 'Patient not found' };
     for (const key in updates) {
-      if (key !== 'id' && key !== 'createdAt') {
-        patients[id][key] = updates[key];
-      }
+      if (key !== 'id' && key !== 'createdAt') patients[id][key] = updates[key];
     }
     patients[id].updatedAt = Date.now();
-
     DataStore.write('patients.json', patients);
     return { success: true, patient: patients[id] };
   },
 
   delete: function(id) {
     const patients = this.getAll();
-    if (!patients[id]) return { success: false, error: 'Not found' };
-
+    if (!patients[id]) return { success: false, error: 'Patient not found' };
     delete patients[id];
     DataStore.write('patients.json', patients);
     return { success: true };
   },
 
   refresh: function() {
-    const result = SheetSync.pullFromSheet();
+    const syncResult = SheetSync.pullFromSheet();
     return {
-      success: result.success,
+      success: syncResult.success,
+      error: syncResult.error,  // Include error at top level
       patients: this.getAll(),
-      syncResult: result
+      syncResult: syncResult    // Also include full syncResult
     };
   }
 };
@@ -380,27 +382,22 @@ const PatientService = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const LabService = {
-
-  save: function(patientId, labData, metadata) {
+  save: function(patientId, labData) {
     const patients = PatientService.getAll();
     if (!patients[patientId]) return { success: false, error: 'Patient not found' };
-
     if (!patients[patientId].labData) patients[patientId].labData = [];
-
+    
     const entry = {
-      id: Utilities.getUuid(),
-      timestamp: Date.now(),
+      id: Utilities.getUuid(), timestamp: Date.now(),
       reportType: labData.reportType || 'GENERAL',
-      values: labData.values || [],
-      source: labData.source || 'manual'
+      values: labData.values || [], source: labData.source || 'manual'
     };
-
+    
     patients[patientId].labData.unshift(entry);
     if (patients[patientId].labData.length > 50) {
       patients[patientId].labData = patients[patientId].labData.slice(0, 50);
     }
     patients[patientId].updatedAt = Date.now();
-
     DataStore.write('patients.json', patients);
     return { success: true, labEntry: entry };
   },
@@ -408,13 +405,8 @@ const LabService = {
   getHistory: function(patientId, limit) {
     const patient = PatientService.getById(patientId);
     if (!patient) return { success: false, error: 'Patient not found' };
-
     const history = patient.labData || [];
-    return {
-      success: true,
-      history: limit ? history.slice(0, limit) : history,
-      count: history.length
-    };
+    return { success: true, history: limit ? history.slice(0, limit) : history, count: history.length };
   },
 
   getLatest: function(patientId) {
@@ -428,7 +420,7 @@ const LabService = {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const NoticeService = {
-  get: function() { return DataStore.read('notice.json', { text: '' }); },
+  get: () => DataStore.read('notice.json', { text: '' }),
   save: function(text) {
     const notice = { text: text || '', updatedAt: Date.now() };
     return DataStore.write('notice.json', notice) ? { success: true, notice } : { success: false };
@@ -449,8 +441,7 @@ const OCRService = {
       const response = UrlFetchApp.fetch(
         'https://vision.googleapis.com/v1/images:annotate?key=' + config.visionApiKey,
         {
-          method: 'post',
-          contentType: 'application/json',
+          method: 'post', contentType: 'application/json',
           payload: JSON.stringify({
             requests: [{ image: { content: imageData }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }]
           }),
@@ -459,12 +450,9 @@ const OCRService = {
       );
 
       if (response.getResponseCode() !== 200) return { success: false, error: 'Vision API error' };
-
       const result = JSON.parse(response.getContentText());
-      const text = result.responses?.[0]?.fullTextAnnotation?.text ||
-                   result.responses?.[0]?.textAnnotations?.[0]?.description || '';
-
-      return { success: true, text: text, confidence: text ? 90 : 0, source: 'google_vision' };
+      const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
+      return { success: true, text, confidence: text ? 90 : 0, source: 'google_vision' };
     } catch (e) {
       return { success: false, error: e.toString() };
     }
@@ -479,11 +467,15 @@ const ClaudeService = {
 
   processImage: function(imageBase64) {
     const config = getConfig();
-    if (!config.anthropicApiKey) return { success: false, error: 'API key not configured' };
+    if (!config.anthropicApiKey) {
+      return { success: false, error: 'Claude API key not configured. Set ANTHROPIC_API_KEY in Script Properties.' };
+    }
 
     try {
       let imageData = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
       const mediaType = imageBase64.match(/data:image\/(\w+);/)?.[1] || 'jpeg';
+
+      Logger.log('Claude processImage: calling API');
 
       const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
         method: 'post',
@@ -496,35 +488,60 @@ const ClaudeService = {
             role: 'user',
             content: [
               { type: 'image', source: { type: 'base64', media_type: 'image/' + mediaType, data: imageData } },
-              { type: 'text', text: 'Extract lab values as JSON: {"reportType":"CBC|BMP|CMP|LFT|GENERAL","values":[{"test":"name","value":"number","unit":"unit","flag":"N|L|H"}]}' }
+              { type: 'text', text: 'Extract all lab values from this image. Return as JSON: {"reportType":"CBC|BMP|CMP|LFT|COAGULATION|GENERAL","values":[{"test":"test name","value":"numeric value","unit":"unit","flag":"N|L|H"}]}' }
             ]
           }]
         }),
         muteHttpExceptions: true
       });
 
-      if (response.getResponseCode() !== 200) return { success: false, error: 'Claude API error' };
+      const responseCode = response.getResponseCode();
+      const responseText = response.getContentText();
+      
+      Logger.log('Claude response code: ' + responseCode);
+      
+      if (responseCode !== 200) {
+        Logger.log('Claude error: ' + responseText.substring(0, 500));
+        try {
+          const err = JSON.parse(responseText);
+          return { success: false, error: err.error?.message || 'API error ' + responseCode };
+        } catch (e) {
+          return { success: false, error: 'API error ' + responseCode };
+        }
+      }
 
-      const content = JSON.parse(response.getContentText()).content?.[0]?.text || '';
+      const result = JSON.parse(responseText);
+      const content = result.content?.[0]?.text || '';
+      
       let parsed = { values: [], reportType: 'GENERAL' };
-      try { parsed = JSON.parse(content.match(/\{[\s\S]*\}/)?.[0] || '{}'); } catch(e) {}
+      try { 
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]); 
+      } catch(e) {
+        Logger.log('JSON parse error: ' + e.toString());
+      }
 
       return { success: true, values: parsed.values || [], reportType: parsed.reportType || 'GENERAL', rawText: content };
     } catch (e) {
+      Logger.log('Claude processImage error: ' + e.toString());
       return { success: false, error: e.toString() };
     }
   },
 
   consult: function(query, patientContext, labValues) {
     const config = getConfig();
-    if (!config.anthropicApiKey) return { success: false, error: 'API key not configured' };
+    if (!config.anthropicApiKey) {
+      return { success: false, error: 'Claude API key not configured. Set ANTHROPIC_API_KEY in Script Properties.' };
+    }
 
     try {
-      let prompt = query;
-      if (patientContext) prompt += '\n\nPatient: ' + patientContext;
-      if (labValues?.length) {
-        prompt += '\n\nLabs:\n' + labValues.map(v => `- ${v.test}: ${v.value} ${v.unit || ''}`).join('\n');
-      }
+      Logger.log('Claude consult: calling API');
+      
+      const systemPrompt = `You are a medical AI assistant helping doctors with patient consultations. Be concise and evidence-based. Use medical terminology appropriately.`;
+      
+      const userMessage = `Patient: ${JSON.stringify(patientContext || {})}
+Labs: ${JSON.stringify(labValues || [])}
+Question: ${query}`;
 
       const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
         method: 'post',
@@ -533,120 +550,141 @@ const ClaudeService = {
         payload: JSON.stringify({
           model: CLAUDE_MODEL,
           max_tokens: 4096,
-          system: 'You are an expert medical AI consultant.',
-          messages: [{ role: 'user', content: prompt }]
+          system: systemPrompt,
+          messages: [{ role: 'user', content: userMessage }]
         }),
         muteHttpExceptions: true
       });
 
-      if (response.getResponseCode() !== 200) return { success: false, error: 'Claude API error' };
+      const responseCode = response.getResponseCode();
+      const responseText = response.getContentText();
+      
+      Logger.log('Claude consult response code: ' + responseCode);
+      
+      if (responseCode !== 200) {
+        Logger.log('Claude consult error: ' + responseText.substring(0, 500));
+        try {
+          const err = JSON.parse(responseText);
+          return { success: false, error: err.error?.message || 'API error ' + responseCode };
+        } catch (e) {
+          return { success: false, error: 'API error ' + responseCode };
+        }
+      }
 
-      return { success: true, response: JSON.parse(response.getContentText()).content?.[0]?.text || '' };
+      const result = JSON.parse(responseText);
+      return { success: true, response: result.content?.[0]?.text || '' };
     } catch (e) {
+      Logger.log('Claude consult error: ' + e.toString());
       return { success: false, error: e.toString() };
     }
   }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HTTP HANDLERS
+// WEB APP HANDLERS
 // ═══════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
-  const action = e?.parameter?.action || 'info';
-
+  const action = e?.parameter?.action;
   switch (action) {
-    case 'health':
-      return json({ status: 'healthy', version: SCRIPT_VERSION, sheet: getConfig().sheetName });
-    case 'sync':
-    case 'pull':
-      return json(SheetSync.pullFromSheet());
-    case 'test':
-      return json(testSheetRead());
-    case 'debug':
-      return json(debugFullFlow());
-    case 'patients':
-      return json({ patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
-    default:
-      return htmlPage();
+    case 'test': return json(testSheetRead());
+    case 'debug': return json(debugFullFlow());
+    case 'sync': return json(SheetSync.pullFromSheet());
+    case 'health': return json(healthCheck());
+    case 'patients': return json({ patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
+    case 'testclaude': return json(testClaudeAPI());
+    default: return htmlPage();
   }
 }
 
 function doPost(e) {
   try {
-    if (!e?.postData?.contents) return json({ error: 'No data' }, 400);
+    if (!e?.postData?.contents) return json({ success: false, error: 'No data received' });
 
     const data = JSON.parse(e.postData.contents);
     const action = data.action;
-
-    Logger.log('Action: ' + action);
+    
+    Logger.log('POST action: ' + action);
 
     switch (action) {
-      // Patients
       case 'loadPatients':
         const pullResult = SheetSync.pullFromSheet();
-        Logger.log('Pull result: ' + JSON.stringify(pullResult));
         const allPatients = PatientService.getAll();
-        Logger.log('Patients in store: ' + Object.keys(allPatients).length);
-        return json({
-          success: true,
-          patients: allPatients,
-          count: Object.keys(allPatients).length,
-          syncResult: pullResult
+        return json({ 
+          success: true, 
+          patients: allPatients, 
+          count: Object.keys(allPatients).length, 
+          syncResult: pullResult 
         });
-      case 'refreshFromSheet':
+        
+      case 'refreshFromSheet': 
         return json(PatientService.refresh());
-      case 'savePatient':
+        
+      case 'savePatient': 
         return json(PatientService.create(data.patient || data));
-      case 'updatePatient':
+        
+      case 'updatePatient': 
         return json(PatientService.update(data.patientId, data.updates || data));
-      case 'deletePatient':
+        
+      case 'deletePatient': 
         return json(PatientService.delete(data.patientId));
-
-      // Labs
-      case 'saveLabs':
-        return json(LabService.save(data.patientId, data.labData, data.metadata));
-      case 'loadLabs':
+        
+      case 'saveLabs': 
+        return json(LabService.save(data.patientId, data.labData));
+        
+      case 'loadLabs': 
         return json(LabService.getLatest(data.patientId));
-      case 'loadLabHistory':
+        
+      case 'loadLabHistory': 
         return json(LabService.getHistory(data.patientId, data.limit));
-
-      // Notice
-      case 'loadNotice':
+        
+      case 'loadNotice': 
         return json({ success: true, notice: NoticeService.get() });
-      case 'saveNotice':
+        
+      case 'saveNotice': 
         return json(NoticeService.save(data.notice?.text || data.text));
-
-      // OCR & AI
-      case 'runOCR':
+        
+      case 'runOCR': 
         return json(OCRService.process(data.image));
-      case 'claudeVision':
+        
+      case 'claudeVision': 
         return json(ClaudeService.processImage(data.image));
-      case 'claudeConsult':
+        
+      case 'claudeConsult': 
         return json(ClaudeService.consult(data.query, data.patientContext, data.labValues));
-
-      // Sync
+        
       case 'pullFromSheet':
-      case 'syncSheet':
-      case 'fullSync':
+      case 'syncSheet': 
         return json(SheetSync.pullFromSheet());
-      case 'pushToSheet':
+        
+      case 'pushToSheet': 
         return json(SheetSync.pushToSheet(PatientService.getAll()));
-
-      case 'test':
+        
+      case 'test': 
         return json({ success: true, version: SCRIPT_VERSION });
-
-      default:
-        return json({ error: 'Unknown action: ' + action });
+        
+      default: 
+        return json({ success: false, error: 'Unknown action: ' + action });
     }
   } catch (e) {
-    Logger.log('Error: ' + e);
-    return json({ error: e.toString() });
+    Logger.log('doPost error: ' + e.toString());
+    return json({ success: false, error: e.toString() });
   }
 }
 
 function json(data) {
   return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
+}
+
+function healthCheck() {
+  const config = getConfig();
+  return { 
+    success: true, 
+    version: SCRIPT_VERSION, 
+    sheet: config.sheetName,
+    hasAnthropicKey: !!config.anthropicApiKey,
+    keyLength: config.anthropicApiKey ? config.anthropicApiKey.length : 0
+  };
 }
 
 function htmlPage() {
@@ -655,29 +693,27 @@ function htmlPage() {
     <html><head><title>Unit E API v${SCRIPT_VERSION}</title>
     <style>body{font-family:system-ui;max-width:600px;margin:40px auto;padding:20px}
     .btn{background:#15803d;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 8px 8px 0}
-    .btn-blue{background:#2563eb}
-    .card{background:#f5f5f5;padding:16px;border-radius:8px;margin:16px 0}</style></head>
+    .btn-blue{background:#2563eb}.btn-yellow{background:#ca8a04}
+    .card{background:#f5f5f5;padding:16px;border-radius:8px;margin:16px 0}
+    .ok{color:#16a34a}.err{color:#dc2626}</style></head>
     <body>
-    <h1>🏥 Unit E Ward Rounds API</h1>
-    <p>Version ${SCRIPT_VERSION}</p>
+    <h1>🏥 Unit E API v${SCRIPT_VERSION}</h1>
     <div class="card">
       <strong>Sheet:</strong> ${config.sheetName}<br>
-      <strong>Data starts:</strong> Row ${config.dataStartRow}<br>
-      <strong>Spreadsheet ID:</strong> ${config.spreadsheetId}
+      <strong>Claude API:</strong> <span class="${config.anthropicApiKey ? 'ok' : 'err'}">${config.anthropicApiKey ? '✅ Configured' : '❌ Not set'}</span>
     </div>
-    <h3>Actions</h3>
-    <a class="btn" href="?action=sync">🔄 Sync from Sheet</a>
-    <a class="btn" href="?action=patients">👥 View Patients</a>
-    <br>
-    <a class="btn btn-blue" href="?action=debug">🔍 Debug Full Flow</a>
-    <a class="btn btn-blue" href="?action=test">🧪 Test Sheet Read</a>
-    <a class="btn btn-blue" href="?action=health">❤️ Health</a>
+    <a class="btn" href="?action=sync">🔄 Sync</a>
+    <a class="btn" href="?action=patients">👥 Patients</a><br>
+    <a class="btn btn-blue" href="?action=debug">🔍 Debug</a>
+    <a class="btn btn-blue" href="?action=test">🧪 Test</a><br>
+    <a class="btn btn-yellow" href="?action=health">❤️ Health</a>
+    <a class="btn btn-yellow" href="?action=testclaude">🤖 Test Claude</a>
     </body></html>
   `);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-// TEST & SETUP
+// TEST & DEBUG
 // ═══════════════════════════════════════════════════════════════════════════
 
 function testSheetRead() {
@@ -686,124 +722,101 @@ function testSheetRead() {
 
   const config = getConfig();
   const lastRow = sheet.getLastRow();
-
-  // Read first 10 rows of data
-  const sampleRows = Math.min(10, lastRow - config.dataStartRow + 1);
-  if (sampleRows < 1) return { error: 'No data rows', lastRow: lastRow, dataStart: config.dataStartRow };
+  const sampleRows = Math.min(30, lastRow - config.dataStartRow + 1);
+  if (sampleRows < 1) return { error: 'No data rows' };
 
   const data = sheet.getRange(config.dataStartRow, 1, sampleRows, 5).getValues();
+  
+  const annotated = data.map((row, idx) => {
+    const colA = getCell(row, 0);
+    const colB = getCell(row, 1);
+    
+    let type = 'unknown';
+    if (!colA && !colB) type = 'empty';
+    else if (isSectionHeader(colA)) type = 'SECTION';
+    else if (isColumnHeader(colA, colB)) type = 'COLUMN_HEADER';
+    else if (isWardHeader(colA, colB)) type = 'WARD';
+    else if (colB) type = 'PATIENT';
+    
+    return {
+      row: idx + config.dataStartRow,
+      type,
+      data: [getCell(row, 0), getCell(row, 1), getCell(row, 2), getCell(row, 3), getCell(row, 4)],
+      rawA: row[0] instanceof Date ? '[DATE:' + row[0].toISOString() + ']' : row[0]
+    };
+  });
 
+  return { sheetName: sheet.getName(), lastRow, dataStartRow: config.dataStartRow, annotatedRows: annotated };
+}
+
+function debugFullFlow() {
+  const config = getConfig();
+  const syncResult = SheetSync.pullFromSheet();
+  const patients = PatientService.getAll();
+  const ids = Object.keys(patients).slice(0, 10);
+  
   return {
-    sheetName: sheet.getName(),
-    lastRow: lastRow,
-    dataStartRow: config.dataStartRow,
-    sampleData: data
+    version: SCRIPT_VERSION,
+    config: { 
+      sheetName: config.sheetName, 
+      hasAnthropicKey: !!config.anthropicApiKey, 
+      keyLength: config.anthropicApiKey?.length || 0 
+    },
+    syncResult: syncResult,
+    patientCount: Object.keys(patients).length,
+    samplePatients: ids.map(id => ({ 
+      id, 
+      name: patients[id].name, 
+      ward: patients[id].ward, 
+      bed: patients[id].bed, 
+      status: patients[id].status 
+    }))
   };
 }
 
-/**
- * Debug the full flow - sheet read, parse, save, retrieve
- */
-function debugFullFlow() {
-  const results = {
-    step1_config: null,
-    step2_sheetRead: null,
-    step3_pullFromSheet: null,
-    step4_driveContents: null,
-    step5_patientServiceGetAll: null
-  };
-
-  try {
-    // Step 1: Config
-    results.step1_config = getConfig();
-
-    // Step 2: Raw sheet read
-    const sheet = SheetSync.getSheet();
-    if (sheet) {
-      const lastRow = sheet.getLastRow();
-      const config = getConfig();
-      const numRows = Math.min(20, lastRow - config.dataStartRow + 1);
-      if (numRows > 0) {
-        results.step2_sheetRead = {
-          sheetName: sheet.getName(),
-          lastRow: lastRow,
-          dataStartRow: config.dataStartRow,
-          rowsToRead: numRows,
-          rawData: sheet.getRange(config.dataStartRow, 1, numRows, 5).getValues()
-        };
-      } else {
-        results.step2_sheetRead = { error: 'No data rows', lastRow: lastRow };
-      }
-    } else {
-      results.step2_sheetRead = { error: 'Sheet not found' };
-    }
-
-    // Step 3: Pull from sheet
-    results.step3_pullFromSheet = SheetSync.pullFromSheet();
-
-    // Step 4: Check Drive file contents
-    try {
-      const file = DataStore.getFile('patients.json', {});
-      const content = file.getBlob().getDataAsString();
-      const parsed = JSON.parse(content || '{}');
-      results.step4_driveContents = {
-        fileId: file.getId(),
-        fileName: file.getName(),
-        contentLength: content.length,
-        patientCount: Object.keys(parsed).length,
-        patientIds: Object.keys(parsed),
-        samplePatient: Object.values(parsed)[0] || null
-      };
-    } catch (e) {
-      results.step4_driveContents = { error: e.toString() };
-    }
-
-    // Step 5: PatientService.getAll()
-    const patients = PatientService.getAll();
-    results.step5_patientServiceGetAll = {
-      count: Object.keys(patients).length,
-      ids: Object.keys(patients),
-      sample: Object.values(patients)[0] || null
-    };
-
-  } catch (e) {
-    results.error = e.toString();
-    results.stack = e.stack;
+function testClaudeAPI() {
+  const config = getConfig();
+  if (!config.anthropicApiKey) {
+    return { success: false, error: 'ANTHROPIC_API_KEY not set in Script Properties' };
   }
-
-  return results;
+  
+  try {
+    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      method: 'post', 
+      contentType: 'application/json',
+      headers: { 'x-api-key': config.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+      payload: JSON.stringify({
+        model: CLAUDE_MODEL, 
+        max_tokens: 50,
+        messages: [{ role: 'user', content: 'Say "API working" in 2 words.' }]
+      }),
+      muteHttpExceptions: true
+    });
+    
+    const code = response.getResponseCode();
+    const text = response.getContentText();
+    
+    if (code === 200) {
+      const result = JSON.parse(text);
+      return { success: true, response: result.content?.[0]?.text, model: CLAUDE_MODEL };
+    }
+    
+    try {
+      const err = JSON.parse(text);
+      return { success: false, code, error: err.error?.message || text.substring(0, 200) };
+    } catch (e) {
+      return { success: false, code, error: text.substring(0, 200) };
+    }
+  } catch (e) {
+    return { success: false, error: e.toString() };
+  }
 }
 
 function initialSetup() {
-  Logger.log('=== Setup ===');
-
-  // Create folder
-  const folder = DataStore.getAppFolder();
-  Logger.log('Folder: ' + folder.getName());
-
-  // Init files
   DataStore.getFile('patients.json', {});
   DataStore.getFile('notice.json', { text: '' });
-  Logger.log('Files ready');
-
-  // Test sheet
-  const sheet = SheetSync.getSheet();
-  Logger.log('Sheet: ' + (sheet ? sheet.getName() : 'NOT FOUND'));
-
-  // Pull data
   const result = SheetSync.pullFromSheet();
-  Logger.log('Pull result: ' + JSON.stringify(result));
-
-  // Verify
-  const patients = PatientService.getAll();
-  Logger.log('Patients in store: ' + Object.keys(patients).length);
-
-  return {
-    folder: folder.getName(),
-    sheet: sheet ? sheet.getName() : 'NOT FOUND',
-    pullResult: result,
-    patientsInStore: Object.keys(patients).length
-  };
+  return { pullResult: result, patientCount: Object.keys(PatientService.getAll()).length };
 }
 
 function manualSync() {
