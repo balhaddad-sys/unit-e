@@ -1050,7 +1050,7 @@ const AIMedicalConsultant = (function() {
     // ═══════════════════════════════════════════════════════════════════════════
 
     const CLAUDE_CONFIG = {
-        API_URL: 'https://script.google.com/macros/s/AKfycbz7ITWWgB6_5VIv_z9zgnWxh1_hdTDe3F89G3MewD5Vfx45STRRyLPbDmNnvCxX3_76/exec',
+        API_URL: 'https://script.google.com/macros/s/AKfycbxtGGa4zND6EbA9SP1GN7xpLv7pBUC3Jq8Dta2Bu1zaD--pxLEg6RP1PeiptftltfC1/exec',
         USE_CLAUDE: true,         // Enable Claude Opus 4.5 for advanced reasoning
         USE_FALLBACK: true,       // Fallback to knowledge base if Claude fails
         TIMEOUT: 15000            // 15 second timeout
