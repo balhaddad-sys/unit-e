@@ -152,8 +152,16 @@ const API = {
     pullFromSheet: async () => {
         return await API._fetch({ action: 'pullFromSheet' });
     },
-    
+
     pushToSheet: async () => {
+        return await API._fetch({ action: 'pushToSheet' });
+    },
+
+    syncSheetsToDrive: async () => {
+        return await API._fetch({ action: 'pullFromSheet' });
+    },
+
+    syncDriveToSheets: async () => {
         return await API._fetch({ action: 'pushToSheet' });
     },
     
