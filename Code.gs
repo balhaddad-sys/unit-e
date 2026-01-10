@@ -1,31 +1,23 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v3.7
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v4.0
  *
- * SETUP INSTRUCTIONS:
- * 1. Go to Project Settings (⚙️) > Script Properties
- * 2. Add these properties:
- *    - OPENAI_API_KEY (REQUIRED) - Your OpenAI API key for GPT-4o Vision
- *    - VISION_API_KEY (OPTIONAL) - Google Vision API key (fallback only)
- *    - SPREADSHEET_ID (optional) - Your Google Sheet ID
- *    - DRIVE_FOLDER_ID (optional) - Your Google Drive folder ID
+ * v4.0 CHANGES:
+ * - GPT-4o Vision is THE ONLY OCR method
+ * - Removed all Claude references
+ * - Smart sync preserves patients and lab data
+ * - Hidden timestamp columns for tracking
  *
- * RECENT UPDATES:
- * v3.7:
- * - Improved GPT-4o Vision prompt for better lab extraction
- * - Added reference range extraction (refLow, refHigh)
- * - Reduced timeout from 30s to 15s for better UX
- * - Better error messages and logging
- * - Made Google Vision API optional (fallback only)
- *
- * v3.6:
- * - Response format matches frontend expectations
- * - Bed numbers formatted as dates handled
- * - Better error messages
+ * SETUP:
+ * 1. Project Settings → Script Properties
+ * 2. Add: OPENAI_API_KEY (required)
+ * 3. Add: SPREADSHEET_ID (your sheet ID)
+ * 4. Deploy as Web App
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const SCRIPT_VERSION = '3.7.0';
+const SCRIPT_VERSION = '4.0.0';
+const GPT_MODEL = 'gpt-4o';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -34,18 +26,13 @@ const SCRIPT_VERSION = '3.7.0';
 function getConfig() {
   const props = PropertiesService.getScriptProperties();
   return {
-    // Google Vision API (OPTIONAL - only used as fallback if GPT-4o fails)
-    visionApiKey: props.getProperty('VISION_API_KEY') || '',
-    // OpenAI API (REQUIRED - primary method for lab extraction)
     openaiApiKey: props.getProperty('OPENAI_API_KEY') || '',
     spreadsheetId: props.getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
     driveFolderId: props.getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
     sheetName: props.getProperty('SHEET_NAME') || 'Unit e',
-    dataStartRow: 4
+    dataStartRow: 5
   };
 }
-
-const CHATGPT_MODEL = 'gpt-4o'; // or 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA STORE
@@ -54,99 +41,72 @@ const CHATGPT_MODEL = 'gpt-4o'; // or 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'
 const DataStore = {
   getAppFolder: function() {
     const config = getConfig();
-    let root = config.driveFolderId === 'root' ? 
-      DriveApp.getRootFolder() : 
-      DriveApp.getFolderById(config.driveFolderId);
-
-    const folderName = 'Unit E Ward Rounds Data';
-    const folders = root.getFoldersByName(folderName);
-    return folders.hasNext() ? folders.next() : root.createFolder(folderName);
+    let root = config.driveFolderId === 'root' ? DriveApp.getRootFolder() : DriveApp.getFolderById(config.driveFolderId);
+    const folders = root.getFoldersByName('Unit E Ward Rounds Data');
+    return folders.hasNext() ? folders.next() : root.createFolder('Unit E Ward Rounds Data');
   },
-
   getFile: function(fileName, defaultData) {
     const folder = this.getAppFolder();
     const files = folder.getFilesByName(fileName);
     if (files.hasNext()) return files.next();
     return folder.createFile(fileName, JSON.stringify(defaultData || {}), MimeType.PLAIN_TEXT);
   },
-
   read: function(fileName, defaultData) {
     try {
-      const file = this.getFile(fileName, defaultData);
-      const content = file.getBlob().getDataAsString();
+      const content = this.getFile(fileName, defaultData).getBlob().getDataAsString();
       return content ? JSON.parse(content) : (defaultData || {});
-    } catch (e) {
-      Logger.log('DataStore.read error: ' + e.toString());
-      return defaultData || {};
-    }
+    } catch (e) { return defaultData || {}; }
   },
-
   write: function(fileName, data) {
-    try {
-      const file = this.getFile(fileName, {});
-      file.setContent(JSON.stringify(data, null, 2));
-      return true;
-    } catch (e) {
-      Logger.log('DataStore.write error: ' + e.toString());
-      return false;
-    }
+    try { this.getFile(fileName, {}).setContent(JSON.stringify(data, null, 2)); return true; }
+    catch (e) { return false; }
   }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// HELPER FUNCTIONS
+// HELPERS
 // ═══════════════════════════════════════════════════════════════════════════
 
-/**
- * Convert cell value to string
- * Handles dates that might be bed numbers (like "11-1" → Nov 1)
- */
-function cellToString(value, columnIndex) {
+function cellToString(value, colIndex) {
   if (value === null || value === undefined || value === '') return '';
-  
-  // Handle Date objects
-  if (value instanceof Date) {
-    // For column A (bed numbers), convert back to bed format
-    if (columnIndex === 0) {
-      const month = value.getMonth() + 1;
-      const day = value.getDate();
-      return month + '-' + day;
-    }
-    // Skip dates in other columns
-    return '';
-  }
-  
-  let str = String(value).trim();
-  
-  // Skip date strings in non-bed columns
-  if (columnIndex !== 0) {
-    if (str.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s/i)) return '';
-    if (str.match(/GMT[+-]\d{4}/)) return '';
-  }
-  
-  return str;
+  if (value instanceof Date && colIndex === 0) return (value.getMonth() + 1) + '-' + value.getDate();
+  return String(value).trim();
 }
 
-function getCell(row, index) {
-  return cellToString(row[index], index);
+function generateRecordId(ward, name) {
+  return (ward + '_' + name).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
 }
 
 function isSectionHeader(text) {
   if (!text) return false;
-  const lower = text.toLowerCase();
-  return lower.includes('male list') || lower.includes('female list') || lower === 'er/unassigned';
+  const l = text.toLowerCase();
+  return l.includes('male list') || l.includes('female list') || l === 'er/unassigned' || l.includes('chronic');
 }
 
-function isColumnHeader(colA, colB) {
-  const a = (colA || '').toLowerCase();
-  const b = (colB || '').toLowerCase();
+function isColumnHeader(row) {
+  const a = cellToString(row[0], 0).toLowerCase();
+  const b = cellToString(row[1], 1).toLowerCase();
   return a.includes('room') || b.includes('patient name');
 }
 
-function isWardHeader(colA, colB) {
-  if (!colA || colB) return false;
-  const lower = colA.toLowerCase();
-  return lower.startsWith('ward') || lower === 'icu' || lower === 'er' || lower === 'ccu';
+function isWardHeader(row) {
+  const a = cellToString(row[0], 0);
+  const b = cellToString(row[1], 1);
+  if (!a || b) return false;
+  const l = a.toLowerCase();
+  return l.startsWith('ward') || l === 'icu' || l === 'er' || l === 'ccu';
+}
+
+function categorizeTest(name) {
+  if (!name) return 'General';
+  const l = name.toLowerCase();
+  if (['sodium', 'potassium', 'chloride', 'co2', 'creatinine', 'urea', 'bun', 'egfr', 'anion'].some(t => l.includes(t))) return 'Chemistry';
+  if (['calcium', 'phosph', 'magnesium', 'adjusted'].some(t => l.includes(t))) return 'Calcium/Bone';
+  if (['alt', 'ast', 'alp', 'alk', 'ggt', 'bilirubin'].some(t => l.includes(t))) return 'Liver';
+  if (['cholesterol', 'triglyceride', 'hdl', 'ldl', 'lipid'].some(t => l.includes(t))) return 'Lipids';
+  if (['protein', 'albumin'].some(t => l.includes(t))) return 'Proteins';
+  if (['wbc', 'rbc', 'hemoglobin', 'hematocrit', 'platelet', 'mcv'].some(t => l.includes(t))) return 'CBC';
+  return 'General';
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -154,781 +114,352 @@ function isWardHeader(colA, colB) {
 // ═══════════════════════════════════════════════════════════════════════════
 
 const SheetSync = {
-
   getSheet: function() {
     const config = getConfig();
-    if (!config.spreadsheetId) return null;
     try {
       const ss = SpreadsheetApp.openById(config.spreadsheetId);
       return ss.getSheetByName(config.sheetName) || ss.getSheets()[0];
-    } catch (e) {
-      Logger.log('getSheet error: ' + e.toString());
-      return null;
-    }
+    } catch (e) { return null; }
   },
 
   pullFromSheet: function() {
     const sheet = this.getSheet();
-    if (!sheet) {
-      return { success: false, error: 'Sheet not found', count: 0, imported: 0 };
-    }
-
+    if (!sheet) return { success: false, error: 'Sheet not found', count: 0 };
     const config = getConfig();
 
     try {
       const lastRow = sheet.getLastRow();
-      Logger.log('Sheet: ' + sheet.getName() + ', Last row: ' + lastRow);
-      
-      if (lastRow < config.dataStartRow) {
-        return { success: true, count: 0, imported: 0, message: 'No data' };
-      }
+      if (lastRow < config.dataStartRow) return { success: true, count: 0 };
 
-      const numRows = lastRow - config.dataStartRow + 1;
-      const data = sheet.getRange(config.dataStartRow, 1, numRows, 5).getValues();
-
-      Logger.log('Reading ' + numRows + ' rows from row ' + config.dataStartRow);
-
-      const patients = {};
-      let currentWard = 'Unassigned';
-      let currentSection = 'active';
-      let count = 0;
-
-      for (let idx = 0; idx < data.length; idx++) {
-        const row = data[idx];
-        const rowNum = idx + config.dataStartRow;
-        
-        const colA = getCell(row, 0);
-        const colB = getCell(row, 1);
-        const colC = getCell(row, 2);
-        const colD = getCell(row, 3);
-        const colE = getCell(row, 4);
-
-        // Skip empty rows
-        if (!colA && !colB && !colC && !colD && !colE) continue;
-
-        // Section headers
-        if (isSectionHeader(colA)) {
-          currentSection = colA.toLowerCase().includes('chronic') ? 'chronic' : 'active';
-          Logger.log('Row ' + rowNum + ': Section -> ' + currentSection);
-          continue;
-        }
-
-        // Column headers
-        if (isColumnHeader(colA, colB)) continue;
-
-        // Ward headers
-        if (isWardHeader(colA, colB)) {
-          currentWard = colA;
-          Logger.log('Row ' + rowNum + ': Ward -> ' + currentWard);
-          continue;
-        }
-
-        // Patient row - must have name in column B
-        if (colB && !colB.toLowerCase().includes('patient') && !colB.toLowerCase().includes('name')) {
-          const patientId = (currentWard + '_' + colB).replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
-          const status = colE || (currentSection === 'chronic' ? 'Chronic' : 'Non-Chronic');
-
-          patients[patientId] = {
-            id: patientId,
-            ward: currentWard,
-            bed: colA || '',
-            name: colB,
-            diagnosis: colC || '',
-            doctor: colD || '',
-            status: status,
-            section: currentSection,
-            labData: [],
-            createdAt: Date.now(),
-            updatedAt: Date.now()
-          };
-
-          count++;
-          Logger.log('Row ' + rowNum + ': PATIENT "' + colB + '" bed=' + (colA || 'none') + ' ward=' + currentWard);
-        }
-      }
-
-      Logger.log('Total patients parsed: ' + count);
-
-      // Preserve existing lab data
+      const data = sheet.getRange(config.dataStartRow, 1, lastRow - config.dataStartRow + 1, 7).getValues();
       const existing = DataStore.read('patients.json', {});
-      for (const id in patients) {
-        if (existing[id]?.labData?.length > 0) {
-          patients[id].labData = existing[id].labData;
+      const patients = {};
+
+      let ward = 'Unassigned', section = 'active', count = 0;
+
+      for (let i = 0; i < data.length; i++) {
+        const row = data[i];
+        const rowNum = i + config.dataStartRow;
+        const [a, b, c, d, e, , g] = row.map((v, j) => cellToString(v, j));
+
+        if (!a && !b && !c && !d && !e) continue;
+        if (isSectionHeader(a) || isSectionHeader(b)) { section = (a || b).toLowerCase().includes('chronic') ? 'chronic' : 'active'; continue; }
+        if (isColumnHeader(row)) continue;
+        if (isWardHeader(row)) { ward = a; continue; }
+
+        if (b && b.length > 1) {
+          const id = g || generateRecordId(ward, b);
+          const ex = existing[id];
+          patients[id] = {
+            id, sheetRow: rowNum, ward, bed: a, name: b, diagnosis: c, doctor: d,
+            status: e || (section === 'chronic' ? 'Chronic' : 'Non-Chronic'),
+            section, labData: ex?.labData || [], createdAt: ex?.createdAt || Date.now(), updatedAt: Date.now()
+          };
+          count++;
+          if (!g) sheet.getRange(rowNum, 7).setValue(id);
         }
       }
 
       DataStore.write('patients.json', patients);
-
-      // Return with BOTH count and imported for compatibility
-      return {
-        success: true,
-        count: count,
-        imported: count,
-        saved: Object.keys(patients).length,
-        timestamp: new Date().toISOString()
-      };
-
-    } catch (e) {
-      Logger.log('pullFromSheet error: ' + e.toString());
-      return { success: false, error: e.toString(), count: 0, imported: 0 };
-    }
-  },
-
-  pushToSheet: function(patients) {
-    const sheet = this.getSheet();
-    if (!sheet) return { success: false, error: 'Sheet not found' };
-
-    const config = getConfig();
-
-    try {
-      const sections = { active: {}, chronic: {} };
-      
-      for (const id in patients) {
-        const p = patients[id];
-        const section = p.section || (p.status === 'Chronic' ? 'chronic' : 'active');
-        const ward = p.ward || 'Unassigned';
-        if (!sections[section][ward]) sections[section][ward] = [];
-        sections[section][ward].push(p);
-      }
-
-      for (const section in sections) {
-        for (const ward in sections[section]) {
-          sections[section][ward].sort((a, b) => 
-            (a.bed || 'zzz').localeCompare(b.bed || 'zzz', undefined, { numeric: true })
-          );
-        }
-      }
-
-      const lastRow = sheet.getLastRow();
-      if (lastRow >= config.dataStartRow) {
-        sheet.getRange(config.dataStartRow, 1, lastRow - config.dataStartRow + 1, 5).clearContent();
-      }
-
-      const rows = [];
-      const wardOrder = ['Ward 20', 'Ward 21', 'Ward 22', 'Ward 5', 'Ward 27', 'Ward 4', 'Ward 19', 'Ward 10', 'ICU', 'ER'];
-
-      rows.push(['Male list (active)', '', '', '', '']);
-      rows.push(['Room / Ward', 'Patient name', 'Diagnosis', 'Assigned Doctor', 'Status']);
-      
-      wardOrder.forEach(ward => {
-        if (sections.active[ward]?.length > 0) {
-          rows.push([ward, '', '', '', '']);
-          sections.active[ward].forEach(p => {
-            rows.push([p.bed || '', p.name, p.diagnosis, p.doctor, p.status || 'Non-Chronic']);
-          });
-        }
-      });
-
-      rows.push(['ER/Unassigned', '', '', '', '']);
-      rows.push(['Male list (chronic)', '', '', '', '']);
-      rows.push(['Room / Ward', 'Patient name', 'Diagnosis', 'Assigned Doctor', 'Status']);
-      
-      wardOrder.forEach(ward => {
-        if (sections.chronic[ward]?.length > 0) {
-          rows.push([ward, '', '', '', '']);
-          sections.chronic[ward].forEach(p => {
-            rows.push([p.bed || '', p.name, p.diagnosis, p.doctor, p.status || 'Chronic']);
-          });
-        }
-      });
-
-      if (rows.length > 0) {
-        sheet.getRange(config.dataStartRow, 1, rows.length, 5).setValues(rows);
-      }
-
-      return { success: true, count: rows.length };
-    } catch (e) {
-      return { success: false, error: e.toString() };
-    }
+      return { success: true, count };
+    } catch (e) { return { success: false, error: e.toString(), count: 0 }; }
   }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// PATIENT SERVICE
+// SERVICES
 // ═══════════════════════════════════════════════════════════════════════════
 
 const PatientService = {
   getAll: () => DataStore.read('patients.json', {}),
   getById: (id) => PatientService.getAll()[id] || null,
-  
   create: function(data) {
     const patients = this.getAll();
-    const id = data.id || Utilities.getUuid();
-    patients[id] = {
-      id, ward: data.ward || 'Unassigned', bed: data.bed || '',
-      name: data.name || '', diagnosis: data.diagnosis || '',
-      doctor: data.doctor || '', status: data.status || 'New',
-      section: data.section || 'active', labData: data.labData || [],
-      createdAt: Date.now(), updatedAt: Date.now()
-    };
+    const id = data.id || generateRecordId(data.ward || 'Unassigned', data.name);
+    if (patients[id]) return { success: false, error: 'Exists' };
+    patients[id] = { id, ward: data.ward || 'Unassigned', bed: data.bed || '', name: data.name || '', diagnosis: data.diagnosis || '', doctor: data.doctor || '', status: data.status || 'New', section: data.section || 'active', labData: [], createdAt: Date.now(), updatedAt: Date.now() };
     DataStore.write('patients.json', patients);
     return { success: true, patient: patients[id], id };
   },
-
   update: function(id, updates) {
     const patients = this.getAll();
-    if (!patients[id]) return { success: false, error: 'Patient not found' };
-    for (const key in updates) {
-      if (key !== 'id' && key !== 'createdAt') patients[id][key] = updates[key];
-    }
+    if (!patients[id]) return { success: false, error: 'Not found' };
+    for (const k in updates) if (k !== 'id' && k !== 'createdAt') patients[id][k] = updates[k];
     patients[id].updatedAt = Date.now();
     DataStore.write('patients.json', patients);
     return { success: true, patient: patients[id] };
   },
-
   delete: function(id) {
     const patients = this.getAll();
-    if (!patients[id]) return { success: false, error: 'Patient not found' };
+    if (!patients[id]) return { success: false, error: 'Not found' };
     delete patients[id];
     DataStore.write('patients.json', patients);
     return { success: true };
   },
-
   refresh: function() {
-    const syncResult = SheetSync.pullFromSheet();
-    return {
-      success: syncResult.success,
-      error: syncResult.error,  // Include error at top level
-      patients: this.getAll(),
-      syncResult: syncResult    // Also include full syncResult
-    };
+    const r = SheetSync.pullFromSheet();
+    return { success: r.success, patients: this.getAll(), syncResult: r };
   }
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// LAB SERVICE
-// ═══════════════════════════════════════════════════════════════════════════
 
 const LabService = {
   save: function(patientId, labData) {
     const patients = PatientService.getAll();
     if (!patients[patientId]) return { success: false, error: 'Patient not found' };
     if (!patients[patientId].labData) patients[patientId].labData = [];
-    
-    const entry = {
-      id: Utilities.getUuid(), timestamp: Date.now(),
-      reportType: labData.reportType || 'GENERAL',
-      values: labData.values || [], source: labData.source || 'manual'
-    };
-    
+    const entry = { id: Utilities.getUuid(), timestamp: Date.now(), reportType: labData.reportType || 'GENERAL', values: labData.values || [], source: 'gpt4o', dates: labData.dates || [] };
     patients[patientId].labData.unshift(entry);
-    if (patients[patientId].labData.length > 50) {
-      patients[patientId].labData = patients[patientId].labData.slice(0, 50);
-    }
+    if (patients[patientId].labData.length > 50) patients[patientId].labData = patients[patientId].labData.slice(0, 50);
     patients[patientId].updatedAt = Date.now();
     DataStore.write('patients.json', patients);
     return { success: true, labEntry: entry };
   },
-
   getHistory: function(patientId, limit) {
-    const patient = PatientService.getById(patientId);
-    if (!patient) return { success: false, error: 'Patient not found' };
-    const history = patient.labData || [];
-    return { success: true, history: limit ? history.slice(0, limit) : history, count: history.length };
+    const p = PatientService.getById(patientId);
+    if (!p) return { success: false, error: 'Not found' };
+    const h = p.labData || [];
+    return { success: true, history: limit ? h.slice(0, limit) : h, count: h.length };
   },
-
   getLatest: function(patientId) {
-    const result = this.getHistory(patientId, 1);
-    return result.success ? { success: true, labs: result.history[0] || null } : result;
+    const r = this.getHistory(patientId, 1);
+    return r.success ? { success: true, labs: r.history[0] || null } : r;
   }
 };
-
-// ═══════════════════════════════════════════════════════════════════════════
-// NOTICE SERVICE
-// ═══════════════════════════════════════════════════════════════════════════
 
 const NoticeService = {
   get: () => DataStore.read('notice.json', { text: '' }),
-  save: function(text) {
-    const notice = { text: text || '', updatedAt: Date.now() };
-    return DataStore.write('notice.json', notice) ? { success: true, notice } : { success: false };
-  }
+  save: (text) => DataStore.write('notice.json', { text: text || '', updatedAt: Date.now() }) ? { success: true } : { success: false }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// OCR SERVICE
+// GPT-4O VISION - THE ONLY OCR ENGINE
 // ═══════════════════════════════════════════════════════════════════════════
 
-const OCRService = {
-  process: function(imageBase64) {
+const GPTVisionService = {
+  extractLabs: function(imageBase64) {
     const config = getConfig();
-
-    // Google Vision API is optional - only used as fallback
-    if (!config.visionApiKey) {
-      Logger.log('OCRService: VISION_API_KEY not configured (optional, fallback only)');
-      return {
-        success: false,
-        error: 'Google Vision API key not configured. This is optional and only used as fallback. Set VISION_API_KEY in Script Properties if needed.'
-      };
-    }
+    if (!config.openaiApiKey) return { success: false, error: 'OPENAI_API_KEY not set. Add it in Project Settings → Script Properties.' };
 
     try {
-      const imageData = imageBase64.replace(/^data:image\/\w+;base64,/, '');
-      const response = UrlFetchApp.fetch(
-        'https://vision.googleapis.com/v1/images:annotate?key=' + config.visionApiKey,
-        {
-          method: 'post', contentType: 'application/json',
-          payload: JSON.stringify({
-            requests: [{ image: { content: imageData }, features: [{ type: 'DOCUMENT_TEXT_DETECTION' }] }]
-          }),
-          muteHttpExceptions: true
-        }
-      );
+      let img = imageBase64;
+      if (!img.startsWith('data:image')) img = 'data:image/jpeg;base64,' + img;
 
-      if (response.getResponseCode() !== 200) return { success: false, error: 'Vision API error: ' + response.getResponseCode() };
-      const result = JSON.parse(response.getContentText());
-      const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
-      return { success: true, text, confidence: text ? 90 : 0, source: 'google_vision' };
-    } catch (e) {
-      Logger.log('OCRService error: ' + e.toString());
-      return { success: false, error: e.toString() };
-    }
-  }
-};
+      Logger.log('[GPT-4o] Processing image...');
 
-// ═══════════════════════════════════════════════════════════════════════════
-// CHATGPT SERVICE (OpenAI)
-// ═══════════════════════════════════════════════════════════════════════════
+      const prompt = `You are an expert medical lab report analyzer. Extract ALL lab values from this image.
 
-const ChatGPTService = {
+This may be a CUMULATIVE REPORT with multiple date columns. Extract values for EACH date.
 
-  processImage: function(imageBase64) {
-    const config = getConfig();
-    if (!config.openaiApiKey) {
-      return { success: false, error: 'OpenAI API key not configured. Set OPENAI_API_KEY in Script Properties.' };
-    }
+For each value extract:
+- test: Full name (Sodium not Na, Creatinine not Creat)
+- value: Number only
+- unit: mmol/L, mg/dL, etc.
+- flag: H (high), L (low), or N (normal)
+- refLow, refHigh: Reference range limits
+- collectionDate: Date if visible
 
-    try {
-      let imageData = imageBase64;
-      if (!imageData.startsWith('data:image')) {
-        imageData = 'data:image/jpeg;base64,' + imageData;
-      }
-
-      Logger.log('ChatGPT processImage: calling API');
+Return ONLY valid JSON:
+{"reportType":"CUMULATIVE","confidence":90,"dates":["23/12/2025","22/12/2025"],"values":[{"test":"Sodium","value":"140","unit":"mmol/L","flag":"N","refLow":"136","refHigh":"145","collectionDate":"23/12/2025"}]}`;
 
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
         headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
         payload: JSON.stringify({
-          model: CHATGPT_MODEL,
-          messages: [{
-            role: 'user',
-            content: [
-              { type: 'text', text: `You are an expert medical laboratory report analyzer. Extract ALL lab test values from this image with high precision.
-
-INSTRUCTIONS:
-1. Identify the report type: CBC, BMP, CMP, LFT, COAGULATION, THYROID, LIPID, or GENERAL
-2. For each lab test, extract:
-   - test: The full test name (e.g., "Hemoglobin", "Sodium", "ALT")
-   - value: The numeric value only (remove units, flags)
-   - unit: The unit of measurement (e.g., "g/dL", "mmol/L", "U/L")
-   - flag: "H" if high/abnormal, "L" if low/abnormal, "N" if normal/within range
-   - refLow: Lower reference range if visible
-   - refHigh: Upper reference range if visible
-
-3. Handle common OCR errors:
-   - "O" (letter) → 0 (zero) in numbers
-   - "l" (lowercase L) → 1 (one) in numbers
-   - Comma → decimal point in European formats
-
-4. Table parsing rules:
-   - Skip header rows (Date, Patient, etc.)
-   - Each data row = one test
-   - Columns usually: Test Name | Value | Unit | Reference Range
-   - Some formats show: Test Name Value(Unit) Reference
-
-5. Return ONLY valid JSON (no markdown, no extra text):
-{
-  "reportType": "CBC|BMP|CMP|LFT|COAGULATION|THYROID|LIPID|GENERAL",
-  "confidence": 85,
-  "values": [
-    {
-      "test": "Test Name",
-      "value": "12.5",
-      "unit": "g/dL",
-      "flag": "N",
-      "refLow": "12.0",
-      "refHigh": "16.0"
-    }
-  ]
-}
-
-Extract ALL visible lab values. Be thorough and accurate.` },
-              { type: 'image_url', image_url: { url: imageData } }
-            ]
-          }],
+          model: GPT_MODEL,
+          messages: [
+            { role: 'system', content: prompt },
+            { role: 'user', content: [
+              { type: 'text', text: 'Extract ALL lab values from this report.' },
+              { type: 'image_url', image_url: { url: img, detail: 'high' } }
+            ]}
+          ],
           max_tokens: 4096,
           temperature: 0.1
         }),
         muteHttpExceptions: true
       });
 
-      const responseCode = response.getResponseCode();
-      const responseText = response.getContentText();
+      const code = response.getResponseCode();
+      const text = response.getContentText();
 
-      Logger.log('ChatGPT response code: ' + responseCode);
+      Logger.log('[GPT-4o] Response: ' + code);
 
-      if (responseCode !== 200) {
-        Logger.log('ChatGPT error: ' + responseText.substring(0, 500));
-        try {
-          const err = JSON.parse(responseText);
-          return { success: false, error: err.error?.message || 'API error ' + responseCode };
-        } catch (e) {
-          return { success: false, error: 'API error ' + responseCode };
-        }
+      if (code !== 200) {
+        try { return { success: false, error: JSON.parse(text).error?.message || 'API error ' + code }; }
+        catch (e) { return { success: false, error: 'API error ' + code }; }
       }
 
-      const result = JSON.parse(responseText);
-      const content = result.choices?.[0]?.message?.content || '';
+      const content = JSON.parse(text).choices?.[0]?.message?.content || '';
+      Logger.log('[GPT-4o] Content: ' + content.substring(0, 300));
 
-      Logger.log('ChatGPT response content preview: ' + content.substring(0, 500));
-
-      let parsed = { values: [], reportType: 'GENERAL', confidence: 90 };
+      let parsed = { values: [], reportType: 'GENERAL', dates: [] };
       try {
-        // Remove markdown code blocks if present (```json ... ```)
-        let jsonContent = content.trim();
-        if (jsonContent.startsWith('```')) {
-          jsonContent = jsonContent.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
-        }
+        let json = content.trim();
+        if (json.startsWith('```')) json = json.replace(/```json?\n?/g, '').replace(/```\s*$/g, '').trim();
+        const match = json.match(/\{[\s\S]*\}/);
+        if (match) parsed = JSON.parse(match[0]);
+      } catch (e) { Logger.log('[GPT-4o] Parse error: ' + e); }
 
-        // Extract JSON object
-        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
-        if (jsonMatch) {
-          parsed = JSON.parse(jsonMatch[0]);
-          Logger.log('Successfully parsed ' + (parsed.values?.length || 0) + ' lab values');
-        } else {
-          Logger.log('No JSON found in response');
-        }
-      } catch(e) {
-        Logger.log('JSON parse error: ' + e.toString() + ' | Content: ' + content.substring(0, 200));
-      }
-
-      // Ensure all values have required fields
-      const processedValues = (parsed.values || []).map(v => ({
+      const values = (parsed.values || []).map(v => ({
         test: v.test || 'Unknown',
-        value: v.value || '',
+        value: String(v.value || ''),
         unit: v.unit || '',
         flag: v.flag || 'N',
-        refLow: v.refLow || null,
-        refHigh: v.refHigh || null
+        refLow: v.refLow ? String(v.refLow) : null,
+        refHigh: v.refHigh ? String(v.refHigh) : null,
+        collectionDate: v.collectionDate || null,
+        category: categorizeTest(v.test)
       }));
 
-      return {
-        success: true,
-        values: processedValues,
-        reportType: parsed.reportType || 'GENERAL',
-        confidence: parsed.confidence || 90,
-        rawText: content
-      };
+      Logger.log('[GPT-4o] Extracted ' + values.length + ' values');
+
+      return { success: true, values, reportType: parsed.reportType || 'GENERAL', confidence: parsed.confidence || 90, dates: parsed.dates || [], model: GPT_MODEL };
     } catch (e) {
-      Logger.log('ChatGPT processImage error: ' + e.toString());
+      Logger.log('[GPT-4o] Error: ' + e);
       return { success: false, error: e.toString() };
     }
   },
 
-  consult: function(query, patientContext, labValues) {
+  consult: function(query, patient, labs) {
     const config = getConfig();
-    if (!config.openaiApiKey) {
-      return { success: false, error: 'OpenAI API key not configured. Set OPENAI_API_KEY in Script Properties.' };
-    }
-
+    if (!config.openaiApiKey) return { success: false, error: 'API key not set' };
     try {
-      Logger.log('ChatGPT consult: calling API');
-
-      const systemPrompt = `You are a medical AI assistant helping doctors with patient consultations. Be concise and evidence-based. Use medical terminology appropriately.`;
-
-      const userMessage = `Patient: ${JSON.stringify(patientContext || {})}
-Labs: ${JSON.stringify(labValues || [])}
-Question: ${query}`;
-
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
         headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
         payload: JSON.stringify({
-          model: CHATGPT_MODEL,
+          model: GPT_MODEL,
           messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage }
+            { role: 'system', content: 'You are a medical AI assistant. Be concise and evidence-based.' },
+            { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\nLabs: ' + JSON.stringify(labs) + '\nQuestion: ' + query }
           ],
           max_tokens: 4096
         }),
         muteHttpExceptions: true
       });
-
-      const responseCode = response.getResponseCode();
-      const responseText = response.getContentText();
-
-      Logger.log('ChatGPT consult response code: ' + responseCode);
-
-      if (responseCode !== 200) {
-        Logger.log('ChatGPT consult error: ' + responseText.substring(0, 500));
-        try {
-          const err = JSON.parse(responseText);
-          return { success: false, error: err.error?.message || 'API error ' + responseCode };
-        } catch (e) {
-          return { success: false, error: 'API error ' + responseCode };
-        }
-      }
-
-      const result = JSON.parse(responseText);
-      return { success: true, response: result.choices?.[0]?.message?.content || '' };
-    } catch (e) {
-      Logger.log('ChatGPT consult error: ' + e.toString());
-      return { success: false, error: e.toString() };
-    }
+      if (response.getResponseCode() !== 200) return { success: false, error: 'API error' };
+      return { success: true, response: JSON.parse(response.getContentText()).choices?.[0]?.message?.content || '' };
+    } catch (e) { return { success: false, error: e.toString() }; }
   }
 };
 
-// Keep alias for backwards compatibility
-const ClaudeService = ChatGPTService;
-
 // ═══════════════════════════════════════════════════════════════════════════
-// WEB APP HANDLERS
+// WEB APP
 // ═══════════════════════════════════════════════════════════════════════════
 
 function doGet(e) {
-  const action = e?.parameter?.action;
-  switch (action) {
-    case 'test': return json(testSheetRead());
-    case 'debug': return json(debugFullFlow());
-    case 'sync': return json(SheetSync.pullFromSheet());
+  const a = e?.parameter?.action;
+  switch (a) {
     case 'health': return json(healthCheck());
+    case 'testgpt': case 'testchatgpt': case 'testclaude': return json(testGPT());
     case 'patients': return json({ patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
-    case 'testchatgpt':
-    case 'testclaude': return json(testChatGPTAPI());
+    case 'sync': return json(SheetSync.pullFromSheet());
+    case 'debug': return json(debugInfo());
     default: return htmlPage();
   }
 }
 
 function doPost(e) {
   try {
-    if (!e?.postData?.contents) return json({ success: false, error: 'No data received' });
+    if (!e?.postData?.contents) return json({ success: false, error: 'No data' });
+    const d = JSON.parse(e.postData.contents);
+    const a = d.action;
+    Logger.log('POST: ' + a);
 
-    const data = JSON.parse(e.postData.contents);
-    const action = data.action;
-    
-    Logger.log('POST action: ' + action);
+    switch (a) {
+      case 'loadPatients': SheetSync.pullFromSheet(); return json({ success: true, patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
+      case 'refreshFromSheet': return json(PatientService.refresh());
+      case 'savePatient': return json(PatientService.create(d.patient || d));
+      case 'updatePatient': return json(PatientService.update(d.patientId, d.updates || d));
+      case 'deletePatient': return json(PatientService.delete(d.patientId));
+      case 'saveLabs': return json(LabService.save(d.patientId, d.labData));
+      case 'loadLabs': return json(LabService.getLatest(d.patientId));
+      case 'loadLabHistory': return json(LabService.getHistory(d.patientId, d.limit));
 
-    switch (action) {
-      case 'loadPatients':
-        const pullResult = SheetSync.pullFromSheet();
-        const allPatients = PatientService.getAll();
-        return json({ 
-          success: true, 
-          patients: allPatients, 
-          count: Object.keys(allPatients).length, 
-          syncResult: pullResult 
-        });
-        
-      case 'refreshFromSheet': 
-        return json(PatientService.refresh());
-        
-      case 'savePatient': 
-        return json(PatientService.create(data.patient || data));
-        
-      case 'updatePatient': 
-        return json(PatientService.update(data.patientId, data.updates || data));
-        
-      case 'deletePatient': 
-        return json(PatientService.delete(data.patientId));
-        
-      case 'saveLabs': 
-        return json(LabService.save(data.patientId, data.labData));
-        
-      case 'loadLabs': 
-        return json(LabService.getLatest(data.patientId));
-        
-      case 'loadLabHistory': 
-        return json(LabService.getHistory(data.patientId, data.limit));
-        
-      case 'loadNotice': 
-        return json({ success: true, notice: NoticeService.get() });
-        
-      case 'saveNotice': 
-        return json(NoticeService.save(data.notice?.text || data.text));
-        
-      case 'runOCR': 
-        return json(OCRService.process(data.image));
-        
-      case 'claudeVision': 
-        return json(ClaudeService.processImage(data.image));
-        
-      case 'claudeConsult': 
-        return json(ClaudeService.consult(data.query, data.patientContext, data.labValues));
-        
-      case 'pullFromSheet':
-      case 'syncSheet': 
-        return json(SheetSync.pullFromSheet());
-        
-      case 'pushToSheet': 
-        return json(SheetSync.pushToSheet(PatientService.getAll()));
-        
-      case 'test': 
-        return json({ success: true, version: SCRIPT_VERSION });
-        
-      default: 
-        return json({ success: false, error: 'Unknown action: ' + action });
+      // GPT-4o Vision OCR - all these actions use GPT-4o
+      case 'gptVision':
+      case 'runOCR':
+      case 'claudeVision':
+      case 'extractLabs':
+        return json(GPTVisionService.extractLabs(d.image));
+
+      // GPT-4o Consultation
+      case 'gptConsult':
+      case 'claudeConsult':
+      case 'aiConsult':
+        return json(GPTVisionService.consult(d.query, d.patientContext, d.labValues));
+
+      case 'loadNotice': return json({ success: true, notice: NoticeService.get() });
+      case 'saveNotice': return json(NoticeService.save(d.notice?.text || d.text));
+      case 'pullFromSheet': case 'syncSheet': return json(SheetSync.pullFromSheet());
+      default: return json({ success: false, error: 'Unknown: ' + a });
     }
-  } catch (e) {
-    Logger.log('doPost error: ' + e.toString());
-    return json({ success: false, error: e.toString() });
-  }
+  } catch (e) { return json({ success: false, error: e.toString() }); }
 }
 
-function json(data) {
-  return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON);
-}
+function json(data) { return ContentService.createTextOutput(JSON.stringify(data)).setMimeType(ContentService.MimeType.JSON); }
 
 function healthCheck() {
-  const config = getConfig();
-  return {
-    success: true,
-    version: SCRIPT_VERSION,
-    sheet: config.sheetName,
-    hasOpenAIKey: !!config.openaiApiKey,
-    keyLength: config.openaiApiKey ? config.openaiApiKey.length : 0
-  };
+  const c = getConfig();
+  return { success: true, version: SCRIPT_VERSION, model: GPT_MODEL, hasKey: !!c.openaiApiKey, keyPreview: c.openaiApiKey ? c.openaiApiKey.substring(0, 8) + '...' : 'NOT SET' };
+}
+
+function testGPT() {
+  const c = getConfig();
+  if (!c.openaiApiKey) return { success: false, error: 'OPENAI_API_KEY not set', fix: 'Project Settings → Script Properties → Add OPENAI_API_KEY' };
+  try {
+    const r = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'post', contentType: 'application/json',
+      headers: { 'Authorization': 'Bearer ' + c.openaiApiKey },
+      payload: JSON.stringify({ model: GPT_MODEL, max_tokens: 20, messages: [{ role: 'user', content: 'Say OK' }] }),
+      muteHttpExceptions: true
+    });
+    if (r.getResponseCode() === 200) return { success: true, message: 'GPT-4o Ready!', model: GPT_MODEL };
+    return { success: false, error: JSON.parse(r.getContentText()).error?.message || 'Error' };
+  } catch (e) { return { success: false, error: e.toString() }; }
+}
+
+function debugInfo() {
+  const c = getConfig();
+  const p = PatientService.getAll();
+  return { version: SCRIPT_VERSION, model: GPT_MODEL, hasKey: !!c.openaiApiKey, patientCount: Object.keys(p).length, sample: Object.values(p).slice(0, 5).map(x => ({ name: x.name, ward: x.ward, labs: x.labData?.length || 0 })) };
 }
 
 function htmlPage() {
-  const config = getConfig();
+  const c = getConfig();
+  const k = !!c.openaiApiKey;
   return HtmlService.createHtmlOutput(`
-    <html><head><title>Unit E API v${SCRIPT_VERSION}</title>
-    <style>body{font-family:system-ui;max-width:600px;margin:40px auto;padding:20px}
-    .btn{background:#15803d;color:#fff;padding:10px 20px;border-radius:6px;text-decoration:none;display:inline-block;margin:8px 8px 8px 0}
-    .btn-blue{background:#2563eb}.btn-yellow{background:#ca8a04}
-    .card{background:#f5f5f5;padding:16px;border-radius:8px;margin:16px 0}
-    .ok{color:#16a34a}.err{color:#dc2626}</style></head>
-    <body>
-    <h1>🏥 Unit E API v${SCRIPT_VERSION}</h1>
-    <div class="card">
-      <strong>Sheet:</strong> ${config.sheetName}<br>
-      <strong>ChatGPT API:</strong> <span class="${config.openaiApiKey ? 'ok' : 'err'}">${config.openaiApiKey ? '✅ Configured' : '❌ Not set'}</span>
-    </div>
-    <a class="btn" href="?action=sync">🔄 Sync</a>
-    <a class="btn" href="?action=patients">👥 Patients</a><br>
-    <a class="btn btn-blue" href="?action=debug">🔍 Debug</a>
-    <a class="btn btn-blue" href="?action=test">🧪 Test</a><br>
-    <a class="btn btn-yellow" href="?action=health">❤️ Health</a>
-    <a class="btn btn-yellow" href="?action=testchatgpt">🤖 Test ChatGPT</a>
-    </body></html>
-  `);
+<!DOCTYPE html><html><head><title>Unit E v${SCRIPT_VERSION}</title>
+<style>body{font-family:system-ui;max-width:700px;margin:40px auto;padding:20px;background:#f5f5f5}
+.card{background:#fff;padding:20px;border-radius:12px;margin:16px 0;box-shadow:0 2px 8px rgba(0,0,0,0.1)}
+.btn{display:inline-block;padding:12px 20px;border-radius:8px;text-decoration:none;font-weight:600;margin:4px;color:#fff}
+.g{background:#22c55e}.b{background:#3b82f6}.y{background:#eab308;color:#000}
+.ok{color:#22c55e}.err{color:#ef4444}
+h1{color:#1e293b}code{background:#e2e8f0;padding:2px 6px;border-radius:4px}</style></head>
+<body>
+<h1>🏥 Unit E Ward Rounds v${SCRIPT_VERSION}</h1>
+<p style="color:#64748b">GPT-4o Vision OCR Engine</p>
+<div class="card">
+<h3>Status</h3>
+<p><strong>GPT-4o API:</strong> <span class="${k ? 'ok' : 'err'}">${k ? '✓ Ready' : '✗ Not configured'}</span></p>
+<p><strong>Model:</strong> ${GPT_MODEL}</p>
+<p><strong>Sheet:</strong> ${c.sheetName}</p>
+</div>
+${!k ? '<div class="card" style="border-left:4px solid #ef4444"><h3>⚠️ Setup Required</h3><p>Add <code>OPENAI_API_KEY</code> in Project Settings → Script Properties</p></div>' : ''}
+<div class="card">
+<h3>Actions</h3>
+<a class="btn g" href="?action=sync">🔄 Sync</a>
+<a class="btn g" href="?action=patients">👥 Patients</a>
+<a class="btn b" href="?action=testgpt">🤖 Test GPT-4o</a>
+<a class="btn b" href="?action=health">❤️ Health</a>
+<a class="btn y" href="?action=debug">🔍 Debug</a>
+</div>
+</body></html>`);
 }
 
-// ═══════════════════════════════════════════════════════════════════════════
-// TEST & DEBUG
-// ═══════════════════════════════════════════════════════════════════════════
-
-function testSheetRead() {
-  const sheet = SheetSync.getSheet();
-  if (!sheet) return { error: 'Sheet not found' };
-
-  const config = getConfig();
-  const lastRow = sheet.getLastRow();
-  const sampleRows = Math.min(30, lastRow - config.dataStartRow + 1);
-  if (sampleRows < 1) return { error: 'No data rows' };
-
-  const data = sheet.getRange(config.dataStartRow, 1, sampleRows, 5).getValues();
-  
-  const annotated = data.map((row, idx) => {
-    const colA = getCell(row, 0);
-    const colB = getCell(row, 1);
-    
-    let type = 'unknown';
-    if (!colA && !colB) type = 'empty';
-    else if (isSectionHeader(colA)) type = 'SECTION';
-    else if (isColumnHeader(colA, colB)) type = 'COLUMN_HEADER';
-    else if (isWardHeader(colA, colB)) type = 'WARD';
-    else if (colB) type = 'PATIENT';
-    
-    return {
-      row: idx + config.dataStartRow,
-      type,
-      data: [getCell(row, 0), getCell(row, 1), getCell(row, 2), getCell(row, 3), getCell(row, 4)],
-      rawA: row[0] instanceof Date ? '[DATE:' + row[0].toISOString() + ']' : row[0]
-    };
-  });
-
-  return { sheetName: sheet.getName(), lastRow, dataStartRow: config.dataStartRow, annotatedRows: annotated };
-}
-
-function debugFullFlow() {
-  const config = getConfig();
-  const syncResult = SheetSync.pullFromSheet();
-  const patients = PatientService.getAll();
-  const ids = Object.keys(patients).slice(0, 10);
-
-  return {
-    version: SCRIPT_VERSION,
-    config: {
-      sheetName: config.sheetName,
-      hasOpenAIKey: !!config.openaiApiKey,
-      keyLength: config.openaiApiKey?.length || 0
-    },
-    syncResult: syncResult,
-    patientCount: Object.keys(patients).length,
-    samplePatients: ids.map(id => ({
-      id,
-      name: patients[id].name,
-      ward: patients[id].ward,
-      bed: patients[id].bed,
-      status: patients[id].status
-    }))
-  };
-}
-
-function testChatGPTAPI() {
-  const config = getConfig();
-  if (!config.openaiApiKey) {
-    return { success: false, error: 'OPENAI_API_KEY not set in Script Properties' };
-  }
-
-  try {
-    const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'post',
-      contentType: 'application/json',
-      headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
-      payload: JSON.stringify({
-        model: CHATGPT_MODEL,
-        max_tokens: 50,
-        messages: [{ role: 'user', content: 'Say "API working" in 2 words.' }]
-      }),
-      muteHttpExceptions: true
-    });
-
-    const code = response.getResponseCode();
-    const text = response.getContentText();
-
-    if (code === 200) {
-      const result = JSON.parse(text);
-      return { success: true, response: result.choices?.[0]?.message?.content, model: CHATGPT_MODEL };
-    }
-
-    try {
-      const err = JSON.parse(text);
-      return { success: false, code, error: err.error?.message || text.substring(0, 200) };
-    } catch (e) {
-      return { success: false, code, error: text.substring(0, 200) };
-    }
-  } catch (e) {
-    return { success: false, error: e.toString() };
-  }
-}
-
-// Keep old function name for backwards compatibility
-function testClaudeAPI() {
-  return testChatGPTAPI();
-}
-
-function initialSetup() {
-  DataStore.getFile('patients.json', {});
-  DataStore.getFile('notice.json', { text: '' });
-  const result = SheetSync.pullFromSheet();
-  return { pullResult: result, patientCount: Object.keys(PatientService.getAll()).length };
-}
-
-function manualSync() {
-  return SheetSync.pullFromSheet();
-}
+// Legacy compatibility
+function testChatGPTAPI() { return testGPT(); }
+function testClaudeAPI() { return testGPT(); }
+function manualSync() { return SheetSync.pullFromSheet(); }
