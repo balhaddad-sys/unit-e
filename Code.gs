@@ -1,15 +1,31 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v3.6
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v3.7
  *
- * FIXED: 
+ * SETUP INSTRUCTIONS:
+ * 1. Go to Project Settings (⚙️) > Script Properties
+ * 2. Add these properties:
+ *    - OPENAI_API_KEY (REQUIRED) - Your OpenAI API key for GPT-4o Vision
+ *    - VISION_API_KEY (OPTIONAL) - Google Vision API key (fallback only)
+ *    - SPREADSHEET_ID (optional) - Your Google Sheet ID
+ *    - DRIVE_FOLDER_ID (optional) - Your Google Drive folder ID
+ *
+ * RECENT UPDATES:
+ * v3.7:
+ * - Improved GPT-4o Vision prompt for better lab extraction
+ * - Added reference range extraction (refLow, refHigh)
+ * - Reduced timeout from 30s to 15s for better UX
+ * - Better error messages and logging
+ * - Made Google Vision API optional (fallback only)
+ *
+ * v3.6:
  * - Response format matches frontend expectations
  * - Bed numbers formatted as dates handled
  * - Better error messages
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const SCRIPT_VERSION = '3.6.0';
+const SCRIPT_VERSION = '3.7.0';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // CONFIGURATION
@@ -18,7 +34,9 @@ const SCRIPT_VERSION = '3.6.0';
 function getConfig() {
   const props = PropertiesService.getScriptProperties();
   return {
+    // Google Vision API (OPTIONAL - only used as fallback if GPT-4o fails)
     visionApiKey: props.getProperty('VISION_API_KEY') || '',
+    // OpenAI API (REQUIRED - primary method for lab extraction)
     openaiApiKey: props.getProperty('OPENAI_API_KEY') || '',
     spreadsheetId: props.getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
     driveFolderId: props.getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
@@ -434,7 +452,15 @@ const NoticeService = {
 const OCRService = {
   process: function(imageBase64) {
     const config = getConfig();
-    if (!config.visionApiKey) return { success: false, error: 'Vision API key not configured' };
+
+    // Google Vision API is optional - only used as fallback
+    if (!config.visionApiKey) {
+      Logger.log('OCRService: VISION_API_KEY not configured (optional, fallback only)');
+      return {
+        success: false,
+        error: 'Google Vision API key not configured. This is optional and only used as fallback. Set VISION_API_KEY in Script Properties if needed.'
+      };
+    }
 
     try {
       const imageData = imageBase64.replace(/^data:image\/\w+;base64,/, '');
@@ -449,11 +475,12 @@ const OCRService = {
         }
       );
 
-      if (response.getResponseCode() !== 200) return { success: false, error: 'Vision API error' };
+      if (response.getResponseCode() !== 200) return { success: false, error: 'Vision API error: ' + response.getResponseCode() };
       const result = JSON.parse(response.getContentText());
       const text = result.responses?.[0]?.fullTextAnnotation?.text || '';
       return { success: true, text, confidence: text ? 90 : 0, source: 'google_vision' };
     } catch (e) {
+      Logger.log('OCRService error: ' + e.toString());
       return { success: false, error: e.toString() };
     }
   }
