@@ -1,0 +1,82 @@
+═══════════════════════════════════════════════════════════
+OCR SYSTEM - REQUIRED FILES
+═══════════════════════════════════════════════════════════
+
+✅ 1. Code.gs (Backend - Google Apps Script)
+   Location: /home/user/unit-e/Code.gs
+   Size: 35 KB
+   Purpose: Backend API that calls GPT-4o Vision
+   
+✅ 2. js/ocr-engine.js (Frontend - OCR Orchestration)
+   Location: /home/user/unit-e/js/ocr-engine.js
+   Size: 27 KB
+   Purpose: Image compression, API calls, progress tracking
+   
+✅ 3. js/lab-parser.js (Frontend - Lab Value Parser)
+   Location: /home/user/unit-e/js/lab-parser.js
+   Size: 101 KB
+   Purpose: 80+ lab test database, validation, neural analysis
+   
+✅ 4. js/config.js (Frontend - Configuration)
+   Location: /home/user/unit-e/js/config.js
+   Size: 11 KB
+   Purpose: API endpoints and app configuration
+   
+✅ 5. index.html (Frontend - UI Component)
+   Location: /home/user/unit-e/index.html
+   Lines: 4967-6244 (LabModal component)
+   Purpose: React UI for image upload and OCR display
+
+═══════════════════════════════════════════════════════════
+SETUP CHECKLIST
+═══════════════════════════════════════════════════════════
+
+Backend:
+□ Deploy Code.gs to Google Apps Script
+□ Add OPENAI_API_KEY to Script Properties
+□ Copy deployment URL
+
+Frontend:
+□ Update apiUrl in js/config.js with deployment URL
+□ Ensure all JS files are loaded in index.html
+□ Test with a lab image
+
+═══════════════════════════════════════════════════════════
+REQUIRED API KEY
+═══════════════════════════════════════════════════════════
+
+OpenAI API Key (REQUIRED):
+- Get from: https://platform.openai.com/api-keys
+- Set in: Google Apps Script → Project Settings → Script Properties
+- Key name: OPENAI_API_KEY
+- Cost: ~$0.01-0.03 per lab image
+
+Google Vision API Key (OPTIONAL):
+- Only needed for fallback (disabled by default)
+- Key name: VISION_API_KEY
+
+═══════════════════════════════════════════════════════════
+FLOW DIAGRAM
+═══════════════════════════════════════════════════════════
+
+User uploads image
+    ↓
+index.html (LabModal)
+    ↓
+js/ocr-engine.js → Compress & send to API
+    ↓
+Code.gs (Backend) → Call GPT-4o Vision
+    ↓
+OpenAI GPT-4o Vision API
+    ↓
+← Returns JSON with lab values
+    ↓
+js/lab-parser.js → Validate & enrich
+    ↓
+Display results with confidence scores
+    ↓
+Save to Google Drive + Firebase
+
+═══════════════════════════════════════════════════════════
+
+For detailed documentation, see: OCR_FILES_GUIDE.md
