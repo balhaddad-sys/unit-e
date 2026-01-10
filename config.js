@@ -6,7 +6,7 @@
 const CONFIG = {
     // Apps Script Web App deployment URL
     // ⚠️ UPDATE THIS with your deployed Google Apps Script URL after redeploying
-    apiUrl: 'https://script.google.com/macros/s/AKfycbyr5Z8Yx1kiaGCa2hwqievp-TmeSg4bx52WVgXwJl78a7611FmRwFs-gFkYshWoDk_e/exec',
+    apiUrl: 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec',
     
     // Wards
     wards: ["Ward 20", "Ward 21", "Ward 22", "Ward 5", "Ward 27", "Ward 4", "Ward 19", "Ward 10", "ICU", "ER", "Unassigned"],
