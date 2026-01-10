@@ -244,22 +244,7 @@ const GPTVisionService = {
       let img = imageBase64;
       if (!img.startsWith('data:image')) img = 'data:image/jpeg;base64,' + img;
 
-      Logger.log('[GPT-4o] Processing image...');
-
-      const prompt = `You are an expert medical lab report analyzer. Extract ALL lab values from this image.
-
-This may be a CUMULATIVE REPORT with multiple date columns. Extract values for EACH date.
-
-For each value extract:
-- test: Full name (Sodium not Na, Creatinine not Creat)
-- value: Number only
-- unit: mmol/L, mg/dL, etc.
-- flag: H (high), L (low), or N (normal)
-- refLow, refHigh: Reference range limits
-- collectionDate: Date if visible
-
-Return ONLY valid JSON:
-{"reportType":"CUMULATIVE","confidence":90,"dates":["23/12/2025","22/12/2025"],"values":[{"test":"Sodium","value":"140","unit":"mmol/L","flag":"N","refLow":"136","refHigh":"145","collectionDate":"23/12/2025"}]}`;
+      const prompt = `Extract lab values as JSON: {"reportType":"CBC|BMP|GENERAL","dates":["date"],"values":[{"test":"Full Name","value":"123","unit":"mg/dL","flag":"H|L|N","refLow":"10","refHigh":"20","collectionDate":"date"}]}`;
 
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
@@ -270,20 +255,19 @@ Return ONLY valid JSON:
           messages: [
             { role: 'system', content: prompt },
             { role: 'user', content: [
-              { type: 'text', text: 'Extract ALL lab values from this report.' },
-              { type: 'image_url', image_url: { url: img, detail: 'high' } }
+              { type: 'text', text: 'Extract all values.' },
+              { type: 'image_url', image_url: { url: img, detail: 'auto' } }
             ]}
           ],
-          max_tokens: 4096,
-          temperature: 0.1
+          max_tokens: 2048,
+          temperature: 0
         }),
-        muteHttpExceptions: true
+        muteHttpExceptions: true,
+        timeout: 25000
       });
 
       const code = response.getResponseCode();
       const text = response.getContentText();
-
-      Logger.log('[GPT-4o] Response: ' + code);
 
       if (code !== 200) {
         try { return { success: false, error: JSON.parse(text).error?.message || 'API error ' + code }; }
@@ -291,7 +275,6 @@ Return ONLY valid JSON:
       }
 
       const content = JSON.parse(text).choices?.[0]?.message?.content || '';
-      Logger.log('[GPT-4o] Content: ' + content.substring(0, 300));
 
       let parsed = { values: [], reportType: 'GENERAL', dates: [] };
       try {
@@ -299,7 +282,7 @@ Return ONLY valid JSON:
         if (json.startsWith('```')) json = json.replace(/```json?\n?/g, '').replace(/```\s*$/g, '').trim();
         const match = json.match(/\{[\s\S]*\}/);
         if (match) parsed = JSON.parse(match[0]);
-      } catch (e) { Logger.log('[GPT-4o] Parse error: ' + e); }
+      } catch (e) { }
 
       const values = (parsed.values || []).map(v => ({
         test: v.test || 'Unknown',
@@ -312,11 +295,8 @@ Return ONLY valid JSON:
         category: categorizeTest(v.test)
       }));
 
-      Logger.log('[GPT-4o] Extracted ' + values.length + ' values');
-
       return { success: true, values, reportType: parsed.reportType || 'GENERAL', confidence: parsed.confidence || 90, dates: parsed.dates || [], model: GPT_MODEL };
     } catch (e) {
-      Logger.log('[GPT-4o] Error: ' + e);
       return { success: false, error: e.toString() };
     }
   },
@@ -332,12 +312,14 @@ Return ONLY valid JSON:
         payload: JSON.stringify({
           model: GPT_MODEL,
           messages: [
-            { role: 'system', content: 'You are a medical AI assistant. Be concise and evidence-based.' },
-            { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\nLabs: ' + JSON.stringify(labs) + '\nQuestion: ' + query }
+            { role: 'system', content: 'Medical AI. Be concise.' },
+            { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\nLabs: ' + JSON.stringify(labs) + '\nQ: ' + query }
           ],
-          max_tokens: 4096
+          max_tokens: 1024,
+          temperature: 0
         }),
-        muteHttpExceptions: true
+        muteHttpExceptions: true,
+        timeout: 20000
       });
       if (response.getResponseCode() !== 200) return { success: false, error: 'API error' };
       return { success: true, response: JSON.parse(response.getContentText()).choices?.[0]?.message?.content || '' };
