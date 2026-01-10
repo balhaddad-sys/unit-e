@@ -3073,6 +3073,7 @@ const STATUS_OPTIONS = ["New", "Chronic", "Non-Chronic"];
 const isTimestamp = (val) => String(val || "").match(/^\d{4}-\d{2}-\d{2}|^(Mon|Tue|Wed|Thu|Fri|Sat|Sun)\s|\d{13,}|T\d{2}:\d{2}/);
 const cleanBed = (val) => isTimestamp(val) ? "" : String(val || "").trim();
 const makeKey = (ward, name) => `${(ward || "").toLowerCase().trim()}|${(name || "").toLowerCase().trim()}`;
+const generateId = (ward, name) => `${ward}_${name}`.replace(/[^a-zA-Z0-9]/g, '_').toLowerCase();
 const formatDateTime = (ts) => {
     if (!ts) return { date: "", time: "" };
     const d = new Date(ts);
@@ -6204,7 +6205,9 @@ const App = () => {
                 const patientsArray = Object.keys(patientsData).map(k => ({
                     id: k,
                     ...patientsData[k],
-                    bed: cleanBed(patientsData[k].bed)
+                    bed: cleanBed(patientsData[k].bed),
+                    // Transform labData to labImages for frontend compatibility
+                    labImages: patientsData[k].labData || patientsData[k].labImages || []
                 }));
                 setPatients(patientsArray);
                 showToast(`✓ Imported ${result.syncResult?.count || 0} patients from sheet!`);
@@ -6256,7 +6259,9 @@ const App = () => {
                         const freshArray = Object.keys(patientsData).map(k => ({
                             id: k,
                             ...patientsData[k],
-                            bed: cleanBed(patientsData[k].bed)
+                            bed: cleanBed(patientsData[k].bed),
+                            // Transform labData to labImages for frontend compatibility
+                            labImages: patientsData[k].labData || patientsData[k].labImages || []
                         }));
                         localStorage.setItem('patients_cache', JSON.stringify(freshArray));
                         localStorage.setItem('patients_cache_time', Date.now().toString());
@@ -6270,7 +6275,9 @@ const App = () => {
                 const patientsArray = Object.keys(patientsData).map(k => ({
                     id: k,
                     ...patientsData[k],
-                    bed: cleanBed(patientsData[k].bed)
+                    bed: cleanBed(patientsData[k].bed),
+                    // Transform labData to labImages for frontend compatibility
+                    labImages: patientsData[k].labData || patientsData[k].labImages || []
                 }));
 
                 // Store in cache
@@ -6378,6 +6385,19 @@ const App = () => {
                 }
             });
 
+            // Update local patient state with new labs
+            setPatients(prev => {
+                const updated = prev.map(p =>
+                    p.id === patientId
+                        ? { ...p, labImages: labImages, labInfo: { count: labData.length, lastSaved: Date.now() } }
+                        : p
+                );
+                // Update cache
+                localStorage.setItem('patients_cache', JSON.stringify(updated));
+                localStorage.setItem('patients_cache_time', Date.now().toString());
+                return updated;
+            });
+
             showToast("✓ Labs saved to Drive");
             scheduleSync();
             
@@ -6473,7 +6493,7 @@ const App = () => {
         // Sanitize after validation
         const c = {
             ...rawPatient,
-            id: Utils.generateId(),
+            id: generateId(rawPatient.ward, rawPatient.name),
             name: sanitizeInput(rawPatient.name),
             diagnosis: sanitizeInput(rawPatient.diagnosis),
             doctor: sanitizeInput(rawPatient.doctor),
@@ -6483,7 +6503,11 @@ const App = () => {
 
         API.savePatient(c).then(() => {
             // Update local state
-            setPatients(prev => [...prev, c]);
+            const updatedPatients = [...patients, c];
+            setPatients(updatedPatients);
+            // Update cache
+            localStorage.setItem('patients_cache', JSON.stringify(updatedPatients));
+            localStorage.setItem('patients_cache_time', Date.now().toString());
             setAddModal(false);
             setNewP({ ward: "Ward 19", bed: "", name: "", diagnosis: "", doctor: "", plan: "", status: "New", mrn: "" });
             showToast("✓ Added");
