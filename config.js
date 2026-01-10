@@ -1,9 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// UNIT E WARD ROUNDS - CONFIG v3.2
+// UNIT E WARD ROUNDS - CONFIG v3.3
+// FIXED: Consistent API URL, added OpenAI configuration
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
     // Apps Script Web App deployment URL
+    // ⚠️ UPDATE THIS with your deployed Google Apps Script URL after redeploying
     apiUrl: 'https://script.google.com/macros/s/AKfycbyr5Z8Yx1kiaGCa2hwqievp-TmeSg4bx52WVgXwJl78a7611FmRwFs-gFkYshWoDk_e/exec',
     
     // Wards
@@ -23,7 +25,15 @@ const CONFIG = {
     
     // Timeouts
     timeout: 60000,
-    maxRetries: 3
+    maxRetries: 3,
+    
+    // AI Configuration
+    ai: {
+        enabled: true,
+        model: 'gpt-4o',
+        fallbackToKnowledgeBase: true,
+        timeout: 30000
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -124,12 +134,12 @@ const API = {
         return await API._fetch({ action: 'runOCR', image: base64Image });
     },
 
-    // ChatGPT Vision API (formerly claudeVision)
+    // ChatGPT Vision API (GPT-4o) for lab image processing
     chatgptVision: async (base64Image) => {
         return await API._fetch({ action: 'claudeVision', image: base64Image });
     },
 
-    // ChatGPT Consultation API (formerly claudeConsult)
+    // ChatGPT Consultation API (GPT-4o) for medical consultation
     chatgptConsult: async (query, patientContext, labValues) => {
         return await API._fetch({ action: 'claudeConsult', query, patientContext, labValues });
     },
@@ -177,12 +187,32 @@ const API = {
     },
     
     // ═══════════════════════════════════════════════════════════════════════
-    // TEST
+    // TEST & HEALTH
     // ═══════════════════════════════════════════════════════════════════════
     
     test: async () => {
         return await API._fetch({ action: 'test' });
+    },
+    
+    health: async () => {
+        try {
+            const response = await fetch(CONFIG.apiUrl + '?action=health');
+            return await response.json();
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
+    },
+    
+    testOpenAI: async () => {
+        try {
+            const response = await fetch(CONFIG.apiUrl + '?action=testchatgpt');
+            return await response.json();
+        } catch (e) {
+            return { success: false, error: e.message };
+        }
     }
 };
 
-console.log('[Config] Unit E v3.2 loaded');
+console.log('[Config] Unit E v3.3 loaded');
+console.log('[Config] API URL:', CONFIG.apiUrl);
+console.log('[Config] AI enabled:', CONFIG.ai.enabled);
