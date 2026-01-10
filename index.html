@@ -6059,7 +6059,8 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 <div className="fab-container">
                     <button
                         className={`fab-button ${uploading ? 'uploading' : ''}`}
-                        onClick={() => {
+                        onClick={(e) => {
+                            e.stopPropagation(); // Prevent event from bubbling to modalOverlay
                             if (!uploading) {
                                 console.log('Scan Lab button clicked');
                                 // Directly open file picker
