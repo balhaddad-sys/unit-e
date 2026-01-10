@@ -4696,35 +4696,57 @@ const AIConsultModal = ({ patient, onClose }) => {
         <div className="modalOverlay" onClick={onClose}>
             <div className="modal" onClick={e => e.stopPropagation()} style={{
                 maxWidth: '900px',
-                maxHeight: '85vh',
-                height: '85vh',
-                borderRadius: 'var(--radius-xl)',
+                maxHeight: '90vh',
+                height: window.innerWidth < 768 ? '100vh' : '90vh',
+                width: window.innerWidth < 768 ? '100vw' : 'auto',
+                margin: window.innerWidth < 768 ? '0' : 'auto',
+                borderRadius: window.innerWidth < 768 ? '0' : 'var(--radius-xl)',
                 overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column'
             }}>
                 <div className="modal-head" style={{
                     background: 'linear-gradient(135deg, #6366f1 0%, #4f46e5 50%, #4338ca 100%)',
-                    padding: '20px 24px',
+                    padding: window.innerWidth < 768 ? '16px' : '20px 24px',
                     borderBottom: '3px solid #4338ca',
                     flexShrink: 0
                 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: window.innerWidth < 768 ? '8px' : '12px' }}>
+                        {window.innerWidth < 768 && (
+                            <button
+                                onClick={onClose}
+                                style={{
+                                    background: 'rgba(255, 255, 255, 0.2)',
+                                    border: 'none',
+                                    color: 'white',
+                                    fontSize: '20px',
+                                    width: '36px',
+                                    height: '36px',
+                                    borderRadius: '50%',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    cursor: 'pointer'
+                                }}
+                            >
+                                ✕
+                            </button>
+                        )}
                         <div style={{
-                            width: '40px',
-                            height: '40px',
+                            width: window.innerWidth < 768 ? '32px' : '40px',
+                            height: window.innerWidth < 768 ? '32px' : '40px',
                             borderRadius: '50%',
                             background: 'rgba(255, 255, 255, 0.2)',
                             display: 'flex',
                             alignItems: 'center',
                             justifyContent: 'center',
-                            fontSize: '20px'
+                            fontSize: window.innerWidth < 768 ? '16px' : '20px'
                         }}>
                             🤖
                         </div>
-                        <div>
-                            <span style={{ fontSize: '18px', fontWeight: 700 }}>AI Medical Consultation</span>
-                            <div style={{ fontSize: '12px', opacity: 0.9, marginTop: '2px' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <span style={{ fontSize: window.innerWidth < 768 ? '15px' : '18px', fontWeight: 700 }}>AI Medical Consultation</span>
+                            <div style={{ fontSize: window.innerWidth < 768 ? '11px' : '12px', opacity: 0.9, marginTop: '2px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                 {patient.name} • {patient.diagnosis || 'No diagnosis specified'}
                             </div>
                         </div>
@@ -4733,18 +4755,19 @@ const AIConsultModal = ({ patient, onClose }) => {
 
                 {/* Patient Context Summary */}
                 <div style={{
-                    padding: '12px 24px',
+                    padding: window.innerWidth < 768 ? '10px 12px' : '12px 24px',
                     background: '#f8fafc',
                     borderBottom: '1px solid #e2e8f0',
-                    fontSize: '12px',
+                    fontSize: window.innerWidth < 768 ? '11px' : '12px',
                     color: '#64748b',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    overflowX: 'auto'
                 }}>
-                    <div style={{ display: 'flex', gap: '16px', flexWrap: 'wrap' }}>
-                        <span>📍 <strong>Ward:</strong> {patient.ward} • Bed {patient.bed}</span>
-                        <span>🔢 <strong>MRN:</strong> {patient.mrn || 'N/A'}</span>
-                        <span>👨‍⚕️ <strong>Doctor:</strong> {patient.doctor || 'N/A'}</span>
-                        <span>🧪 <strong>Lab Results:</strong> {(patient.labImages || []).filter(l => !l.deleted).length} available</span>
+                    <div style={{ display: 'flex', gap: window.innerWidth < 768 ? '12px' : '16px', flexWrap: 'wrap' }}>
+                        <span style={{ whiteSpace: 'nowrap' }}>📍 <strong>Ward:</strong> {patient.ward} • Bed {patient.bed}</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>🔢 <strong>MRN:</strong> {patient.mrn || 'N/A'}</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>👨‍⚕️ <strong>Dr:</strong> {patient.doctor || 'N/A'}</span>
+                        <span style={{ whiteSpace: 'nowrap' }}>🧪 <strong>Labs:</strong> {(patient.labImages || []).filter(l => !l.deleted).length}</span>
                     </div>
                 </div>
 
@@ -4752,8 +4775,9 @@ const AIConsultModal = ({ patient, onClose }) => {
                 <div style={{
                     flex: 1,
                     overflowY: 'auto',
-                    padding: '20px 24px',
-                    background: '#ffffff'
+                    padding: window.innerWidth < 768 ? '16px 12px' : '20px 24px',
+                    background: '#ffffff',
+                    WebkitOverflowScrolling: 'touch'
                 }}>
                     {conversation.length === 0 ? (
                         <div style={{
@@ -4838,14 +4862,15 @@ const AIConsultModal = ({ patient, onClose }) => {
                                     justifyContent: msg.role === 'user' ? 'flex-end' : 'flex-start'
                                 }}>
                                     <div style={{
-                                        maxWidth: '75%',
-                                        padding: '12px 16px',
+                                        maxWidth: window.innerWidth < 768 ? '90%' : '75%',
+                                        padding: window.innerWidth < 768 ? '10px 12px' : '12px 16px',
                                         borderRadius: '12px',
                                         background: msg.role === 'user' ? '#6366f1' : '#f1f5f9',
                                         color: msg.role === 'user' ? '#ffffff' : '#0f172a',
-                                        fontSize: '13px',
+                                        fontSize: window.innerWidth < 768 ? '14px' : '13px',
                                         lineHeight: '1.6',
-                                        boxShadow: msg.role === 'user' ? '0 2px 8px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.05)'
+                                        boxShadow: msg.role === 'user' ? '0 2px 8px rgba(99, 102, 241, 0.2)' : '0 2px 8px rgba(0, 0, 0, 0.05)',
+                                        wordWrap: 'break-word'
                                     }}>
                                         {msg.role === 'user' ? (
                                             <div>{msg.content}</div>
@@ -4900,27 +4925,29 @@ const AIConsultModal = ({ patient, onClose }) => {
 
                 {/* Input Area */}
                 <div style={{
-                    padding: '16px 24px',
+                    padding: window.innerWidth < 768 ? '12px' : '16px 24px',
                     borderTop: '1px solid #e2e8f0',
                     background: '#f8fafc',
-                    flexShrink: 0
+                    flexShrink: 0,
+                    paddingBottom: window.innerWidth < 768 ? 'max(12px, env(safe-area-inset-bottom))' : '16px'
                 }}>
-                    <div style={{ display: 'flex', gap: '12px', alignItems: 'flex-end' }}>
+                    <div style={{ display: 'flex', gap: window.innerWidth < 768 ? '8px' : '12px', alignItems: 'flex-end' }}>
                         <textarea
                             ref={inputRef}
                             className="inp"
                             value={userInput}
                             onChange={(e) => setUserInput(e.target.value)}
                             onKeyPress={handleKeyPress}
-                            placeholder="Ask about labs, drugs, diagnosis, treatment..."
+                            placeholder={window.innerWidth < 768 ? "Ask about labs, drugs..." : "Ask about labs, drugs, diagnosis, treatment..."}
                             style={{
                                 flex: 1,
-                                minHeight: '44px',
-                                maxHeight: '120px',
-                                resize: 'vertical',
-                                padding: '12px',
-                                fontSize: '13px',
-                                lineHeight: '1.5'
+                                minHeight: window.innerWidth < 768 ? '40px' : '44px',
+                                maxHeight: window.innerWidth < 768 ? '100px' : '120px',
+                                resize: 'none',
+                                padding: window.innerWidth < 768 ? '10px' : '12px',
+                                fontSize: window.innerWidth < 768 ? '14px' : '13px',
+                                lineHeight: '1.5',
+                                borderRadius: '12px'
                             }}
                             disabled={loading}
                         />
@@ -4928,27 +4955,30 @@ const AIConsultModal = ({ patient, onClose }) => {
                             onClick={handleSendMessage}
                             disabled={!userInput.trim() || loading}
                             style={{
-                                padding: '12px 24px',
+                                padding: window.innerWidth < 768 ? '10px 18px' : '12px 24px',
                                 background: userInput.trim() && !loading ? '#6366f1' : '#cbd5e1',
                                 color: '#ffffff',
                                 border: 'none',
-                                borderRadius: '8px',
-                                fontSize: '13px',
+                                borderRadius: '12px',
+                                fontSize: window.innerWidth < 768 ? '14px' : '13px',
                                 fontWeight: 600,
                                 cursor: userInput.trim() && !loading ? 'pointer' : 'not-allowed',
                                 transition: 'all 0.2s',
-                                height: '44px'
+                                height: window.innerWidth < 768 ? '40px' : '44px',
+                                minWidth: window.innerWidth < 768 ? '60px' : 'auto'
                             }}
                         >
-                            Send
+                            {window.innerWidth < 768 ? '↑' : 'Send'}
                         </button>
                     </div>
-                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
-                        Press Enter to send • Shift+Enter for new line
-                    </div>
+                    {window.innerWidth >= 768 && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '8px' }}>
+                            Press Enter to send • Shift+Enter for new line
+                        </div>
+                    )}
                 </div>
 
-                <div className="modal-foot" style={{ borderTop: '1px solid #e2e8f0', padding: '12px 24px', flexShrink: 0 }}>
+                <div className="modal-foot" style={{ borderTop: '1px solid #e2e8f0', padding: window.innerWidth < 768 ? '10px 12px' : '12px 24px', flexShrink: 0, display: window.innerWidth < 768 ? 'none' : 'flex' }}>
                     <button className="btn btn-white" onClick={() => {
                         if (window.AIMedicalConsultant) {
                             window.AIMedicalConsultant.clearHistory(patient.id);
@@ -6060,8 +6090,22 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 </div>
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
-                    <button className="btn" style={{ background: 'var(--purple)', color: 'white' }} onClick={handleSave}>
-                        {labImages.length === 0 ? 'Clear All' : 'Save (' + labImages.length + ')'}
+                    <button
+                        className="btn"
+                        style={{
+                            background: labImages.length === 0 ? 'var(--error)' : 'var(--success)',
+                            color: 'white',
+                            fontWeight: 600,
+                            padding: '12px 24px',
+                            fontSize: '14px',
+                            boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                            transition: 'all 0.2s'
+                        }}
+                        onClick={handleSave}
+                        onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
+                        onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                    >
+                        {labImages.length === 0 ? '🗑️ Clear All Labs' : `💾 Save ${labImages.length} Lab${labImages.length > 1 ? 's' : ''}`}
                     </button>
                 </div>
             </div>
@@ -6195,15 +6239,44 @@ const App = () => {
             .then(notice => setNotice(notice))
             .catch(e => console.error('[Load Notice] Failed:', e));
 
-        // Load patients from Google Drive
+        // Load patients from Google Drive with caching
         const loadPatientsData = async () => {
             try {
+                // Try loading from localStorage cache first (instant load)
+                const cached = localStorage.getItem('patients_cache');
+                const cacheTime = localStorage.getItem('patients_cache_time');
+
+                if (cached && cacheTime && (Date.now() - parseInt(cacheTime)) < 30000) {
+                    // Use cache if less than 30 seconds old
+                    console.log('[Load Patients] Using cache (instant load)');
+                    const patientsArray = JSON.parse(cached);
+                    setPatients(patientsArray);
+                    // Still fetch in background to update
+                    API.loadPatients().then(patientsData => {
+                        const freshArray = Object.keys(patientsData).map(k => ({
+                            id: k,
+                            ...patientsData[k],
+                            bed: cleanBed(patientsData[k].bed)
+                        }));
+                        localStorage.setItem('patients_cache', JSON.stringify(freshArray));
+                        localStorage.setItem('patients_cache_time', Date.now().toString());
+                        setPatients(freshArray);
+                    });
+                    return;
+                }
+
+                // No cache or expired - fetch fresh data
                 const patientsData = await API.loadPatients();
                 const patientsArray = Object.keys(patientsData).map(k => ({
                     id: k,
                     ...patientsData[k],
                     bed: cleanBed(patientsData[k].bed)
                 }));
+
+                // Store in cache
+                localStorage.setItem('patients_cache', JSON.stringify(patientsArray));
+                localStorage.setItem('patients_cache_time', Date.now().toString());
+
                 setPatients(patientsArray);
             } catch (e) {
                 console.error('[Load Patients] Failed:', e);
