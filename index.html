@@ -4501,8 +4501,8 @@ const AIConsultModal = ({ patient, onClose }) => {
                 return;
             }
 
-            // Get AI response
-            const result = window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
+            // Get AI response (FIXED: added await for async function)
+            const result = await window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
 
             if (result.success) {
                 // Update conversation
