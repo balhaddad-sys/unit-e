@@ -515,14 +515,19 @@ const AIMedicalConsultant = (function() {
         get API_URL() {
             return (typeof CONFIG !== 'undefined' && CONFIG.apiUrl) 
                 ? CONFIG.apiUrl 
-                : 'https://script.google.com/macros/s/AKfycbyr5Z8Yx1kiaGCa2hwqievp-TmeSg4bx52WVgXwJl78a7611FmRwFs-gFkYshWoDk_e/exec';
+                : 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFU/exec';
         },
         USE_AI: true,             // Enable ChatGPT (GPT-4o) for advanced reasoning
         USE_FALLBACK: true,       // Fallback to knowledge base if AI fails
-        TIMEOUT: 30000            // 30 second timeout (increased for reliability)
+        TIMEOUT: 45000            // 45 second timeout (increased for reliability)
     };
 
     async function askAI(query, patient, labValues = []) {
+        const apiUrl = AI_CONFIG.API_URL;
+        console.log('[AI Consultant] === Starting AI Request ===');
+        console.log('[AI Consultant] API URL:', apiUrl);
+        console.log('[AI Consultant] Query:', query);
+        
         try {
             // Build patient context
             let patientContext = '';
@@ -537,34 +542,69 @@ Status: ${patient.status || 'Not specified'}`;
                 }
             }
 
-            console.log('[AI Consultant] Sending request to:', AI_CONFIG.API_URL);
-
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), AI_CONFIG.TIMEOUT);
+            const timeoutId = setTimeout(() => {
+                console.error('[AI Consultant] Request timed out after', AI_CONFIG.TIMEOUT, 'ms');
+                controller.abort();
+            }, AI_CONFIG.TIMEOUT);
 
-            const response = await fetch(AI_CONFIG.API_URL, {
+            const requestBody = {
+                action: 'claudeConsult',
+                query: query,
+                patientContext: patientContext,
+                labValues: labValues
+            };
+            
+            console.log('[AI Consultant] Sending POST request...');
+
+            const response = await fetch(apiUrl, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                body: JSON.stringify({
-                    action: 'claudeConsult',
-                    query: query,
-                    patientContext: patientContext,
-                    labValues: labValues
-                }),
+                body: JSON.stringify(requestBody),
                 signal: controller.signal
             });
 
             clearTimeout(timeoutId);
+            
+            console.log('[AI Consultant] Response status:', response.status);
+            console.log('[AI Consultant] Response ok:', response.ok);
 
-            const result = await response.json();
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('[AI Consultant] HTTP Error:', response.status, errorText.substring(0, 200));
+                throw new Error(`HTTP ${response.status}: ${errorText.substring(0, 100)}`);
+            }
+
+            const responseText = await response.text();
+            console.log('[AI Consultant] Raw response length:', responseText.length);
+            
+            let result;
+            try {
+                result = JSON.parse(responseText);
+            } catch (parseError) {
+                console.error('[AI Consultant] JSON parse error:', parseError);
+                console.error('[AI Consultant] Response was:', responseText.substring(0, 500));
+                throw new Error('Invalid JSON response from server');
+            }
+
+            console.log('[AI Consultant] Parsed result:', { success: result.success, hasResponse: !!result.response, error: result.error });
 
             if (result.error) {
+                console.error('[AI Consultant] API returned error:', result.error);
                 throw new Error(result.error);
             }
 
             if (!result.success) {
-                throw new Error(result.error || 'Unknown API error');
+                console.error('[AI Consultant] API returned success=false:', result);
+                throw new Error(result.error || 'API returned unsuccessful response');
             }
+
+            if (!result.response) {
+                console.error('[AI Consultant] No response text in result:', result);
+                throw new Error('No response text received from AI');
+            }
+
+            console.log('[AI Consultant] ✅ Success! Response length:', result.response.length);
 
             return {
                 success: true,
@@ -576,10 +616,22 @@ Status: ${patient.status || 'Not specified'}`;
             };
 
         } catch (err) {
-            console.error('[AI Consultant] ChatGPT error:', err);
+            console.error('[AI Consultant] ❌ Error:', err.name, '-', err.message);
+            
+            // Provide more specific error messages
+            let errorMessage = err.message;
+            if (err.name === 'AbortError') {
+                errorMessage = 'Request timed out. The server took too long to respond.';
+            } else if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
+                errorMessage = 'Network error. Check your internet connection and API URL.';
+            } else if (err.message.includes('CORS')) {
+                errorMessage = 'CORS error. The API may not be configured for cross-origin requests.';
+            }
+            
             return {
                 success: false,
-                error: err.message
+                error: errorMessage,
+                details: err.message
             };
         }
     }
