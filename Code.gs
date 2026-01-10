@@ -488,11 +488,51 @@ const ChatGPTService = {
           messages: [{
             role: 'user',
             content: [
-              { type: 'text', text: 'Extract all lab values from this image. Return as JSON: {"reportType":"CBC|BMP|CMP|LFT|COAGULATION|GENERAL","values":[{"test":"test name","value":"numeric value","unit":"unit","flag":"N|L|H"}]}' },
+              { type: 'text', text: `You are an expert medical laboratory report analyzer. Extract ALL lab test values from this image with high precision.
+
+INSTRUCTIONS:
+1. Identify the report type: CBC, BMP, CMP, LFT, COAGULATION, THYROID, LIPID, or GENERAL
+2. For each lab test, extract:
+   - test: The full test name (e.g., "Hemoglobin", "Sodium", "ALT")
+   - value: The numeric value only (remove units, flags)
+   - unit: The unit of measurement (e.g., "g/dL", "mmol/L", "U/L")
+   - flag: "H" if high/abnormal, "L" if low/abnormal, "N" if normal/within range
+   - refLow: Lower reference range if visible
+   - refHigh: Upper reference range if visible
+
+3. Handle common OCR errors:
+   - "O" (letter) → 0 (zero) in numbers
+   - "l" (lowercase L) → 1 (one) in numbers
+   - Comma → decimal point in European formats
+
+4. Table parsing rules:
+   - Skip header rows (Date, Patient, etc.)
+   - Each data row = one test
+   - Columns usually: Test Name | Value | Unit | Reference Range
+   - Some formats show: Test Name Value(Unit) Reference
+
+5. Return ONLY valid JSON (no markdown, no extra text):
+{
+  "reportType": "CBC|BMP|CMP|LFT|COAGULATION|THYROID|LIPID|GENERAL",
+  "confidence": 85,
+  "values": [
+    {
+      "test": "Test Name",
+      "value": "12.5",
+      "unit": "g/dL",
+      "flag": "N",
+      "refLow": "12.0",
+      "refHigh": "16.0"
+    }
+  ]
+}
+
+Extract ALL visible lab values. Be thorough and accurate.` },
               { type: 'image_url', image_url: { url: imageData } }
             ]
           }],
-          max_tokens: 4096
+          max_tokens: 4096,
+          temperature: 0.1
         }),
         muteHttpExceptions: true
       });
@@ -515,15 +555,45 @@ const ChatGPTService = {
       const result = JSON.parse(responseText);
       const content = result.choices?.[0]?.message?.content || '';
 
-      let parsed = { values: [], reportType: 'GENERAL' };
+      Logger.log('ChatGPT response content preview: ' + content.substring(0, 500));
+
+      let parsed = { values: [], reportType: 'GENERAL', confidence: 90 };
       try {
-        const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
+        // Remove markdown code blocks if present (```json ... ```)
+        let jsonContent = content.trim();
+        if (jsonContent.startsWith('```')) {
+          jsonContent = jsonContent.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
+        }
+
+        // Extract JSON object
+        const jsonMatch = jsonContent.match(/\{[\s\S]*\}/);
+        if (jsonMatch) {
+          parsed = JSON.parse(jsonMatch[0]);
+          Logger.log('Successfully parsed ' + (parsed.values?.length || 0) + ' lab values');
+        } else {
+          Logger.log('No JSON found in response');
+        }
       } catch(e) {
-        Logger.log('JSON parse error: ' + e.toString());
+        Logger.log('JSON parse error: ' + e.toString() + ' | Content: ' + content.substring(0, 200));
       }
 
-      return { success: true, values: parsed.values || [], reportType: parsed.reportType || 'GENERAL', rawText: content };
+      // Ensure all values have required fields
+      const processedValues = (parsed.values || []).map(v => ({
+        test: v.test || 'Unknown',
+        value: v.value || '',
+        unit: v.unit || '',
+        flag: v.flag || 'N',
+        refLow: v.refLow || null,
+        refHigh: v.refHigh || null
+      }));
+
+      return {
+        success: true,
+        values: processedValues,
+        reportType: parsed.reportType || 'GENERAL',
+        confidence: parsed.confidence || 90,
+        rawText: content
+      };
     } catch (e) {
       Logger.log('ChatGPT processImage error: ' + e.toString());
       return { success: false, error: e.toString() };
