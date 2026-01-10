@@ -19,9 +19,9 @@
         MAX_IMAGE_WIDTH: 1200,
         JPEG_QUALITY: 0.88,
         USE_GPT_VISION: true,          // Enable GPT-4o Vision
-        USE_GOOGLE_FALLBACK: true,     // Fallback to Google Vision if GPT fails
+        USE_GOOGLE_FALLBACK: false,    // Fallback to Google Vision if GPT fails (disabled - requires API key)
         VISION_TIMEOUT: 10000,         // 10 second timeout for Google Vision
-        GPT_VISION_TIMEOUT: 30000,     // 30 second timeout for GPT-4o (needs more time)
+        GPT_VISION_TIMEOUT: 15000,     // 15 second timeout for GPT-4o (reduced from 30s for better UX)
         ENABLE_LEARNING: true          // Learn from successful extractions
     };
 
@@ -459,13 +459,14 @@
 
             let result = null;
 
-            // TRY GPT-4O VISION FIRST (if enabled)
+            // TRY GPT-4O VISION (if enabled)
             if (CONFIG.USE_GPT_VISION) {
-                onLog?.('info', '🚀 Attempting GPT-4o Vision extraction...');
+                onLog?.('info', '🚀 Using GPT-4o Vision for lab extraction...');
+                onStage?.('Analyzing with AI (15s max)...');
                 result = await callGPTVision(dataUrl, callbacks);
 
                 if (result && result.success && result.values && result.values.length > 0) {
-                    onLog?.('success', `✨ GPT-4o extracted ${result.values.length} lab values directly!`);
+                    onLog?.('success', `✨ GPT-4o extracted ${result.values.length} lab values!`);
                     onProgress?.(100);
                     onStage?.('Complete');
 
@@ -479,47 +480,57 @@
                         model: 'gpt-4o',
                         documentType: 'LABORATORY'
                     };
+                } else {
+                    onLog?.('warn', 'GPT-4o returned no values, trying fallback methods...');
                 }
             }
 
-            // FALLBACK TO GOOGLE VISION + REGEX
+            // FALLBACK TO GOOGLE VISION + REGEX (if enabled)
             if (CONFIG.USE_GOOGLE_FALLBACK) {
                 onLog?.('info', 'Falling back to Google Vision + regex parsing...');
-                
-                const ocrResult = await callGoogleVision(dataUrl, callbacks);
-                
-                if (ocrResult && ocrResult.text) {
-                    const docType = detectDocumentType(ocrResult.text);
-                    
-                    // Parse with regex
-                    const parseResult = parseWithRegex(ocrResult.text);
-                    
-                    // Also try LabParser if available
-                    if (window.LabParser && window.LabParser.isReady && parseResult.values.length < 5) {
-                        onLog?.('info', 'Trying enhanced LabParser...');
-                        const labParserResult = window.LabParser.parse(ocrResult.text, { includeNeural: true });
-                        if (labParserResult.values.length > parseResult.values.length) {
-                            parseResult.values = labParserResult.values;
-                            parseResult.source = 'labparser';
+
+                try {
+                    const ocrResult = await callGoogleVision(dataUrl, callbacks);
+
+                    if (ocrResult && ocrResult.text) {
+                        const docType = detectDocumentType(ocrResult.text);
+
+                        // Parse with regex
+                        const parseResult = parseWithRegex(ocrResult.text);
+
+                        // Also try LabParser if available
+                        if (window.LabParser && window.LabParser.isReady && parseResult.values.length < 5) {
+                            onLog?.('info', 'Trying enhanced LabParser...');
+                            const labParserResult = window.LabParser.parse(ocrResult.text, { includeNeural: true });
+                            if (labParserResult.values.length > parseResult.values.length) {
+                                parseResult.values = labParserResult.values;
+                                parseResult.source = 'labparser';
+                            }
                         }
+
+                        onProgress?.(100);
+                        onStage?.('Complete');
+
+                        return {
+                            text: ocrResult.text,
+                            values: parseResult.values,
+                            labType: parseResult.labType || 'General',
+                            reportType: docType,
+                            confidence: ocrResult.confidence,
+                            source: parseResult.source || 'regex_fallback',
+                            documentType: docType
+                        };
                     }
-
-                    onProgress?.(100);
-                    onStage?.('Complete');
-
-                    return {
-                        text: ocrResult.text,
-                        values: parseResult.values,
-                        labType: parseResult.labType || 'General',
-                        reportType: docType,
-                        confidence: ocrResult.confidence,
-                        source: parseResult.source || 'regex_fallback',
-                        documentType: docType
-                    };
+                } catch (fallbackErr) {
+                    onLog?.('error', `Google Vision fallback failed: ${fallbackErr.message}`);
+                    // Continue to final error
                 }
+            } else {
+                onLog?.('info', 'Google Vision fallback disabled (requires VISION_API_KEY in backend)');
             }
 
-            throw new Error('All OCR methods failed');
+            // If we get here, no OCR method succeeded
+            throw new Error('Lab extraction failed. GPT-4o Vision did not extract any values. Please check: 1) Image quality is clear, 2) OPENAI_API_KEY is configured in backend, 3) Try a different lab report image.');
 
         } catch (err) {
             onLog?.('error', `OCR failed: ${err.message}`);
