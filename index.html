@@ -4536,22 +4536,133 @@ const AIConsultModal = ({ patient, onClose }) => {
     };
 
     const formatResponse = (content) => {
-        // Simple markdown-like formatting
-        return content.split('\n').map((line, i) => {
-            // Bold headers
-            if (line.startsWith('**') && line.endsWith('**')) {
-                return <div key={i} style={{ fontWeight: 700, fontSize: '14px', marginTop: '12px', marginBottom: '8px', color: '#0f172a' }}>{line.replace(/\*\*/g, '')}</div>;
+        // Enhanced medical response formatting
+        if (!content) return null;
+        
+        const lines = content.split('\n');
+        const elements = [];
+        let inList = false;
+        
+        lines.forEach((line, i) => {
+            const trimmed = line.trim();
+            
+            // Skip empty lines but add spacing
+            if (!trimmed) {
+                if (inList) {
+                    inList = false;
+                }
+                elements.push(<div key={i} style={{ height: '8px' }} />);
+                return;
             }
+            
+            // Main headers (## or **)
+            if (trimmed.startsWith('## ') || (trimmed.startsWith('**') && trimmed.endsWith('**') && !trimmed.includes(':**'))) {
+                const text = trimmed.replace(/^## /, '').replace(/\*\*/g, '');
+                elements.push(
+                    <div key={i} style={{
+                        fontSize: '15px',
+                        fontWeight: 700,
+                        color: '#1e40af',
+                        marginTop: i > 0 ? '16px' : '0',
+                        marginBottom: '8px',
+                        paddingBottom: '6px',
+                        borderBottom: '2px solid #dbeafe'
+                    }}>{text}</div>
+                );
+                return;
+            }
+            
+            // Subheaders (**text:**)
+            if (trimmed.match(/^\*\*[^*]+:\*\*/) || trimmed.match(/^### /)) {
+                const text = trimmed.replace(/^\*\*/, '').replace(/:\*\*.*/, ':').replace(/^### /, '');
+                const rest = trimmed.includes(':**') ? trimmed.split(':**')[1]?.trim() : '';
+                elements.push(
+                    <div key={i} style={{
+                        fontSize: '13px',
+                        fontWeight: 600,
+                        color: '#15803d',
+                        marginTop: '12px',
+                        marginBottom: '4px'
+                    }}>
+                        {text} {rest && <span style={{ fontWeight: 400, color: '#475569' }}>{rest}</span>}
+                    </div>
+                );
+                return;
+            }
+            
             // Bullet points
-            if (line.trim().startsWith('-') || line.trim().startsWith('•')) {
-                return <div key={i} style={{ marginLeft: '16px', marginBottom: '4px', fontSize: '13px', color: '#475569' }}>{line}</div>;
+            if (trimmed.startsWith('-') || trimmed.startsWith('•') || trimmed.match(/^\d+\./)) {
+                const text = trimmed.replace(/^[-•]\s*/, '').replace(/^\d+\.\s*/, '');
+                inList = true;
+                
+                // Check for bold text within bullet
+                const parts = text.split(/\*\*([^*]+)\*\*/);
+                
+                elements.push(
+                    <div key={i} style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        marginLeft: '8px',
+                        marginBottom: '6px',
+                        fontSize: '13px',
+                        color: '#374151',
+                        lineHeight: '1.5'
+                    }}>
+                        <span style={{
+                            color: '#15803d',
+                            marginRight: '8px',
+                            fontWeight: 700,
+                            fontSize: '10px',
+                            marginTop: '4px'
+                        }}>●</span>
+                        <span>
+                            {parts.map((part, j) => 
+                                j % 2 === 1 
+                                    ? <strong key={j} style={{ color: '#1f2937' }}>{part}</strong>
+                                    : part
+                            )}
+                        </span>
+                    </div>
+                );
+                return;
             }
-            // Normal text
-            if (line.trim()) {
-                return <div key={i} style={{ marginBottom: '8px', fontSize: '13px', color: '#475569', lineHeight: '1.6' }}>{line}</div>;
+            
+            // Warning/Note boxes
+            if (trimmed.startsWith('⚠️') || trimmed.startsWith('📌') || trimmed.startsWith('💡') || trimmed.toLowerCase().startsWith('note:') || trimmed.toLowerCase().startsWith('important:')) {
+                elements.push(
+                    <div key={i} style={{
+                        background: trimmed.startsWith('⚠️') ? '#fef3c7' : '#f0fdf4',
+                        border: `1px solid ${trimmed.startsWith('⚠️') ? '#f59e0b' : '#22c55e'}`,
+                        borderRadius: '8px',
+                        padding: '10px 12px',
+                        fontSize: '12px',
+                        color: trimmed.startsWith('⚠️') ? '#92400e' : '#166534',
+                        marginTop: '8px',
+                        marginBottom: '8px'
+                    }}>{trimmed}</div>
+                );
+                return;
             }
-            return <div key={i} style={{ height: '8px' }} />;
+            
+            // Regular paragraph with inline bold support
+            const parts = trimmed.split(/\*\*([^*]+)\*\*/);
+            elements.push(
+                <div key={i} style={{
+                    fontSize: '13px',
+                    color: '#475569',
+                    lineHeight: '1.6',
+                    marginBottom: '6px'
+                }}>
+                    {parts.map((part, j) => 
+                        j % 2 === 1 
+                            ? <strong key={j} style={{ color: '#1f2937' }}>{part}</strong>
+                            : part
+                    )}
+                </div>
+            );
         });
+        
+        return elements;
     };
 
     return (
