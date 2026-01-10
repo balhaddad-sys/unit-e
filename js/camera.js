@@ -15,14 +15,27 @@
         _stream: null,
         _modal: null,
         _onCapture: null,
+        _onClose: null,
         _facingMode: 'environment',
+
+        /**
+         * Initialize camera module (for backwards compatibility)
+         * @param {Object} options - Configuration options
+         */
+        init(options = {}) {
+            this._onCapture = options.onCapture || null;
+            this._onClose = options.onClose || null;
+            return this;
+        },
 
         /**
          * Open camera and capture image
          * @param {Function} onCapture - Callback with File object
+         * @param {Function} onClose - Callback when closed
          */
-        async open(onCapture) {
-            this._onCapture = onCapture;
+        async open(onCapture, onClose) {
+            if (onCapture) this._onCapture = onCapture;
+            if (onClose) this._onClose = onClose;
 
             try {
                 if (!navigator.mediaDevices?.getUserMedia) {
@@ -261,6 +274,8 @@
             this._stream = null;
             this._modal?.remove();
             this._modal = null;
+            if (this._onClose) this._onClose();
+            console.log('[Camera] Closed');
         }
     };
 
