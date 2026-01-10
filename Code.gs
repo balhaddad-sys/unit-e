@@ -19,7 +19,7 @@ function getConfig() {
   const props = PropertiesService.getScriptProperties();
   return {
     visionApiKey: props.getProperty('VISION_API_KEY') || '',
-    anthropicApiKey: props.getProperty('ANTHROPIC_API_KEY') || '',
+    openaiApiKey: props.getProperty('OPENAI_API_KEY') || '',
     spreadsheetId: props.getProperty('SPREADSHEET_ID') || '1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4',
     driveFolderId: props.getProperty('DRIVE_FOLDER_ID') || '1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I',
     sheetName: props.getProperty('SHEET_NAME') || 'Unit e',
@@ -27,7 +27,7 @@ function getConfig() {
   };
 }
 
-const CLAUDE_MODEL = 'claude-3-5-sonnet-20241022';
+const CHATGPT_MODEL = 'gpt-4o'; // or 'gpt-4-turbo', 'gpt-4', 'gpt-3.5-turbo'
 
 // ═══════════════════════════════════════════════════════════════════════════
 // DATA STORE
@@ -460,48 +460,50 @@ const OCRService = {
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-// CLAUDE SERVICE
+// CHATGPT SERVICE (OpenAI)
 // ═══════════════════════════════════════════════════════════════════════════
 
-const ClaudeService = {
+const ChatGPTService = {
 
   processImage: function(imageBase64) {
     const config = getConfig();
-    if (!config.anthropicApiKey) {
-      return { success: false, error: 'Claude API key not configured. Set ANTHROPIC_API_KEY in Script Properties.' };
+    if (!config.openaiApiKey) {
+      return { success: false, error: 'OpenAI API key not configured. Set OPENAI_API_KEY in Script Properties.' };
     }
 
     try {
-      let imageData = imageBase64.includes(',') ? imageBase64.split(',')[1] : imageBase64;
-      const mediaType = imageBase64.match(/data:image\/(\w+);/)?.[1] || 'jpeg';
+      let imageData = imageBase64;
+      if (!imageData.startsWith('data:image')) {
+        imageData = 'data:image/jpeg;base64,' + imageData;
+      }
 
-      Logger.log('Claude processImage: calling API');
+      Logger.log('ChatGPT processImage: calling API');
 
-      const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
-        headers: { 'x-api-key': config.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+        headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
         payload: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: 4096,
+          model: CHATGPT_MODEL,
           messages: [{
             role: 'user',
             content: [
-              { type: 'image', source: { type: 'base64', media_type: 'image/' + mediaType, data: imageData } },
-              { type: 'text', text: 'Extract all lab values from this image. Return as JSON: {"reportType":"CBC|BMP|CMP|LFT|COAGULATION|GENERAL","values":[{"test":"test name","value":"numeric value","unit":"unit","flag":"N|L|H"}]}' }
+              { type: 'text', text: 'Extract all lab values from this image. Return as JSON: {"reportType":"CBC|BMP|CMP|LFT|COAGULATION|GENERAL","values":[{"test":"test name","value":"numeric value","unit":"unit","flag":"N|L|H"}]}' },
+              { type: 'image_url', image_url: { url: imageData } }
             ]
-          }]
+          }],
+          max_tokens: 4096
         }),
         muteHttpExceptions: true
       });
 
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
-      
-      Logger.log('Claude response code: ' + responseCode);
-      
+
+      Logger.log('ChatGPT response code: ' + responseCode);
+
       if (responseCode !== 200) {
-        Logger.log('Claude error: ' + responseText.substring(0, 500));
+        Logger.log('ChatGPT error: ' + responseText.substring(0, 500));
         try {
           const err = JSON.parse(responseText);
           return { success: false, error: err.error?.message || 'API error ' + responseCode };
@@ -511,58 +513,60 @@ const ClaudeService = {
       }
 
       const result = JSON.parse(responseText);
-      const content = result.content?.[0]?.text || '';
-      
+      const content = result.choices?.[0]?.message?.content || '';
+
       let parsed = { values: [], reportType: 'GENERAL' };
-      try { 
+      try {
         const jsonMatch = content.match(/\{[\s\S]*\}/);
-        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]); 
+        if (jsonMatch) parsed = JSON.parse(jsonMatch[0]);
       } catch(e) {
         Logger.log('JSON parse error: ' + e.toString());
       }
 
       return { success: true, values: parsed.values || [], reportType: parsed.reportType || 'GENERAL', rawText: content };
     } catch (e) {
-      Logger.log('Claude processImage error: ' + e.toString());
+      Logger.log('ChatGPT processImage error: ' + e.toString());
       return { success: false, error: e.toString() };
     }
   },
 
   consult: function(query, patientContext, labValues) {
     const config = getConfig();
-    if (!config.anthropicApiKey) {
-      return { success: false, error: 'Claude API key not configured. Set ANTHROPIC_API_KEY in Script Properties.' };
+    if (!config.openaiApiKey) {
+      return { success: false, error: 'OpenAI API key not configured. Set OPENAI_API_KEY in Script Properties.' };
     }
 
     try {
-      Logger.log('Claude consult: calling API');
-      
+      Logger.log('ChatGPT consult: calling API');
+
       const systemPrompt = `You are a medical AI assistant helping doctors with patient consultations. Be concise and evidence-based. Use medical terminology appropriately.`;
-      
+
       const userMessage = `Patient: ${JSON.stringify(patientContext || {})}
 Labs: ${JSON.stringify(labValues || [])}
 Question: ${query}`;
 
-      const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
+      const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
-        headers: { 'x-api-key': config.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+        headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
         payload: JSON.stringify({
-          model: CLAUDE_MODEL,
-          max_tokens: 4096,
-          system: systemPrompt,
-          messages: [{ role: 'user', content: userMessage }]
+          model: CHATGPT_MODEL,
+          messages: [
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: userMessage }
+          ],
+          max_tokens: 4096
         }),
         muteHttpExceptions: true
       });
 
       const responseCode = response.getResponseCode();
       const responseText = response.getContentText();
-      
-      Logger.log('Claude consult response code: ' + responseCode);
-      
+
+      Logger.log('ChatGPT consult response code: ' + responseCode);
+
       if (responseCode !== 200) {
-        Logger.log('Claude consult error: ' + responseText.substring(0, 500));
+        Logger.log('ChatGPT consult error: ' + responseText.substring(0, 500));
         try {
           const err = JSON.parse(responseText);
           return { success: false, error: err.error?.message || 'API error ' + responseCode };
@@ -572,13 +576,16 @@ Question: ${query}`;
       }
 
       const result = JSON.parse(responseText);
-      return { success: true, response: result.content?.[0]?.text || '' };
+      return { success: true, response: result.choices?.[0]?.message?.content || '' };
     } catch (e) {
-      Logger.log('Claude consult error: ' + e.toString());
+      Logger.log('ChatGPT consult error: ' + e.toString());
       return { success: false, error: e.toString() };
     }
   }
 };
+
+// Keep alias for backwards compatibility
+const ClaudeService = ChatGPTService;
 
 // ═══════════════════════════════════════════════════════════════════════════
 // WEB APP HANDLERS
@@ -592,7 +599,8 @@ function doGet(e) {
     case 'sync': return json(SheetSync.pullFromSheet());
     case 'health': return json(healthCheck());
     case 'patients': return json({ patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
-    case 'testclaude': return json(testClaudeAPI());
+    case 'testchatgpt':
+    case 'testclaude': return json(testChatGPTAPI());
     default: return htmlPage();
   }
 }
@@ -678,12 +686,12 @@ function json(data) {
 
 function healthCheck() {
   const config = getConfig();
-  return { 
-    success: true, 
-    version: SCRIPT_VERSION, 
+  return {
+    success: true,
+    version: SCRIPT_VERSION,
     sheet: config.sheetName,
-    hasAnthropicKey: !!config.anthropicApiKey,
-    keyLength: config.anthropicApiKey ? config.anthropicApiKey.length : 0
+    hasOpenAIKey: !!config.openaiApiKey,
+    keyLength: config.openaiApiKey ? config.openaiApiKey.length : 0
   };
 }
 
@@ -700,14 +708,14 @@ function htmlPage() {
     <h1>🏥 Unit E API v${SCRIPT_VERSION}</h1>
     <div class="card">
       <strong>Sheet:</strong> ${config.sheetName}<br>
-      <strong>Claude API:</strong> <span class="${config.anthropicApiKey ? 'ok' : 'err'}">${config.anthropicApiKey ? '✅ Configured' : '❌ Not set'}</span>
+      <strong>ChatGPT API:</strong> <span class="${config.openaiApiKey ? 'ok' : 'err'}">${config.openaiApiKey ? '✅ Configured' : '❌ Not set'}</span>
     </div>
     <a class="btn" href="?action=sync">🔄 Sync</a>
     <a class="btn" href="?action=patients">👥 Patients</a><br>
     <a class="btn btn-blue" href="?action=debug">🔍 Debug</a>
     <a class="btn btn-blue" href="?action=test">🧪 Test</a><br>
     <a class="btn btn-yellow" href="?action=health">❤️ Health</a>
-    <a class="btn btn-yellow" href="?action=testclaude">🤖 Test Claude</a>
+    <a class="btn btn-yellow" href="?action=testchatgpt">🤖 Test ChatGPT</a>
     </body></html>
   `);
 }
@@ -754,53 +762,53 @@ function debugFullFlow() {
   const syncResult = SheetSync.pullFromSheet();
   const patients = PatientService.getAll();
   const ids = Object.keys(patients).slice(0, 10);
-  
+
   return {
     version: SCRIPT_VERSION,
-    config: { 
-      sheetName: config.sheetName, 
-      hasAnthropicKey: !!config.anthropicApiKey, 
-      keyLength: config.anthropicApiKey?.length || 0 
+    config: {
+      sheetName: config.sheetName,
+      hasOpenAIKey: !!config.openaiApiKey,
+      keyLength: config.openaiApiKey?.length || 0
     },
     syncResult: syncResult,
     patientCount: Object.keys(patients).length,
-    samplePatients: ids.map(id => ({ 
-      id, 
-      name: patients[id].name, 
-      ward: patients[id].ward, 
-      bed: patients[id].bed, 
-      status: patients[id].status 
+    samplePatients: ids.map(id => ({
+      id,
+      name: patients[id].name,
+      ward: patients[id].ward,
+      bed: patients[id].bed,
+      status: patients[id].status
     }))
   };
 }
 
-function testClaudeAPI() {
+function testChatGPTAPI() {
   const config = getConfig();
-  if (!config.anthropicApiKey) {
-    return { success: false, error: 'ANTHROPIC_API_KEY not set in Script Properties' };
+  if (!config.openaiApiKey) {
+    return { success: false, error: 'OPENAI_API_KEY not set in Script Properties' };
   }
-  
+
   try {
-    const response = UrlFetchApp.fetch('https://api.anthropic.com/v1/messages', {
-      method: 'post', 
+    const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'post',
       contentType: 'application/json',
-      headers: { 'x-api-key': config.anthropicApiKey, 'anthropic-version': '2023-06-01' },
+      headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
       payload: JSON.stringify({
-        model: CLAUDE_MODEL, 
+        model: CHATGPT_MODEL,
         max_tokens: 50,
         messages: [{ role: 'user', content: 'Say "API working" in 2 words.' }]
       }),
       muteHttpExceptions: true
     });
-    
+
     const code = response.getResponseCode();
     const text = response.getContentText();
-    
+
     if (code === 200) {
       const result = JSON.parse(text);
-      return { success: true, response: result.content?.[0]?.text, model: CLAUDE_MODEL };
+      return { success: true, response: result.choices?.[0]?.message?.content, model: CHATGPT_MODEL };
     }
-    
+
     try {
       const err = JSON.parse(text);
       return { success: false, code, error: err.error?.message || text.substring(0, 200) };
@@ -810,6 +818,11 @@ function testClaudeAPI() {
   } catch (e) {
     return { success: false, error: e.toString() };
   }
+}
+
+// Keep old function name for backwards compatibility
+function testClaudeAPI() {
+  return testChatGPTAPI();
 }
 
 function initialSetup() {
