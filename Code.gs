@@ -195,8 +195,61 @@ const SheetSync = {
         }
       }
 
+      // Preserve web-added patients that aren't in sheet yet
+      // Keep them if they were created recently (within 24 hours) and don't have a sheetRow
+      const now = Date.now();
+      const oneDayMs = 24 * 60 * 60 * 1000;
+      for (const id in existing) {
+        if (!patients[id] && !existing[id].sheetRow && existing[id].createdAt && (now - existing[id].createdAt < oneDayMs)) {
+          patients[id] = existing[id];
+          count++;
+        }
+      }
+
       DataStore.write('patients.json', patients);
       return { success: true, count };
+    } catch (e) { return { success: false, error: e.toString(), count: 0 }; }
+  },
+
+  pushToSheet: function() {
+    const sheet = this.getSheet();
+    if (!sheet) return { success: false, error: 'Sheet not found', count: 0 };
+    const config = getConfig();
+
+    try {
+      const patients = DataStore.read('patients.json', {});
+      let pushed = 0;
+
+      // Find patients that don't have a sheetRow (web-added)
+      for (const id in patients) {
+        const p = patients[id];
+        if (!p.sheetRow) {
+          // Append to end of sheet
+          const lastRow = sheet.getLastRow();
+          const newRow = lastRow + 1;
+
+          // Write patient data: [bed, name, diagnosis, doctor, status, empty, id]
+          sheet.getRange(newRow, 1, 1, 7).setValues([[
+            p.bed || '',
+            p.name || '',
+            p.diagnosis || '',
+            p.doctor || '',
+            p.status || 'New',
+            '', // Column F (empty)
+            p.id // Column G (patient ID)
+          ]]);
+
+          // Update patient with sheetRow
+          p.sheetRow = newRow;
+          pushed++;
+        }
+      }
+
+      if (pushed > 0) {
+        DataStore.write('patients.json', patients);
+      }
+
+      return { success: true, count: pushed };
     } catch (e) { return { success: false, error: e.toString(), count: 0 }; }
   }
 };
@@ -214,6 +267,10 @@ const PatientService = {
     if (patients[id]) return { success: false, error: 'Exists' };
     patients[id] = { id, ward: data.ward || 'Unassigned', bed: data.bed || '', name: data.name || '', diagnosis: data.diagnosis || '', doctor: data.doctor || '', status: data.status || 'New', section: data.section || 'active', labData: [], createdAt: Date.now(), updatedAt: Date.now() };
     DataStore.write('patients.json', patients);
+
+    // Push new patient to sheet immediately
+    SheetSync.pushToSheet();
+
     return { success: true, patient: patients[id], id };
   },
   update: function(id, updates) {
@@ -233,6 +290,8 @@ const PatientService = {
   },
   refresh: function() {
     const r = SheetSync.pullFromSheet();
+    // Push any web-added patients to sheet
+    SheetSync.pushToSheet();
     return { success: r.success, patients: this.getAll(), syncResult: r };
   }
 };
