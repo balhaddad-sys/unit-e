@@ -434,16 +434,28 @@
     // ═══════════════════════════════════════════════════════════════════════
     const runOCR = async (file, callbacks = {}) => {
         const { onProgress, onStage, onLog } = callbacks;
-        
+
         try {
             onStage?.('Preparing image...');
             onProgress?.(5);
-            onLog?.('info', `Processing: ${file.name} (${(file.size / 1024).toFixed(1)}KB)`);
 
-            // Compress image
-            const dataUrl = await compressImage(file);
-            onLog?.('success', 'Image compressed');
-            onProgress?.(15);
+            let dataUrl;
+
+            // Check if input is already a data URL string or a File/Blob object
+            if (typeof file === 'string' && file.startsWith('data:')) {
+                // Already a data URL, use it directly
+                onLog?.('info', `Processing data URL (${Math.round(file.length / 1024)}KB)`);
+                dataUrl = file;
+                onProgress?.(15);
+            } else if (file instanceof File || file instanceof Blob) {
+                // File/Blob object, needs compression
+                onLog?.('info', `Processing: ${file.name || 'file'} (${(file.size / 1024).toFixed(1)}KB)`);
+                dataUrl = await compressImage(file);
+                onLog?.('success', 'Image compressed');
+                onProgress?.(15);
+            } else {
+                throw new Error('Invalid input: must be a File, Blob, or data URL string');
+            }
 
             let result = null;
 

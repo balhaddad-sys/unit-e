@@ -5270,13 +5270,15 @@ const LabModal = ({ patient, onClose, onSave }) => {
 
     const handleFile = async (file) => {
         console.log('[handleFile] Called with:', file);
-        
+        console.log('[handleFile] Type check:', typeof file, file instanceof File, file instanceof Blob);
+
         // Handle both File objects and data URLs (from camera)
         if (!file) {
             console.error('[handleFile] No file provided');
+            addDebugLog('error', 'No file provided');
             return;
         }
-        
+
         // If it's already a data URL string (from camera module)
         if (typeof file === 'string' && file.startsWith('data:')) {
             console.log('[handleFile] Received data URL, using directly');
@@ -5302,31 +5304,42 @@ const LabModal = ({ patient, onClose, onSave }) => {
             }
             return;
         }
-        
-        // Regular File object
-        if (!file.type?.startsWith('image/')) {
-            console.error('[handleFile] Not an image file:', file.type);
-            addDebugLog('error', 'Please select an image file');
+
+        // Validate that file is a proper File or Blob object
+        if (!(file instanceof File) && !(file instanceof Blob)) {
+            console.error('[handleFile] Invalid file object:', file);
+            addDebugLog('error', 'Invalid file object - not a File or Blob');
+            setOcrError("Invalid file object");
             return;
         }
-        
+
+        // Check if it's an image
+        if (!file.type || !file.type.startsWith('image/')) {
+            console.error('[handleFile] Not an image file:', file.type);
+            addDebugLog('error', 'Please select an image file');
+            setOcrError("Please select an image file");
+            return;
+        }
+
         setUploading(true);
         setOcrError(null);
-        addDebugLog('info', `Processing file: ${file.name} (${Math.round(file.size/1024)}KB)`);
-        
+        addDebugLog('info', `Processing file: ${file.name || 'unknown'} (${Math.round(file.size/1024)}KB)`);
+
         try {
             // Use OCREngine module for compression
             let compressed;
             if (window.OCREngine?.compressImage) {
                 console.log('[handleFile] Using OCREngine.compressImage');
+                addDebugLog('info', 'Compressing image with OCREngine...');
                 compressed = await window.OCREngine.compressImage(file);
             } else {
                 console.log('[handleFile] Using fallback compression');
+                addDebugLog('info', 'Compressing image with fallback...');
                 compressed = await compressImageFallback(file);
             }
-            
+
             console.log('[handleFile] Compression complete, data URL length:', compressed?.length);
-            
+
             const newImage = {
                 id: Date.now().toString(),
                 image: compressed,
@@ -5334,12 +5347,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 note: "",
                 ocr: { text: "", values: [], confidence: 0, avgValueConfidence: 0, updatedAt: null, source: null, labType: null }
             };
-            
+
             updateLabImages(prev => [newImage, ...prev]);
             setUploading(false);
             addDebugLog('success', 'Image added, starting OCR...');
             setTimeout(() => runOcrOnImage(newImage), 300);
-            
+
         } catch (err) {
             console.error('[handleFile] Error:', err);
             addDebugLog('error', `File processing failed: ${err.message}`);
