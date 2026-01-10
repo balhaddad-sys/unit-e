@@ -5470,20 +5470,12 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log('[LabModal] Saving labs for patient:', patient.id, patient.name);
         console.log('[LabModal] Lab images:', labImages.length);
 
-        // Allow saving even with 0 labs to clear the count in Firebase
+        // Close modal if no lab images without saving
         if (labImages.length === 0) {
-            try {
-                addDebugLog('info', 'Clearing all labs...');
-                await onSave(patient.id, labImages);
-                setHasUnsavedChanges(false);
-                addDebugLog('success', '✓ All labs cleared successfully');
-                onClose();
-                return;
-            } catch (error) {
-                console.error('[LabModal] Clear failed:', error);
-                addDebugLog('error', `Clear failed: ${error.message}`);
-                return;
-            }
+            addDebugLog('info', 'No labs to save - closing modal');
+            setHasUnsavedChanges(false);
+            onClose();
+            return;
         }
 
         // Check if any lab has values
