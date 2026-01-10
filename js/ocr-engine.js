@@ -1,6 +1,6 @@
 /* ═══════════════════════════════════════════════════════════════════════════
-   OCR ENGINE v6.0 - GPT-4o Vision Powered Lab Extraction
-   With Neural Learning from successful extractions
+   OCR ENGINE v6.1 - GPT-4o Vision Powered Lab Extraction
+   With CUMULATIVE REPORT support for multi-date trending
    ═══════════════════════════════════════════════════════════════════════════ */
 
 (function() {
@@ -16,26 +16,21 @@
                 ? window.CONFIG.apiUrl 
                 : 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec';
         },
-        MAX_IMAGE_WIDTH: 1200,
-        JPEG_QUALITY: 0.88,
-        USE_GPT_VISION: true,          // Enable GPT-4o Vision
-        USE_GOOGLE_FALLBACK: false,    // Fallback to Google Vision if GPT fails (disabled - requires API key)
-        VISION_TIMEOUT: 10000,         // 10 second timeout for Google Vision
-        GPT_VISION_TIMEOUT: 15000,     // 15 second timeout for GPT-4o (reduced from 30s for better UX)
-        ENABLE_LEARNING: true          // Learn from successful extractions
+        MAX_IMAGE_WIDTH: 1600,      // Increased for better quality
+        JPEG_QUALITY: 0.92,          // Increased quality
+        USE_GPT_VISION: true,        // Enable GPT-4o Vision
+        USE_GOOGLE_FALLBACK: false,  // Fallback to Google Vision if GPT fails
+        VISION_TIMEOUT: 10000,       // 10 second timeout for Google Vision
+        GPT_VISION_TIMEOUT: 30000,   // 30 second timeout for GPT-4o (increased for complex reports)
+        ENABLE_LEARNING: true        // Learn from successful extractions
     };
 
     // ═══════════════════════════════════════════════════════════════════════
     // NEURAL LEARNING STORAGE
     // ═══════════════════════════════════════════════════════════════════════
     const LearnedPatterns = {
-        // Store learned lab value patterns
         patterns: new Map(),
-        
-        // Store successful extractions for learning
         successfulExtractions: [],
-        
-        // Statistics
         stats: {
             totalExtractions: 0,
             gptSuccesses: 0,
@@ -43,7 +38,6 @@
             lastLearning: null
         },
 
-        // Add a successful extraction to learn from
         addExtraction(labValues, rawText, source) {
             if (!CONFIG.ENABLE_LEARNING) return;
             
@@ -52,7 +46,6 @@
                 this.stats.gptSuccesses++;
             }
 
-            // Store extraction for pattern learning
             this.successfulExtractions.push({
                 values: labValues,
                 text: rawText,
@@ -60,12 +53,10 @@
                 timestamp: new Date().toISOString()
             });
 
-            // Keep only last 50 extractions
             if (this.successfulExtractions.length > 50) {
                 this.successfulExtractions.shift();
             }
 
-            // Learn patterns from values
             labValues.forEach(lab => {
                 this.learnPattern(lab);
             });
@@ -74,13 +65,12 @@
             console.log(`[OCR Learning] 🧠 Learned from ${labValues.length} lab values (source: ${source})`);
         },
 
-        // Learn a pattern from a lab value
         learnPattern(labValue) {
-            const key = labValue.name?.toLowerCase().trim();
+            const key = labValue.name?.toLowerCase().trim() || labValue.test?.toLowerCase().trim();
             if (!key) return;
 
             const existing = this.patterns.get(key) || {
-                name: labValue.name,
+                name: labValue.name || labValue.test,
                 aliases: new Set(),
                 units: new Set(),
                 ranges: [],
@@ -88,17 +78,14 @@
                 count: 0
             };
 
-            // Add unit if present
             if (labValue.unit) {
                 existing.units.add(labValue.unit);
             }
 
-            // Add range if present
             if (labValue.range) {
                 existing.ranges.push(labValue.range);
             }
 
-            // Add sample values (keep last 10)
             existing.sampleValues.push(labValue.value);
             if (existing.sampleValues.length > 10) {
                 existing.sampleValues.shift();
@@ -109,12 +96,10 @@
             this.stats.learnedPatterns = this.patterns.size;
         },
 
-        // Get learned info for a lab name
         getPattern(labName) {
             return this.patterns.get(labName?.toLowerCase().trim());
         },
 
-        // Get all learned patterns
         getAllPatterns() {
             return Array.from(this.patterns.entries()).map(([key, value]) => ({
                 key,
@@ -124,7 +109,6 @@
             }));
         },
 
-        // Get statistics
         getStats() {
             return {
                 ...this.stats,
@@ -185,21 +169,19 @@
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), CONFIG.GPT_VISION_TIMEOUT);
 
-            // Prepare image data
+            // Prepare image data - keep full data URL for GPT-4o
             let imageData = dataUrl;
-            if (imageData.includes(',')) {
-                imageData = imageData.split(',')[1];
-            }
-
+            
             console.log('[GPT-Vision] Sending to API:', CONFIG.API_URL);
+            console.log('[GPT-Vision] Image data length:', imageData.length);
             onProgress?.(30);
 
             const response = await fetch(CONFIG.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({
-                    action: 'claudeVision',  // Backend uses this action name for vision
-                    image: dataUrl
+                    action: 'claudeVision',
+                    image: imageData
                 }),
                 signal: controller.signal
             });
@@ -210,7 +192,8 @@
             console.log('[GPT-Vision] Response Status:', response.status);
 
             const responseText = await response.text();
-            console.log('[GPT-Vision] Response preview:', responseText.substring(0, 300));
+            console.log('[GPT-Vision] Response length:', responseText.length);
+            console.log('[GPT-Vision] Response preview:', responseText.substring(0, 500));
 
             if (!response.ok) {
                 throw new Error(`API Error: HTTP ${response.status}`);
@@ -225,40 +208,115 @@
             try {
                 result = JSON.parse(responseText);
             } catch (parseErr) {
+                console.error('[GPT-Vision] JSON parse error:', parseErr);
                 throw new Error('Failed to parse response: ' + parseErr.message);
             }
 
+            // Check for errors in response
             if (result.error) {
                 throw new Error(result.error);
             }
 
-            onLog?.('success', `✨ GPT-4o Vision: Found ${result.values?.length || 0} lab values`);
+            // Check for success flag
+            if (result.success === false) {
+                throw new Error(result.error || 'API returned success: false');
+            }
+
+            // Process and normalize values
+            const processedValues = (result.values || []).map(v => ({
+                // Normalize field names (backend may use 'test', frontend expects 'name' or 'test')
+                test: v.test || v.name || 'Unknown',
+                name: v.test || v.name || 'Unknown',
+                value: v.value || '',
+                unit: v.unit || '',
+                flag: v.flag || 'N',
+                refLow: v.refLow || null,
+                refHigh: v.refHigh || null,
+                range: v.refLow && v.refHigh ? [parseFloat(v.refLow), parseFloat(v.refHigh)] : null,
+                collectionDate: v.collectionDate || null,
+                category: v.category || categorizeTest(v.test || v.name || ''),
+                source: 'gpt4o_vision'
+            }));
+
+            const valueCount = processedValues.length;
+            const dateCount = result.dates?.length || 0;
+
+            onLog?.('success', `✨ GPT-4o extracted ${valueCount} lab values${dateCount > 1 ? ` across ${dateCount} dates` : ''}`);
             onProgress?.(95);
 
             // Learn from this successful extraction
-            if (result.values && result.values.length > 0) {
-                LearnedPatterns.addExtraction(result.values, result.rawText || '', 'gpt4o_vision');
+            if (processedValues.length > 0) {
+                LearnedPatterns.addExtraction(processedValues, result.rawText || '', 'gpt4o_vision');
             }
 
             return {
                 success: true,
                 text: result.rawText || '',
-                values: result.values || [],
+                values: processedValues,
                 reportType: result.reportType || 'LABORATORY',
                 confidence: result.confidence || 95,
+                dates: result.dates || [],
                 source: 'gpt4o_vision',
                 model: 'gpt-4o'
             };
 
         } catch (err) {
             if (err.name === 'AbortError') {
-                onLog?.('warn', `GPT-4o timeout (${CONFIG.GPT_VISION_TIMEOUT / 1000}s) - falling back to Google Vision`);
+                onLog?.('warn', `GPT-4o timeout (${CONFIG.GPT_VISION_TIMEOUT / 1000}s) - try a clearer image`);
             } else {
-                onLog?.('warn', `GPT-4o Vision error: ${err.message} - falling back`);
+                onLog?.('warn', `GPT-4o Vision error: ${err.message}`);
             }
             console.error('[GPT-Vision] Error:', err);
             return null;
         }
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // TEST CATEGORIZATION
+    // ═══════════════════════════════════════════════════════════════════════
+    const categorizeTest = (testName) => {
+        if (!testName) return 'General';
+        
+        const lower = testName.toLowerCase();
+        
+        // Chemistry/Renal
+        if (['sodium', 'na', 'potassium', 'k', 'chloride', 'cl', 'co2', 'bicarbonate', 
+             'creatinine', 'creat', 'urea', 'bun', 'egfr', 'gfr', 'anion gap'].some(t => lower.includes(t))) {
+            return 'Chemistry';
+        }
+        
+        // Calcium/Bone
+        if (['calcium', 'ca', 'cal', 'phosphorus', 'phos', 'magnesium', 'mg', 'adjusted'].some(t => lower.includes(t))) {
+            return 'Calcium/Bone';
+        }
+        
+        // Liver
+        if (['alt', 'ast', 'sgpt', 'sgot', 'alp', 'alk', 'ggt', 'bilirubin', 'bil'].some(t => lower.includes(t))) {
+            return 'Liver';
+        }
+        
+        // Lipids
+        if (['cholesterol', 'chol', 'triglyceride', 'tg', 'hdl', 'ldl', 'lipid'].some(t => lower.includes(t))) {
+            return 'Lipids';
+        }
+        
+        // Proteins
+        if (['protein', 'albumin', 'alb', 'globulin'].some(t => lower.includes(t))) {
+            return 'Proteins';
+        }
+        
+        // CBC
+        if (['wbc', 'rbc', 'hemoglobin', 'hgb', 'hematocrit', 'hct', 'platelet', 'plt', 
+             'mcv', 'mch', 'mchc', 'rdw', 'neutrophil', 'lymphocyte'].some(t => lower.includes(t))) {
+            return 'CBC';
+        }
+        
+        // Other
+        if (['urate', 'uric'].some(t => lower.includes(t))) {
+            return 'Other';
+        }
+        
+        return 'General';
     };
 
     // ═══════════════════════════════════════════════════════════════════════
@@ -334,17 +392,12 @@
         const values = [];
         const lines = text.split('\n');
 
-        // Common lab patterns
         const labPatterns = [
-            // Standard: "Test Name: 123.45 unit"
             /^([A-Za-z][A-Za-z0-9\s\-\/\(\)]+?)[\s:]+([<>]?\d+\.?\d*)\s*([\w\/\%\^]+)?/,
-            // With reference range
             /([A-Za-z][A-Za-z\s\-]+)\s+(\d+\.?\d*)\s+([\w\/]+)\s+\(?([\d\.\-]+)\s*-\s*([\d\.]+)/,
-            // Simple number after text
             /([A-Za-z]{2,}[\w\s]*?)\s+(\d+\.?\d*)/
         ];
 
-        // Known lab test names for validation
         const knownTests = new Set([
             'wbc', 'rbc', 'hemoglobin', 'hgb', 'hematocrit', 'hct', 'platelet', 'plt',
             'mcv', 'mch', 'mchc', 'rdw', 'mpv', 'neutrophil', 'lymphocyte', 'monocyte',
@@ -355,7 +408,7 @@
             'ldh', 'ck', 'cpk', 'troponin', 'bnp', 'inr', 'pt', 'ptt', 'aptt',
             'fibrinogen', 'd-dimer', 'ferritin', 'iron', 'tibc', 'transferrin',
             'tsh', 't3', 't4', 'free t4', 'hba1c', 'a1c', 'egfr', 'gfr',
-            'uric acid', 'ammonia', 'lactate', 'lipase', 'amylase', 'crp', 'esr',
+            'uric acid', 'urate', 'ammonia', 'lactate', 'lipase', 'amylase', 'crp', 'esr',
             'procalcitonin', 'cortisol', 'vitamin d', 'b12', 'folate'
         ]);
 
@@ -370,7 +423,6 @@
                     const value = match[2]?.trim();
                     const unit = match[3]?.trim() || '';
 
-                    // Validate it looks like a real lab value
                     const nameLower = name?.toLowerCase();
                     const isKnown = knownTests.has(nameLower) || 
                                    Array.from(knownTests).some(t => nameLower?.includes(t));
@@ -378,18 +430,19 @@
                     if (name && value && (isKnown || name.length >= 3)) {
                         values.push({
                             name: name,
+                            test: name,
                             value: value,
                             unit: unit,
-                            status: 'unknown',
+                            flag: 'N',
+                            category: categorizeTest(name),
                             source: 'regex'
                         });
-                        break; // Move to next line
+                        break;
                     }
                 }
             }
         });
 
-        // Learn from regex extractions too
         if (values.length > 0) {
             LearnedPatterns.addExtraction(values, text, 'regex');
         }
@@ -408,15 +461,12 @@
     const detectDocumentType = (text) => {
         const textLower = text.toLowerCase();
 
-        // Imaging keywords
         const imagingKeywords = ['ct scan', 'mri', 'x-ray', 'ultrasound', 'radiograph', 
             'impression:', 'findings:', 'technique:', 'radiology'];
         
-        // Lab keywords
         const labKeywords = ['wbc', 'rbc', 'hemoglobin', 'platelet', 'sodium', 
-            'creatinine', 'reference range', 'laboratory'];
+            'creatinine', 'reference range', 'laboratory', 'cumulative'];
 
-        // EKG keywords
         const ekgKeywords = ['ekg', 'ecg', 'electrocardiogram', 'rhythm', 
             'heart rate', 'pr interval', 'qrs'];
 
@@ -441,17 +491,14 @@
 
             let dataUrl;
 
-            // Check if input is already a data URL string or a File/Blob object
             if (typeof file === 'string' && file.startsWith('data:')) {
-                // Already a data URL, use it directly
                 onLog?.('info', `Processing data URL (${Math.round(file.length / 1024)}KB)`);
                 dataUrl = file;
                 onProgress?.(15);
             } else if (file instanceof File || file instanceof Blob) {
-                // File/Blob object, needs compression
                 onLog?.('info', `Processing: ${file.name || 'file'} (${(file.size / 1024).toFixed(1)}KB)`);
                 dataUrl = await compressImage(file);
-                onLog?.('success', 'Image compressed');
+                onLog?.('success', 'Image compressed for optimal processing');
                 onProgress?.(15);
             } else {
                 throw new Error('Invalid input: must be a File, Blob, or data URL string');
@@ -462,7 +509,7 @@
             // TRY GPT-4O VISION (if enabled)
             if (CONFIG.USE_GPT_VISION) {
                 onLog?.('info', '🚀 Using GPT-4o Vision for lab extraction...');
-                onStage?.('Analyzing with AI (15s max)...');
+                onStage?.('Analyzing with AI...');
                 result = await callGPTVision(dataUrl, callbacks);
 
                 if (result && result.success && result.values && result.values.length > 0) {
@@ -476,6 +523,7 @@
                         labType: result.reportType || 'Laboratory',
                         reportType: result.reportType || 'Laboratory',
                         confidence: result.confidence,
+                        dates: result.dates || [],
                         source: 'gpt4o_vision',
                         model: 'gpt-4o',
                         documentType: 'LABORATORY'
@@ -494,11 +542,8 @@
 
                     if (ocrResult && ocrResult.text) {
                         const docType = detectDocumentType(ocrResult.text);
-
-                        // Parse with regex
                         const parseResult = parseWithRegex(ocrResult.text);
 
-                        // Also try LabParser if available
                         if (window.LabParser && window.LabParser.isReady && parseResult.values.length < 5) {
                             onLog?.('info', 'Trying enhanced LabParser...');
                             const labParserResult = window.LabParser.parse(ocrResult.text, { includeNeural: true });
@@ -523,14 +568,13 @@
                     }
                 } catch (fallbackErr) {
                     onLog?.('error', `Google Vision fallback failed: ${fallbackErr.message}`);
-                    // Continue to final error
                 }
             } else {
-                onLog?.('info', 'Google Vision fallback disabled (requires VISION_API_KEY in backend)');
+                onLog?.('info', 'Google Vision fallback disabled');
             }
 
             // If we get here, no OCR method succeeded
-            throw new Error('Lab extraction failed. GPT-4o Vision did not extract any values. Please check: 1) Image quality is clear, 2) OPENAI_API_KEY is configured in backend, 3) Try a different lab report image.');
+            throw new Error('Lab extraction failed. Please try:\n1. Take a clearer photo with better lighting\n2. Ensure the lab report is fully visible\n3. Check that OPENAI_API_KEY is configured in backend\n4. Try uploading a different image format (JPEG/PNG)');
 
         } catch (err) {
             onLog?.('error', `OCR failed: ${err.message}`);
@@ -539,11 +583,70 @@
     };
 
     // ═══════════════════════════════════════════════════════════════════════
+    // HELPER: Group values by date for trending
+    // ═══════════════════════════════════════════════════════════════════════
+    const groupValuesByDate = (values) => {
+        const grouped = {};
+        
+        values.forEach(v => {
+            const date = v.collectionDate || 'Unknown';
+            if (!grouped[date]) {
+                grouped[date] = [];
+            }
+            grouped[date].push(v);
+        });
+        
+        return grouped;
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // HELPER: Create trend data from multiple extractions
+    // ═══════════════════════════════════════════════════════════════════════
+    const createTrendData = (labHistory) => {
+        const trends = {};
+        
+        labHistory.forEach(entry => {
+            const timestamp = entry.timestamp;
+            const values = entry.values || [];
+            
+            values.forEach(v => {
+                const testName = (v.test || v.name || '').toUpperCase().trim();
+                if (!testName) return;
+                
+                if (!trends[testName]) {
+                    trends[testName] = {
+                        name: v.test || v.name,
+                        unit: v.unit,
+                        category: v.category || categorizeTest(testName),
+                        history: []
+                    };
+                }
+                
+                trends[testName].history.push({
+                    value: v.value,
+                    flag: v.flag,
+                    date: v.collectionDate || new Date(timestamp).toLocaleDateString(),
+                    timestamp: timestamp,
+                    refLow: v.refLow,
+                    refHigh: v.refHigh
+                });
+            });
+        });
+        
+        // Sort history by timestamp for each test
+        Object.values(trends).forEach(test => {
+            test.history.sort((a, b) => a.timestamp - b.timestamp);
+        });
+        
+        return trends;
+    };
+
+    // ═══════════════════════════════════════════════════════════════════════
     // EXPOSE GLOBAL API
     // ═══════════════════════════════════════════════════════════════════════
     window.OCREngine = {
-        version: '6.0.0',
-        codename: 'GPT-4O-VISION-LEARNER',
+        version: '6.1.0',
+        codename: 'GPT-4O-CUMULATIVE',
         
         // Main functions
         runOCR,
@@ -552,6 +655,11 @@
         callGoogleVision,
         parseWithRegex,
         detectDocumentType,
+        categorizeTest,
+        
+        // Trending helpers
+        groupValuesByDate,
+        createTrendData,
         
         // Learning system
         learning: LearnedPatterns,
@@ -573,15 +681,16 @@
         // Get current config
         getConfig: () => ({ 
             ...CONFIG,
-            API_URL: CONFIG.API_URL // Include computed URL
+            API_URL: CONFIG.API_URL
         })
     };
 
     // Log startup
     console.log('═══════════════════════════════════════════════════════════════');
-    console.log('[OCREngine v6.0] 🚀 GPT-4o Vision Lab Extraction');
-    console.log('[OCREngine v6.0] 🧠 Neural Learning: ENABLED');
-    console.log('[OCREngine v6.0] 📡 API:', CONFIG.API_URL);
+    console.log('[OCREngine v6.1] 🚀 GPT-4o Vision Lab Extraction');
+    console.log('[OCREngine v6.1] 📊 CUMULATIVE Report Support: ENABLED');
+    console.log('[OCREngine v6.1] 🧠 Neural Learning: ENABLED');
+    console.log('[OCREngine v6.1] 📡 API:', CONFIG.API_URL);
     console.log('═══════════════════════════════════════════════════════════════');
 
 })();
