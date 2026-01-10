@@ -119,15 +119,26 @@ const API = {
     // ═══════════════════════════════════════════════════════════════════════
     // OCR & AI
     // ═══════════════════════════════════════════════════════════════════════
-    
+
     processOCR: async (base64Image) => {
         return await API._fetch({ action: 'runOCR', image: base64Image });
     },
-    
+
+    // ChatGPT Vision API (formerly claudeVision)
+    chatgptVision: async (base64Image) => {
+        return await API._fetch({ action: 'claudeVision', image: base64Image });
+    },
+
+    // ChatGPT Consultation API (formerly claudeConsult)
+    chatgptConsult: async (query, patientContext, labValues) => {
+        return await API._fetch({ action: 'claudeConsult', query, patientContext, labValues });
+    },
+
+    // Backwards compatibility aliases
     claudeVision: async (base64Image) => {
         return await API._fetch({ action: 'claudeVision', image: base64Image });
     },
-    
+
     claudeConsult: async (query, patientContext, labValues) => {
         return await API._fetch({ action: 'claudeConsult', query, patientContext, labValues });
     },

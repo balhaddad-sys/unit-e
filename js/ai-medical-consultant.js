@@ -1046,17 +1046,17 @@ const AIMedicalConsultant = (function() {
 
     // ═══════════════════════════════════════════════════════════════════════════
     // ═══════════════════════════════════════════════════════════════════════════
-    // CLAUDE OPUS 4.5 INTEGRATION - GPT-5 LEVEL MEDICAL AI
+    // CHATGPT (GPT-4O) INTEGRATION - ADVANCED MEDICAL AI
     // ═══════════════════════════════════════════════════════════════════════════
 
-    const CLAUDE_CONFIG = {
+    const AI_CONFIG = {
         API_URL: 'https://script.google.com/macros/s/AKfycbxtGGa4zND6EbA9SP1GN7xpLv7pBUC3Jq8Dta2Bu1zaD--pxLEg6RP1PeiptftltfC1/exec',
-        USE_CLAUDE: true,         // Enable Claude Opus 4.5 for advanced reasoning
-        USE_FALLBACK: true,       // Fallback to knowledge base if Claude fails
+        USE_AI: true,             // Enable ChatGPT (GPT-4o) for advanced reasoning
+        USE_FALLBACK: true,       // Fallback to knowledge base if AI fails
         TIMEOUT: 15000            // 15 second timeout
     };
 
-    async function askClaude(query, patient, labValues = []) {
+    async function askAI(query, patient, labValues = []) {
         try {
             // Build patient context
             let patientContext = '';
@@ -1072,9 +1072,9 @@ Status: ${patient.status || 'Not specified'}`;
             }
 
             const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), CLAUDE_CONFIG.TIMEOUT);
+            const timeoutId = setTimeout(() => controller.abort(), AI_CONFIG.TIMEOUT);
 
-            const response = await fetch(CLAUDE_CONFIG.API_URL, {
+            const response = await fetch(AI_CONFIG.API_URL, {
                 method: 'POST',
                 headers: { 'Content-Type': 'text/plain;charset=utf-8' },
                 body: JSON.stringify({
@@ -1097,14 +1097,14 @@ Status: ${patient.status || 'Not specified'}`;
             return {
                 success: true,
                 text: result.response,
-                source: 'claude_opus_4.5',
+                source: 'chatgpt_gpt4o',
                 model: result.model,
-                confidence: 0.95,  // Claude Opus 4.5 is highly reliable
+                confidence: 0.95,  // ChatGPT GPT-4o is highly reliable
                 usage: result.usage
             };
 
         } catch (err) {
-            console.error('[AI Consultant] Claude error:', err);
+            console.error('[AI Consultant] ChatGPT error:', err);
             return {
                 success: false,
                 error: err.message
@@ -1121,13 +1121,14 @@ Status: ${patient.status || 'Not specified'}`;
         version: VERSION,
         codename: CODENAME,
         isReady: true,
-        claudeEnabled: CLAUDE_CONFIG.USE_CLAUDE,
+        aiEnabled: AI_CONFIG.USE_AI,
+        claudeEnabled: AI_CONFIG.USE_AI,  // Backwards compatibility
 
         startConsultation(patientId) {
             conversations.set(patientId, []);
             return {
                 success: true,
-                message: `Welcome! I'm your AI Medical Consultant powered by Claude Opus 4.5 (GPT-5 level). Ask me about diagnoses, treatments, lab interpretation, or clinical decision-making. How can I help?`
+                message: `Welcome! I'm your AI Medical Consultant powered by ChatGPT (GPT-4o). Ask me about diagnoses, treatments, lab interpretation, or clinical decision-making. How can I help?`
             };
         },
 
@@ -1143,20 +1144,20 @@ Status: ${patient.status || 'Not specified'}`;
             let confidence;
             let source = 'knowledge_base';
 
-            // Try Claude Opus 4.5 first for advanced reasoning
-            if (CLAUDE_CONFIG.USE_CLAUDE && !options.useKnowledgeBaseOnly) {
-                console.log('[AI Consultant] 🚀 Using Claude Opus 4.5 for advanced medical reasoning...');
+            // Try ChatGPT (GPT-4o) first for advanced reasoning
+            if (AI_CONFIG.USE_AI && !options.useKnowledgeBaseOnly) {
+                console.log('[AI Consultant] 🚀 Using ChatGPT (GPT-4o) for advanced medical reasoning...');
 
                 const labValues = options.labValues || [];
-                const claudeResult = await askClaude(query, patient, labValues);
+                const aiResult = await askAI(query, patient, labValues);
 
-                if (claudeResult.success) {
-                    responseText = claudeResult.text;
-                    confidence = claudeResult.confidence;
-                    source = 'claude_opus_4.5';
-                    console.log('[AI Consultant] ✨ Claude Opus 4.5 response received');
-                } else if (CLAUDE_CONFIG.USE_FALLBACK) {
-                    console.log('[AI Consultant] ⚠️ Claude failed, using knowledge base fallback');
+                if (aiResult.success) {
+                    responseText = aiResult.text;
+                    confidence = aiResult.confidence;
+                    source = 'chatgpt_gpt4o';
+                    console.log('[AI Consultant] ✨ ChatGPT (GPT-4o) response received');
+                } else if (AI_CONFIG.USE_FALLBACK) {
+                    console.log('[AI Consultant] ⚠️ ChatGPT failed, using knowledge base fallback');
                     // Fallback to knowledge base
                     const match = findBestMatch(query, patient?.diagnosis);
                     if (match) {
@@ -1169,7 +1170,7 @@ Status: ${patient.status || 'Not specified'}`;
                         source = 'fallback';
                     }
                 } else {
-                    responseText = `I'm sorry, I'm unable to process your request at the moment. Error: ${claudeResult.error}`;
+                    responseText = `I'm sorry, I'm unable to process your request at the moment. Error: ${aiResult.error}`;
                     confidence = 0;
                     source = 'error';
                 }
@@ -1195,7 +1196,7 @@ Status: ${patient.status || 'Not specified'}`;
                     text: responseText,
                     confidence: confidence,
                     source: source,
-                    sources: source === 'knowledge_base' ? (findBestMatch(query)?.topic?.sources || []) : ['Claude Opus 4.5 AI']
+                    sources: source === 'knowledge_base' ? (findBestMatch(query)?.topic?.sources || []) : ['ChatGPT (GPT-4o) AI']
                 }
             };
         },
@@ -1220,22 +1221,27 @@ Status: ${patient.status || 'Not specified'}`;
             return { version: VERSION, codename: CODENAME, topics: Object.keys(KNOWLEDGE).length, ready: true };
         },
 
-        // Claude Configuration
-        enableClaude() {
-            CLAUDE_CONFIG.USE_CLAUDE = true;
-            console.log('✅ Claude Opus 4.5 enabled (GPT-5 level)');
+        // AI Configuration
+        enableAI() {
+            AI_CONFIG.USE_AI = true;
+            console.log('✅ ChatGPT (GPT-4o) enabled');
         },
 
-        disableClaude() {
-            CLAUDE_CONFIG.USE_CLAUDE = false;
-            console.log('⚠️ Claude Opus 4.5 disabled - using knowledge base only');
+        disableAI() {
+            AI_CONFIG.USE_AI = false;
+            console.log('⚠️ ChatGPT (GPT-4o) disabled - using knowledge base only');
         },
+
+        // Backwards compatibility
+        enableClaude() { return this.enableAI(); },
+        disableClaude() { return this.disableAI(); },
 
         getConfig() {
             return {
-                claudeEnabled: CLAUDE_CONFIG.USE_CLAUDE,
-                fallbackEnabled: CLAUDE_CONFIG.USE_FALLBACK,
-                timeout: CLAUDE_CONFIG.TIMEOUT
+                aiEnabled: AI_CONFIG.USE_AI,
+                claudeEnabled: AI_CONFIG.USE_AI,  // Backwards compatibility
+                fallbackEnabled: AI_CONFIG.USE_FALLBACK,
+                timeout: AI_CONFIG.TIMEOUT
             };
         }
     };
@@ -1246,4 +1252,4 @@ window.AIMedicalConsultant = AIMedicalConsultant;
 window.NeuralClinicalIntelligence = AIMedicalConsultant;
 
 console.log(`✅ AI Medical Consultant v${AIMedicalConsultant.version} "${AIMedicalConsultant.codename}" loaded`);
-console.log(`🚀 Powered by Claude Opus 4.5 (GPT-5 level) - ${AIMedicalConsultant.getCapabilities().count} clinical topics available`);
+console.log(`🚀 Powered by ChatGPT (GPT-4o) - ${AIMedicalConsultant.getCapabilities().count} clinical topics available`);
