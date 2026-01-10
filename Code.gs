@@ -242,7 +242,7 @@ const LabService = {
     const patients = PatientService.getAll();
     if (!patients[patientId]) return { success: false, error: 'Patient not found' };
     if (!patients[patientId].labData) patients[patientId].labData = [];
-    const entry = { id: Utilities.getUuid(), timestamp: Date.now(), reportType: labData.reportType || 'GENERAL', values: labData.values || [], source: 'gpt4o', dates: labData.dates || [] };
+    const entry = { id: Utilities.getUuid(), timestamp: Date.now(), reportType: labData.reportType || 'GENERAL', values: labData.values || [], source: labData.model || 'manual', dates: labData.dates || [] };
     patients[patientId].labData.unshift(entry);
     if (patients[patientId].labData.length > 50) patients[patientId].labData = patients[patientId].labData.slice(0, 50);
     patients[patientId].updatedAt = Date.now();
@@ -375,6 +375,23 @@ const OCRService = {
     try {
       if (!img.startsWith('data:image')) img = 'data:image/jpeg;base64,' + img;
 
+      const prompt = `Extract ALL lab values from this medical report. IMPORTANT for cumulative reports:
+
+If the report has MULTIPLE date columns (cumulative report), extract SEPARATE entries for EACH date:
+Example: If Sodium shows values for 3 dates, create 3 separate entries.
+
+Return JSON:
+{
+  "reportType": "CBC|BMP|CUMULATIVE|GENERAL",
+  "dates": ["23/12/2025", "22/12/2025"],
+  "values": [
+    {"test":"Sodium","value":"140","unit":"mmol/L","flag":"N","refLow":"136","refHigh":"145","collectionDate":"23/12/2025"},
+    {"test":"Sodium","value":"138","unit":"mmol/L","flag":"N","refLow":"136","refHigh":"145","collectionDate":"22/12/2025"}
+  ]
+}
+
+Extract: test name (full), value (number only), unit, flag (H/L/N), refLow, refHigh, collectionDate`;
+
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
@@ -382,17 +399,17 @@ const OCRService = {
         payload: JSON.stringify({
           model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: 'Extract lab values as JSON: {"reportType":"CBC|BMP|GENERAL","dates":["date"],"values":[{"test":"Full Name","value":"123","unit":"mg/dL","flag":"H|L|N","refLow":"10","refHigh":"20","collectionDate":"date"}]}' },
+            { role: 'system', content: prompt },
             { role: 'user', content: [
-              { type: 'text', text: 'Extract all values.' },
-              { type: 'image_url', image_url: { url: img, detail: 'low' } }
+              { type: 'text', text: 'Extract all lab values for all dates.' },
+              { type: 'image_url', image_url: { url: img, detail: 'high' } }
             ]}
           ],
-          max_tokens: 2048,
+          max_tokens: 4096,
           temperature: 0
         }),
         muteHttpExceptions: true,
-        timeout: 20000
+        timeout: 30000
       });
 
       const code = response.getResponseCode();
