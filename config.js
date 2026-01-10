@@ -1,11 +1,11 @@
 // ═══════════════════════════════════════════════════════════════════════════
-// UNIT E WARD ROUNDS - CONFIG v3.3
-// FIXED: Consistent API URL, added OpenAI configuration
+// UNIT E WARD ROUNDS - CONFIG v3.4
+// UPDATED: Using the new deployment URL from v3.7.0
 // ═══════════════════════════════════════════════════════════════════════════
 
 const CONFIG = {
-    // Apps Script Web App deployment URL
-    // ⚠️ UPDATE THIS with your deployed Google Apps Script URL after redeploying
+    // ⚠️ IMPORTANT: This URL must match your deployed Google Apps Script
+    // Updated to match v3.7.0 deployment (from your screenshot)
     apiUrl: 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec',
     
     // Wards
