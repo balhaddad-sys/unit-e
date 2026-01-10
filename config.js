@@ -4,7 +4,7 @@
 
 const CONFIG = {
     // Apps Script Web App deployment URL
-    apiUrl: 'https://script.google.com/macros/s/AKfycbxtGGa4zND6EbA9SP1GN7xpLv7pBUC3Jq8Dta2Bu1zaD--pxLEg6RP1PeiptftltfC1/exec',
+    apiUrl: 'https://script.google.com/macros/s/AKfycbyr5Z8Yx1kiaGCa2hwqievp-TmeSg4bx52WVgXwJl78a7611FmRwFs-gFkYshWoDk_e/exec',
     
     // Wards
     wards: ["Ward 20", "Ward 21", "Ward 22", "Ward 5", "Ward 27", "Ward 4", "Ward 19", "Ward 10", "ICU", "ER", "Unassigned"],
