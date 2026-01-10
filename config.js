@@ -6,7 +6,7 @@
 const CONFIG = {
     // ⚠️ IMPORTANT: This URL must match your deployed Google Apps Script
     // Updated to match v3.7.0 deployment (from your screenshot)
-    apiUrl: 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFU/exec',
+    apiUrl: 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec',
     
     // Wards
     wards: ["Ward 20", "Ward 21", "Ward 22", "Ward 5", "Ward 27", "Ward 4", "Ward 19", "Ward 10", "ICU", "ER", "Unassigned"],
