@@ -340,18 +340,42 @@ const LabService = {
   },
   getLatest: function(patientId) {
     // FIXED: Return full lab array, not just the latest entry
+    Logger.log('[LAB_DEBUG] getLatest called for patientId: ' + patientId);
+
     const p = PatientService.getById(patientId);
-    if (!p) return { success: false, error: 'Patient not found' };
+    if (!p) {
+      Logger.log('[LAB_DEBUG] Patient not found: ' + patientId);
+      return { success: false, error: 'Patient not found' };
+    }
+
+    Logger.log('[LAB_DEBUG] Patient found: ' + JSON.stringify({
+      id: p.id,
+      name: p.name,
+      hasLabData: !!p.labData
+    }));
 
     const labData = p.labData || [];
-    Logger.log('LabService.getLatest: Found ' + labData.length + ' labs for ' + patientId);
+    Logger.log('[LAB_DEBUG] LabService.getLatest: Found ' + labData.length + ' labs for ' + patientId);
 
-    return {
+    if (labData.length > 0) {
+      Logger.log('[LAB_DEBUG] First lab sample: ' + JSON.stringify(labData[0]));
+    }
+
+    const response = {
       success: true,
       labData: labData,
       count: labData.length,
       patientId: patientId
     };
+
+    Logger.log('[LAB_DEBUG] Returning response: ' + JSON.stringify({
+      success: response.success,
+      count: response.count,
+      patientId: response.patientId,
+      labDataLength: response.labData.length
+    }));
+
+    return response;
   }
 };
 
@@ -601,10 +625,14 @@ function doGet(e) {
 
 function doPost(e) {
   try {
-    if (!e?.postData?.contents) return json({ success: false, error: 'No data' });
+    if (!e?.postData?.contents) {
+      Logger.log('[DEBUG] doPost: No data received');
+      return json({ success: false, error: 'No data' });
+    }
+
     const d = JSON.parse(e.postData.contents);
     const a = d.action;
-    Logger.log('POST: ' + a);
+    Logger.log('[DEBUG] POST action: ' + a + ' | Payload: ' + JSON.stringify(d));
 
     switch (a) {
       case 'loadPatients': SheetSync.pullFromSheet(); return json({ success: true, patients: PatientService.getAll(), count: Object.keys(PatientService.getAll()).length });
@@ -612,8 +640,18 @@ function doPost(e) {
       case 'savePatient': return json(PatientService.create(d.patient || d));
       case 'updatePatient': return json(PatientService.update(d.patientId, d.updates || d));
       case 'deletePatient': return json(PatientService.delete(d.patientId));
-      case 'saveLabs': return json(LabService.save(d.patientId, d.labData));
-      case 'loadLabs': return json(LabService.getLatest(d.patientId));
+      case 'saveLabs':
+        Logger.log('[LAB_DEBUG] saveLabs called for patientId: ' + d.patientId);
+        return json(LabService.save(d.patientId, d.labData));
+      case 'loadLabs':
+        Logger.log('[LAB_DEBUG] loadLabs called for patientId: ' + d.patientId);
+        const labResult = LabService.getLatest(d.patientId);
+        Logger.log('[LAB_DEBUG] loadLabs returning: ' + JSON.stringify({
+          success: labResult.success,
+          count: labResult.count,
+          hasLabData: !!labResult.labData
+        }));
+        return json(labResult);
       case 'loadLabHistory': return json(LabService.getHistory(d.patientId, d.limit));
 
       // GPT-4o Vision OCR - all these actions use GPT-4o
