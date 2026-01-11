@@ -522,12 +522,13 @@ const AIMedicalConsultant = (function() {
         TIMEOUT: 45000            // 45 second timeout (increased for reliability)
     };
 
-    async function askAI(query, patient, labValues = []) {
+    async function askAI(query, patient, labValues = [], trends = []) {
         const apiUrl = AI_CONFIG.API_URL;
         console.log('[AI Consultant] === Starting AI Request ===');
         console.log('[AI Consultant] API URL:', apiUrl);
         console.log('[AI Consultant] Query:', query);
-        
+        console.log('[AI Consultant] Trends included:', trends && trends.length > 0 ? `Yes (${trends.length})` : 'No');
+
         try {
             // Build patient context
             let patientContext = '';
@@ -552,7 +553,8 @@ Status: ${patient.status || 'Not specified'}`;
                 action: 'claudeConsult',
                 query: query,
                 patientContext: patientContext,
-                labValues: labValues
+                labValues: labValues,
+                trends: trends
             };
             
             console.log('[AI Consultant] Sending POST request...');
@@ -674,7 +676,8 @@ Status: ${patient.status || 'Not specified'}`;
                 console.log('[AI Consultant] 🚀 Using ChatGPT (GPT-4o) for advanced medical reasoning...');
 
                 const labValues = options.labValues || [];
-                const aiResult = await askAI(query, patient, labValues);
+                const trends = options.trends || [];
+                const aiResult = await askAI(query, patient, labValues, trends);
 
                 if (aiResult.success) {
                     responseText = aiResult.text;

@@ -493,22 +493,37 @@ const OCRService = {
     try {
       if (!img.startsWith('data:image')) img = 'data:image/jpeg;base64,' + img;
 
-      const prompt = `Extract ALL lab values from this medical report. IMPORTANT for cumulative reports:
+      const prompt = `Extract ALL lab values from this medical report with TEMPORAL TREND TRACKING.
 
-If the report has MULTIPLE date columns (cumulative report), extract SEPARATE entries for EACH date:
-Example: If Sodium shows values for 3 dates, create 3 separate entries.
+CRITICAL FOR MULTI-DAY REPORTS:
+- If the report shows MULTIPLE date columns, extract SEPARATE entries for EACH date
+- Example: Sodium with 3 dates → create 3 separate value entries
+- Extract the EXACT dates as shown in the image (format: DD/MM/YYYY or MM/DD/YYYY)
+- Preserve chronological order (oldest to newest or newest to oldest as shown)
 
 Return JSON:
 {
   "reportType": "CBC|BMP|CUMULATIVE|GENERAL",
-  "dates": ["23/12/2025", "22/12/2025"],
+  "dates": ["23/12/2025", "22/12/2025", "21/12/2025"],
   "values": [
     {"test":"Sodium","value":"140","unit":"mmol/L","flag":"N","refLow":"136","refHigh":"145","collectionDate":"23/12/2025"},
-    {"test":"Sodium","value":"138","unit":"mmol/L","flag":"N","refLow":"136","refHigh":"145","collectionDate":"22/12/2025"}
+    {"test":"Sodium","value":"145","unit":"mmol/L","flag":"H","refLow":"136","refHigh":"145","collectionDate":"22/12/2025"},
+    {"test":"Sodium","value":"157","unit":"mmol/L","flag":"HH","refLow":"136","refHigh":"145","collectionDate":"21/12/2025"}
+  ],
+  "trends": [
+    {"test":"Sodium","dates":["21/12/2025","22/12/2025","23/12/2025"],"values":[157,145,140],"trend":"improving","change":-17}
   ]
 }
 
-Extract: test name (full), value (number only), unit, flag (H/L/N), refLow, refHigh, collectionDate`;
+EXTRACTION RULES:
+- test: Full test name (e.g., "Sodium", "Hemoglobin", "White Blood Cell Count")
+- value: Number only (no units, extract decimal if present)
+- unit: Unit of measurement (mmol/L, g/dL, etc.)
+- flag: N (normal), L (low), H (high), HH (critically high), LL (critically low)
+- refLow/refHigh: Reference range boundaries
+- collectionDate: EXACT date from image
+- trends: Calculate for tests with multiple dates (trend: "improving"/"worsening"/"stable", change: numeric difference)`;
+
 
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
@@ -545,7 +560,7 @@ Extract: test name (full), value (number only), unit, flag (H/L/N), refLow, refH
   },
 
   parseLabResponse: function(content, model) {
-    let parsed = { values: [], reportType: 'GENERAL', dates: [] };
+    let parsed = { values: [], reportType: 'GENERAL', dates: [], trends: [] };
     try {
       let json = content.trim();
       if (json.startsWith('```')) json = json.replace(/```json?\n?/g, '').replace(/```\s*$/g, '').trim();
@@ -564,21 +579,109 @@ Extract: test name (full), value (number only), unit, flag (H/L/N), refLow, refH
       category: categorizeTest(v.test)
     }));
 
+    // Calculate trends if not provided by GPT or enhance provided trends
+    let trends = parsed.trends || [];
+    if (values.length > 0 && (parsed.dates || []).length > 1) {
+      trends = this.calculateTrends(values, parsed.dates || []);
+    }
+
+    Logger.log('[TREND_DEBUG] Calculated trends: ' + JSON.stringify(trends));
+
     return {
       success: true,
       values,
       reportType: parsed.reportType || 'GENERAL',
       confidence: parsed.confidence || 90,
       dates: parsed.dates || [],
+      trends: trends,
       model: model
     };
   },
 
-  consult: function(query, patient, labs) {
+  // Calculate temporal trends from multi-date lab values
+  calculateTrends: function(values, allDates) {
+    const trends = [];
+    const testGroups = {};
+
+    // Group values by test name
+    values.forEach(function(v) {
+      if (!testGroups[v.test]) testGroups[v.test] = [];
+      testGroups[v.test].push(v);
+    });
+
+    // Calculate trends for tests with multiple dates
+    Object.keys(testGroups).forEach(function(testName) {
+      const testValues = testGroups[testName];
+      if (testValues.length > 1) {
+        // Sort by date (oldest first)
+        testValues.sort(function(a, b) {
+          if (!a.collectionDate || !b.collectionDate) return 0;
+          return new Date(a.collectionDate) - new Date(b.collectionDate);
+        });
+
+        const dates = testValues.map(function(v) { return v.collectionDate; });
+        const numericValues = testValues.map(function(v) { return parseFloat(v.value) || 0; });
+        const first = numericValues[0];
+        const last = numericValues[numericValues.length - 1];
+        const change = last - first;
+        const percentChange = first !== 0 ? ((change / first) * 100).toFixed(1) : 0;
+
+        // Determine trend direction
+        let trend = 'stable';
+        if (Math.abs(change) > 0.1) {  // Threshold for considering change
+          trend = change > 0 ? 'increasing' : 'decreasing';
+
+          // Check if abnormal flag is improving
+          const firstFlag = testValues[0].flag;
+          const lastFlag = testValues[testValues.length - 1].flag;
+          if ((firstFlag === 'H' || firstFlag === 'HH') && (lastFlag === 'N' || lastFlag === 'L')) {
+            trend = 'improving';
+          } else if ((firstFlag === 'L' || firstFlag === 'LL') && (lastFlag === 'N' || lastFlag === 'H')) {
+            trend = 'improving';
+          } else if ((lastFlag === 'H' || lastFlag === 'HH' || lastFlag === 'L' || lastFlag === 'LL') && firstFlag === 'N') {
+            trend = 'worsening';
+          }
+        }
+
+        trends.push({
+          test: testName,
+          dates: dates,
+          values: numericValues,
+          trend: trend,
+          change: change,
+          percentChange: percentChange,
+          unit: testValues[0].unit,
+          summary: testName + ': ' + numericValues.join(' → ') + ' ' + testValues[0].unit + ' (' + trend + ')'
+        });
+      }
+    });
+
+    return trends;
+  },
+
+  consult: function(query, patient, labs, trends) {
     const config = getConfig();
     if (!config.openaiApiKey) return { success: false, error: 'OPENAI_API_KEY not configured' };
 
     try {
+      // Build context with trends if available
+      let labContext = 'Current Labs: ' + JSON.stringify(labs);
+
+      if (trends && trends.length > 0) {
+        const trendSummary = trends.map(function(t) {
+          return t.summary;
+        }).join('\n');
+        labContext += '\n\nTemporal Trends:\n' + trendSummary;
+
+        Logger.log('[AI_CONSULT] Including trends in consultation: ' + trendSummary);
+      }
+
+      const systemPrompt = `You are a medical AI assistant. Provide concise, evidence-based clinical guidance.
+IMPORTANT: When lab trends are provided, consider the temporal pattern in your recommendations.
+- Improving trends may allow less aggressive treatment
+- Worsening trends may require escalation of care
+- Stable abnormal values may need intervention adjustment`;
+
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
@@ -586,8 +689,8 @@ Extract: test name (full), value (number only), unit, flag (H/L/N), refLow, refH
         payload: JSON.stringify({
           model: GPT_MODEL,
           messages: [
-            { role: 'system', content: 'Medical AI. Concise.' },
-            { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\nLabs: ' + JSON.stringify(labs) + '\nQ: ' + query }
+            { role: 'system', content: systemPrompt },
+            { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\n' + labContext + '\n\nQuestion: ' + query }
           ],
           max_tokens: 1024,
           temperature: 0
@@ -665,7 +768,8 @@ function doPost(e) {
       case 'gptConsult':
       case 'claudeConsult':
       case 'aiConsult':
-        return json(GPTVisionService.consult(d.query, d.patientContext, d.labValues));
+        Logger.log('[AI_CONSULT] Consultation request with trends: ' + (d.trends ? 'Yes (' + d.trends.length + ')' : 'No'));
+        return json(GPTVisionService.consult(d.query, d.patientContext, d.labValues, d.trends));
 
       case 'loadNotice': return json({ success: true, notice: NoticeService.get() });
       case 'saveNotice': return json(NoticeService.save(d.notice?.text || d.text));
