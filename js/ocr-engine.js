@@ -12,9 +12,9 @@
     const CONFIG = {
         // Use the main API URL from CONFIG if available, otherwise fallback
         get API_URL() {
-            return (typeof window.CONFIG !== 'undefined' && window.CONFIG.apiUrl) 
-                ? window.CONFIG.apiUrl 
-                : 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec';
+            return (typeof window.CONFIG !== 'undefined' && window.CONFIG.apiUrl)
+                ? window.CONFIG.apiUrl
+                : 'https://script.google.com/macros/s/AKfycbyLaTUBAG5n4DVuPyLpgdAcAVB_CZE9KFH33u2p7Bl4pQZJ4CzxETto15Jcw67ShaUI/exec';
         },
         MAX_IMAGE_WIDTH: 1600,      // Increased for better quality
         JPEG_QUALITY: 0.92,          // Increased quality
