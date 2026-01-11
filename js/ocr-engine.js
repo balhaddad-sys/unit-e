@@ -14,7 +14,7 @@
         get API_URL() {
             return (typeof window.CONFIG !== 'undefined' && window.CONFIG.apiUrl)
                 ? window.CONFIG.apiUrl
-                : 'https://script.google.com/macros/s/AKfycbyLaTUBAG5n4DVuPyLpgdAcAVB_CZE9KFH33u2p7Bl4pQZJ4CzxETto15Jcw67ShaUI/exec';
+                : 'https://script.google.com/macros/s/AKfycbyoPcc2U3wGzA2GPJszh68MX3YoM_vjdrCOl6fRbRAewqHQ8k1_mgf5ub_mC9s7Sg6h/exec';
         },
         MAX_IMAGE_WIDTH: 1600,      // Increased for better quality
         JPEG_QUALITY: 0.92,          // Increased quality
