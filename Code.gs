@@ -660,16 +660,27 @@ EXTRACTION RULES:
   },
 
   consult: function(query, patient, labs, trends) {
+    Logger.log('[AI_CONSULT] === Starting Consultation ===');
+    Logger.log('[AI_CONSULT] Query: ' + query);
+    Logger.log('[AI_CONSULT] Patient: ' + JSON.stringify(patient));
+    Logger.log('[AI_CONSULT] Labs count: ' + (labs ? labs.length : 0));
+    Logger.log('[AI_CONSULT] Trends count: ' + (trends ? trends.length : 0));
+
     const config = getConfig();
-    if (!config.openaiApiKey) return { success: false, error: 'OPENAI_API_KEY not configured' };
+    if (!config.openaiApiKey) {
+      Logger.log('[AI_CONSULT] ERROR: OPENAI_API_KEY not configured');
+      return { success: false, error: 'OPENAI_API_KEY not configured in Script Properties. Please add it in Apps Script settings.' };
+    }
+
+    Logger.log('[AI_CONSULT] OpenAI API Key found: ' + (config.openaiApiKey.substring(0, 10) + '...'));
 
     try {
       // Build context with trends if available
-      let labContext = 'Current Labs: ' + JSON.stringify(labs);
+      let labContext = 'Current Labs: ' + JSON.stringify(labs || []);
 
       if (trends && trends.length > 0) {
         const trendSummary = trends.map(function(t) {
-          return t.summary;
+          return t.summary || (t.test + ': ' + t.trend);
         }).join('\n');
         labContext += '\n\nTemporal Trends:\n' + trendSummary;
 
@@ -682,27 +693,56 @@ IMPORTANT: When lab trends are provided, consider the temporal pattern in your r
 - Worsening trends may require escalation of care
 - Stable abnormal values may need intervention adjustment`;
 
+      const requestPayload = {
+        model: GPT_MODEL,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\n' + labContext + '\n\nQuestion: ' + query }
+        ],
+        max_tokens: 1024,
+        temperature: 0
+      };
+
+      Logger.log('[AI_CONSULT] Calling OpenAI API...');
+
       const response = UrlFetchApp.fetch('https://api.openai.com/v1/chat/completions', {
         method: 'post',
         contentType: 'application/json',
         headers: { 'Authorization': 'Bearer ' + config.openaiApiKey },
-        payload: JSON.stringify({
-          model: GPT_MODEL,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: 'Patient: ' + JSON.stringify(patient) + '\n' + labContext + '\n\nQuestion: ' + query }
-          ],
-          max_tokens: 1024,
-          temperature: 0
-        }),
+        payload: JSON.stringify(requestPayload),
         muteHttpExceptions: true,
         timeout: 15000
       });
 
-      if (response.getResponseCode() !== 200) return { success: false, error: 'API error' };
-      return { success: true, response: JSON.parse(response.getContentText()).choices?.[0]?.message?.content || '' };
+      const responseCode = response.getResponseCode();
+      Logger.log('[AI_CONSULT] OpenAI Response Code: ' + responseCode);
+
+      if (responseCode !== 200) {
+        const errorText = response.getContentText();
+        Logger.log('[AI_CONSULT] ERROR: OpenAI API error - ' + errorText);
+        try {
+          const errorJson = JSON.parse(errorText);
+          return { success: false, error: 'OpenAI API error: ' + (errorJson.error?.message || errorText.substring(0, 200)) };
+        } catch (e) {
+          return { success: false, error: 'OpenAI API error (HTTP ' + responseCode + '): ' + errorText.substring(0, 200) };
+        }
+      }
+
+      const responseText = response.getContentText();
+      const responseJson = JSON.parse(responseText);
+      const aiResponse = responseJson.choices?.[0]?.message?.content || '';
+
+      if (!aiResponse) {
+        Logger.log('[AI_CONSULT] ERROR: No response from OpenAI');
+        return { success: false, error: 'No response received from OpenAI API' };
+      }
+
+      Logger.log('[AI_CONSULT] SUCCESS: Received response (' + aiResponse.length + ' chars)');
+      return { success: true, response: aiResponse, model: GPT_MODEL };
     } catch (e) {
-      return { success: false, error: e.toString() };
+      Logger.log('[AI_CONSULT] ERROR: Exception - ' + e.toString());
+      Logger.log('[AI_CONSULT] Stack: ' + e.stack);
+      return { success: false, error: 'Backend error: ' + e.toString() };
     }
   }
 };

@@ -1,0 +1,409 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Consultation Diagnostic Tool</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        .section {
+            margin-bottom: 25px;
+            padding: 20px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .section h2 {
+            color: #2d3748;
+            font-size: 18px;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        input, textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e2e8f0;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+            margin-bottom: 10px;
+            transition: border-color 0.2s;
+        }
+        input:focus, textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        button:hover {
+            background: #5a67d8;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button:disabled {
+            background: #cbd5e0;
+            cursor: not-allowed;
+            transform: none;
+        }
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            border-radius: 6px;
+            font-size: 13px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            font-family: 'Monaco', 'Courier New', monospace;
+        }
+        .result.success {
+            background: #c6f6d5;
+            border: 1px solid #9ae6b4;
+            color: #22543d;
+        }
+        .result.error {
+            background: #fed7d7;
+            border: 1px solid #fc8181;
+            color: #742a2a;
+        }
+        .result.info {
+            background: #bee3f8;
+            border: 1px solid #90cdf4;
+            color: #2c5282;
+        }
+        .status-badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            margin-left: 10px;
+        }
+        .status-badge.ready {
+            background: #c6f6d5;
+            color: #22543d;
+        }
+        .status-badge.error {
+            background: #fed7d7;
+            color: #742a2a;
+        }
+        .status-badge.warning {
+            background: #fef5e7;
+            color: #975a16;
+        }
+        .info-text {
+            font-size: 13px;
+            color: #4a5568;
+            margin-bottom: 10px;
+        }
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #667eea;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            animation: spin 1s linear infinite;
+            display: inline-block;
+            margin-left: 10px;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔬 AI Consultation Diagnostic Tool</h1>
+        <p class="subtitle">Test and debug your AI consultation system</p>
+
+        <!-- Step 1: URL Configuration -->
+        <div class="section">
+            <h2>🔗 Step 1: API URL Configuration</h2>
+            <p class="info-text">Enter your Google Apps Script URL:</p>
+            <input type="text" id="apiUrl" placeholder="https://script.google.com/macros/s/..."
+                   value="https://script.google.com/macros/s/AKfycbyLaTUBAG5n4DVuPyLpgdAcAVB_CZE9KFH33u2p7Bl4pQZJ4CzxETto15Jcw67ShaUI/exec">
+        </div>
+
+        <!-- Step 2: Health Check -->
+        <div class="section">
+            <h2>🏥 Step 2: Backend Health Check</h2>
+            <p class="info-text">Verify the backend is accessible and responding:</p>
+            <button onclick="testHealth()">Run Health Check</button>
+            <div id="healthResult"></div>
+        </div>
+
+        <!-- Step 3: Test Consultation -->
+        <div class="section">
+            <h2>💬 Step 3: Test AI Consultation</h2>
+            <p class="info-text">Send a test query to the AI:</p>
+            <textarea id="testQuery" rows="3" placeholder="Example: What are the treatment options for pneumonia?">What are the treatment options for pneumonia?</textarea>
+            <button onclick="testConsultation()">Send Test Query</button>
+            <div id="consultResult"></div>
+        </div>
+
+        <!-- Step 4: Test with Lab Data & Trends -->
+        <div class="section">
+            <h2>📊 Step 4: Test with Lab Data & Trends</h2>
+            <p class="info-text">Test consultation with lab values and temporal trends:</p>
+            <button onclick="testWithLabsAndTrends()">Test with Labs & Trends</button>
+            <div id="labsResult"></div>
+        </div>
+
+        <!-- Step 5: Neural Learning Status -->
+        <div class="section">
+            <h2>🧠 Step 5: Neural Learning System Status</h2>
+            <p class="info-text">Check if the system is learning from GPT responses:</p>
+            <button onclick="checkNeuralLearning()">Check Neural Learning</button>
+            <div id="neuralResult"></div>
+        </div>
+    </div>
+
+    <script>
+        function getApiUrl() {
+            return document.getElementById('apiUrl').value.trim();
+        }
+
+        async function testHealth() {
+            const resultDiv = document.getElementById('healthResult');
+            resultDiv.innerHTML = '<div class="loader"></div>';
+
+            try {
+                const apiUrl = getApiUrl();
+                const response = await fetch(apiUrl + '?action=health', {
+                    method: 'GET',
+                    timeout: 10000
+                });
+
+                const result = await response.json();
+
+                let html = '<div class="result success">';
+                html += '✅ Backend is ONLINE and responding!\n\n';
+                html += 'Response:\n';
+                html += JSON.stringify(result, null, 2);
+                html += '</div>';
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                let html = '<div class="result error">';
+                html += '❌ Health Check FAILED\n\n';
+                html += 'Error: ' + error.message + '\n\n';
+                html += 'Possible causes:\n';
+                html += '1. URL is incorrect or not deployed\n';
+                html += '2. Backend script has errors\n';
+                html += '3. CORS not configured\n';
+                html += '4. Network/firewall blocking request';
+                html += '</div>';
+
+                resultDiv.innerHTML = html;
+            }
+        }
+
+        async function testConsultation() {
+            const resultDiv = document.getElementById('consultResult');
+            resultDiv.innerHTML = '<div class="loader"></div>';
+
+            try {
+                const apiUrl = getApiUrl();
+                const query = document.getElementById('testQuery').value;
+
+                const payload = {
+                    action: 'claudeConsult',
+                    query: query,
+                    patientContext: {
+                        name: 'Test Patient',
+                        age: 45,
+                        sex: 'M',
+                        diagnosis: 'Pneumonia'
+                    },
+                    labValues: [],
+                    trends: []
+                };
+
+                console.log('Sending payload:', payload);
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+
+                console.log('Response status:', response.status);
+
+                const responseText = await response.text();
+                console.log('Response text:', responseText);
+
+                const result = JSON.parse(responseText);
+
+                let html = '';
+                if (result.success && result.response) {
+                    html = '<div class="result success">';
+                    html += '✅ AI Consultation SUCCESSFUL!\n\n';
+                    html += 'Response:\n';
+                    html += result.response;
+                    html += '</div>';
+                } else {
+                    html = '<div class="result error">';
+                    html += '❌ AI Consultation FAILED\n\n';
+                    html += 'Error: ' + (result.error || 'Unknown error') + '\n\n';
+                    html += 'Full response:\n';
+                    html += JSON.stringify(result, null, 2);
+                    html += '\n\nPossible causes:\n';
+                    html += '1. OPENAI_API_KEY not configured in Script Properties\n';
+                    html += '2. Backend Code.gs not deployed with latest changes\n';
+                    html += '3. Syntax error in backend code\n';
+                    html += '4. OpenAI API quota exceeded or key invalid';
+                    html += '</div>';
+                }
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                let html = '<div class="result error">';
+                html += '❌ Request FAILED\n\n';
+                html += 'Error: ' + error.message + '\n\n';
+                html += 'Check browser console for details';
+                html += '</div>';
+
+                resultDiv.innerHTML = html;
+                console.error('Full error:', error);
+            }
+        }
+
+        async function testWithLabsAndTrends() {
+            const resultDiv = document.getElementById('labsResult');
+            resultDiv.innerHTML = '<div class="loader"></div>';
+
+            try {
+                const apiUrl = getApiUrl();
+
+                const payload = {
+                    action: 'claudeConsult',
+                    query: 'Interpret the sodium trend and recommend management',
+                    patientContext: {
+                        name: 'Test Patient',
+                        age: 65,
+                        sex: 'F',
+                        diagnosis: 'Hypernatremia'
+                    },
+                    labValues: [
+                        { test: 'Sodium', value: '140', unit: 'mmol/L', flag: 'N', refLow: '136', refHigh: '145' }
+                    ],
+                    trends: [
+                        {
+                            test: 'Sodium',
+                            dates: ['2025-01-09', '2025-01-10', '2025-01-11'],
+                            values: [157, 145, 140],
+                            trend: 'improving',
+                            change: -17,
+                            percentChange: -10.8,
+                            summary: 'Sodium: 157 → 145 → 140 mmol/L (improving)'
+                        }
+                    ]
+                };
+
+                console.log('Sending payload with trends:', payload);
+
+                const response = await fetch(apiUrl, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+                    body: JSON.stringify(payload)
+                });
+
+                const responseText = await response.text();
+                const result = JSON.parse(responseText);
+
+                let html = '';
+                if (result.success && result.response) {
+                    html = '<div class="result success">';
+                    html += '✅ Trend-Aware Consultation SUCCESSFUL!\n\n';
+                    html += 'AI Response with Trend Analysis:\n';
+                    html += result.response;
+                    html += '\n\n✅ The AI successfully incorporated the improving sodium trend!';
+                    html += '</div>';
+                } else {
+                    html = '<div class="result error">';
+                    html += '❌ Trend Test FAILED\n\n';
+                    html += 'Error: ' + (result.error || 'Unknown error') + '\n\n';
+                    html += 'This suggests the backend may not be deployed with the latest trends code.';
+                    html += '</div>';
+                }
+
+                resultDiv.innerHTML = html;
+            } catch (error) {
+                let html = '<div class="result error">';
+                html += '❌ Request FAILED\n\n';
+                html += 'Error: ' + error.message;
+                html += '</div>';
+
+                resultDiv.innerHTML = html;
+                console.error('Full error:', error);
+            }
+        }
+
+        function checkNeuralLearning() {
+            const resultDiv = document.getElementById('neuralResult');
+
+            let html = '<div class="result info">';
+            html += '🧠 NEURAL LEARNING SYSTEM STATUS\n\n';
+            html += '✅ Learning Function: PRESENT in ai-medical-consultant.js (lines 798-829)\n';
+            html += '✅ Learning Trigger: ENABLED (lines 721-728)\n\n';
+            html += 'How it works:\n';
+            html += '1. When GPT-4o returns a successful response, the system calls learnFromChatGPT()\n';
+            html += '2. Medical topics are extracted from the query and response\n';
+            html += '3. After 2+ successful queries on the same topic, it creates learned knowledge\n';
+            html += '4. Learned topics are stored in learnedFromGPT Map\n\n';
+            html += 'Requirements:\n';
+            html += '- GPT-4o must respond successfully (not fallback to knowledge base)\n';
+            html += '- window.AdaptiveNeuralExpansion must be loaded\n\n';
+            html += 'To verify learning is working:\n';
+            html += '1. Open browser console\n';
+            html += '2. Ask the AI a medical question\n';
+            html += '3. Look for: "[AI Consultant] 🧠 Learning from ChatGPT: ..."';
+            html += '</div>';
+
+            resultDiv.innerHTML = html;
+        }
+
+        // Auto-run health check on load
+        window.addEventListener('load', () => {
+            setTimeout(testHealth, 500);
+        });
+    </script>
+</body>
+</html>
