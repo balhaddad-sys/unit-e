@@ -4529,8 +4529,36 @@ const AIConsultModal = ({ patient, onClose }) => {
                 return;
             }
 
-            // Get AI response (FIXED: added await for async function)
-            const result = await window.AIMedicalConsultant.askQuestion(patient.id, message, patient);
+            // Get latest lab values and trends for AI consultation
+            let labValues = [];
+            let trends = [];
+
+            if (labImages && labImages.length > 0) {
+                // Get the most recent lab with values
+                const latestLab = labImages
+                    .filter(l => l.ocr && l.ocr.values && l.ocr.values.length > 0)
+                    .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
+
+                if (latestLab) {
+                    labValues = latestLab.ocr.values || [];
+                    trends = latestLab.ocr.trends || [];
+                    console.log('[AI Consult] Including lab data:', {
+                        values: labValues.length,
+                        trends: trends.length
+                    });
+                }
+            }
+
+            // Get AI response with lab context
+            const result = await window.AIMedicalConsultant.askQuestion(
+                patient.id,
+                message,
+                patient,
+                {
+                    labValues: labValues,
+                    trends: trends
+                }
+            );
 
             if (result.success) {
                 // Update conversation
@@ -5322,6 +5350,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     updatedAt: Date.now(),
                     source: result.source || 'google_vision',
                     labType: labType,
+                    // Temporal trends from multi-day reports
+                    trends: result.trends || [],
+                    dates: result.dates || [],
                     // Imaging report fields
                     impression: result.impression || null,
                     findings: result.findings || null,
@@ -5331,6 +5362,14 @@ const LabModal = ({ patient, onClose, onSave }) => {
                     reportType: result.reportType || 'Laboratory'
                 }
             } : x));
+
+            // Log trends if detected
+            if (result.trends && result.trends.length > 0) {
+                addDebugLog('info', `📈 Trends detected: ${result.trends.length} parameters with multi-day data`);
+                result.trends.forEach(trend => {
+                    addDebugLog('info', `  ${trend.summary}`);
+                });
+            }
 
             if (processedValues.length === 0) {
                 setOcrError("No lab values detected. Try different image or check Debug tab.");

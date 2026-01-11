@@ -1815,12 +1815,20 @@
     /**
      * Get lab-adjusted recommendations based on patient's lab values
      */
-    function getLabAdjustedRecommendations(guideline, labValues) {
+    function getLabAdjustedRecommendations(guideline, labValues, trends) {
         if (!guideline || !guideline.labAdjustments || !labValues) {
             return [];
         }
 
         const adjustments = [];
+
+        // Build a trends map for quick lookup
+        const trendsMap = {};
+        if (trends && Array.isArray(trends)) {
+            trends.forEach(t => {
+                trendsMap[t.test] = t;
+            });
+        }
 
         // Process each lab value
         for (const [labName, labData] of Object.entries(labValues)) {
@@ -1830,38 +1838,78 @@
             const value = parseFloat(labData.value);
             if (isNaN(value)) continue;
 
+            const trend = trendsMap[labName];
+
             // Determine which adjustment category applies
             if (labData.flag === 'H' || labData.flag === 'HH') {
                 if (adjustment.high) {
+                    let recommendation = adjustment.high;
+                    let priority = labData.flag === 'HH' ? 'CRITICAL' : 'HIGH';
+
+                    // Modify recommendation based on trend
+                    if (trend) {
+                        if (trend.trend === 'improving' || trend.trend === 'decreasing') {
+                            recommendation += ` ✓ TREND: ${trend.summary}. Continue current therapy - showing improvement.`;
+                            priority = 'MODERATE';  // Downgrade priority if improving
+                        } else if (trend.trend === 'worsening' || trend.trend === 'increasing') {
+                            recommendation += ` ⚠️ TREND: ${trend.summary}. Escalate therapy - worsening despite treatment.`;
+                            priority = 'CRITICAL';  // Upgrade priority if worsening
+                        }
+                    }
+
                     adjustments.push({
                         lab: labName,
                         value: value,
                         unit: labData.unit,
                         flag: labData.flag,
-                        recommendation: adjustment.high,
-                        priority: labData.flag === 'HH' ? 'CRITICAL' : 'HIGH'
+                        recommendation: recommendation,
+                        priority: priority,
+                        trend: trend ? trend.trend : null
                     });
                 }
             } else if (labData.flag === 'L' || labData.flag === 'LL') {
                 if (adjustment.low) {
+                    let recommendation = adjustment.low;
+                    let priority = labData.flag === 'LL' ? 'CRITICAL' : 'HIGH';
+
+                    // Modify recommendation based on trend
+                    if (trend) {
+                        if (trend.trend === 'improving' || trend.trend === 'increasing') {
+                            recommendation += ` ✓ TREND: ${trend.summary}. Continue current therapy - showing improvement.`;
+                            priority = 'MODERATE';  // Downgrade priority if improving
+                        } else if (trend.trend === 'worsening' || trend.trend === 'decreasing') {
+                            recommendation += ` ⚠️ TREND: ${trend.summary}. Escalate therapy - worsening despite treatment.`;
+                            priority = 'CRITICAL';  // Upgrade priority if worsening
+                        }
+                    }
+
                     adjustments.push({
                         lab: labName,
                         value: value,
                         unit: labData.unit,
                         flag: labData.flag,
-                        recommendation: adjustment.low,
-                        priority: labData.flag === 'LL' ? 'CRITICAL' : 'HIGH'
+                        recommendation: recommendation,
+                        priority: priority,
+                        trend: trend ? trend.trend : null
                     });
                 }
             } else if (adjustment.normal || adjustment.stable || adjustment.therapeutic) {
                 const rec = adjustment.normal || adjustment.stable || adjustment.therapeutic;
+                let recommendation = rec;
+
+                // Add trend context even for normal values
+                if (trend) {
+                    recommendation += ` TREND: ${trend.summary}.`;
+                }
+
                 adjustments.push({
                     lab: labName,
                     value: value,
                     unit: labData.unit,
                     flag: 'N',
-                    recommendation: rec,
-                    priority: 'INFO'
+                    recommendation: recommendation,
+                    priority: 'INFO',
+                    trend: trend ? trend.trend : null
                 });
             }
 
@@ -1872,16 +1920,37 @@
                     value: value,
                     unit: labData.unit,
                     flag: labData.flag,
-                    recommendation: adjustment.trending,
-                    priority: 'MODERATE'
+                    recommendation: adjustment.trending + (trend ? ` TREND: ${trend.summary}.` : ''),
+                    priority: 'MODERATE',
+                    trend: trend ? trend.trend : null
                 });
             }
+        }
+
+        // Add trend-only alerts for tests that have significant trends but no adjustments defined
+        if (trends) {
+            trends.forEach(trend => {
+                // Only add if not already in adjustments
+                const alreadyProcessed = adjustments.some(adj => adj.lab === trend.test);
+                if (!alreadyProcessed && (trend.trend === 'worsening' || Math.abs(trend.percentChange) > 20)) {
+                    adjustments.push({
+                        lab: trend.test,
+                        value: trend.values[trend.values.length - 1],
+                        unit: trend.unit,
+                        flag: 'TREND',
+                        recommendation: `⚠️ Significant trend detected: ${trend.summary}. Review and consider intervention.`,
+                        priority: trend.trend === 'worsening' ? 'HIGH' : 'MODERATE',
+                        trend: trend.trend
+                    });
+                }
+            });
         }
 
         // Sort by priority
         const priorityOrder = { CRITICAL: 0, HIGH: 1, MODERATE: 2, INFO: 3 };
         adjustments.sort((a, b) => (priorityOrder[a.priority] || 99) - (priorityOrder[b.priority] || 99));
 
+        console.log('[GUIDELINES] Lab-adjusted recommendations with trends:', adjustments);
         return adjustments;
     }
 
