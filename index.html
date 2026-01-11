@@ -5470,30 +5470,33 @@ const LabModal = ({ patient, onClose, onSave }) => {
         console.log('[LabModal] Saving labs for patient:', patient.id, patient.name);
         console.log('[LabModal] Lab images:', labImages.length);
 
-        // Close modal if no lab images without saving
-        if (labImages.length === 0) {
-            addDebugLog('info', 'No labs to save - closing modal');
-            setHasUnsavedChanges(false);
-            onClose();
-            return;
-        }
-
-        // Check if any lab has values
-        const hasValues = labImages.some(img => img.ocr?.values?.length > 0);
-        if (!hasValues) {
-            addDebugLog('warn', 'No lab values extracted. Please process images first.');
-            return;
-        }
-
         try {
-            addDebugLog('info', `Saving ${labImages.length} lab images...`);
+            addDebugLog('info', `Saving ${labImages.length} lab(s) to Drive...`);
             await onSave(patient.id, labImages);
             setHasUnsavedChanges(false);
-            addDebugLog('success', '✓ Labs saved successfully');
+            addDebugLog('success', labImages.length === 0 ? '✓ Labs cleared successfully' : `✓ ${labImages.length} lab(s) saved successfully`);
             onClose();
         } catch (error) {
             console.error('[LabModal] Save failed:', error);
             addDebugLog('error', `Save failed: ${error.message}`);
+        }
+    };
+
+    const handleClearAll = async () => {
+        if (!confirm(`Clear all ${labImages.length} lab(s) for ${patient.name}?`)) {
+            return;
+        }
+
+        try {
+            addDebugLog('info', 'Clearing all labs...');
+            setLabImages([]);
+            await onSave(patient.id, []);
+            setHasUnsavedChanges(false);
+            addDebugLog('success', '✓ All labs cleared');
+            onClose();
+        } catch (error) {
+            console.error('[LabModal] Clear failed:', error);
+            addDebugLog('error', `Clear failed: ${error.message}`);
         }
     };
     const getConfidenceClass = (conf) => conf >= 80 ? 'high' : conf >= 60 ? 'med' : 'low';
@@ -6083,10 +6086,29 @@ const LabModal = ({ patient, onClose, onSave }) => {
                 </div>
                 <div className="modal-foot">
                     <button className="btn btn-white" onClick={onClose}>Cancel</button>
+                    {labImages.length > 0 && (
+                        <button
+                            className="btn"
+                            style={{
+                                background: 'var(--error)',
+                                color: 'white',
+                                fontWeight: 600,
+                                padding: '12px 24px',
+                                fontSize: '14px',
+                                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+                                transition: 'all 0.2s'
+                            }}
+                            onClick={handleClearAll}
+                            onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
+                            onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
+                        >
+                            🗑️ Clear All Labs
+                        </button>
+                    )}
                     <button
                         className="btn"
                         style={{
-                            background: labImages.length === 0 ? 'var(--error)' : 'var(--success)',
+                            background: 'var(--success)',
                             color: 'white',
                             fontWeight: 600,
                             padding: '12px 24px',
@@ -6098,7 +6120,7 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         onMouseEnter={(e) => e.target.style.transform = 'scale(1.02)'}
                         onMouseLeave={(e) => e.target.style.transform = 'scale(1)'}
                     >
-                        {labImages.length === 0 ? '🗑️ Clear All Labs' : `💾 Save ${labImages.length} Lab${labImages.length > 1 ? 's' : ''}`}
+                        💾 Save {labImages.length > 0 ? `${labImages.length} Lab${labImages.length > 1 ? 's' : ''}` : ''}
                     </button>
                 </div>
             </div>
