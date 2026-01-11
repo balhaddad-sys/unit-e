@@ -1,0 +1,43 @@
+{
+  "name": "UnitE",
+  "displayName": "Unit-E Healthcare",
+  "version": "1.0.0",
+  "description": "Professional healthcare management app with AI-powered medical consultation",
+  "orientation": "portrait",
+  "icon": "./assets/icon.png",
+  "userInterfaceStyle": "automatic",
+  "splash": {
+    "image": "./assets/splash.png",
+    "resizeMode": "contain",
+    "backgroundColor": "#15803d"
+  },
+  "ios": {
+    "bundleIdentifier": "com.unite.healthcare",
+    "buildNumber": "1.0.0",
+    "supportsTablet": true,
+    "infoPlist": {
+      "NSCameraUsageDescription": "This app requires camera access to scan lab reports and medical documents",
+      "NSPhotoLibraryUsageDescription": "This app requires photo library access to select medical images",
+      "NSMicrophoneUsageDescription": "This app requires microphone access for voice notes"
+    }
+  },
+  "android": {
+    "package": "com.unite.healthcare",
+    "versionCode": 1,
+    "adaptiveIcon": {
+      "foregroundImage": "./assets/adaptive-icon.png",
+      "backgroundColor": "#15803d"
+    },
+    "permissions": [
+      "CAMERA",
+      "READ_EXTERNAL_STORAGE",
+      "WRITE_EXTERNAL_STORAGE",
+      "RECORD_AUDIO",
+      "INTERNET",
+      "ACCESS_NETWORK_STATE"
+    ]
+  },
+  "plugins": [
+    "expo-router"
+  ]
+}
