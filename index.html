@@ -3038,7 +3038,7 @@ const ConfirmDialog = ({ title, message, onConfirm, onCancel }) => {
 // All data is now stored in Google Drive folder: 1LhrEHUgRsoz2v2w6k-Y8h7buT4Kvjk2I
 
 // ============ VISION API CONFIGURATION ============
-const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbw8ivv4DC6EGcZkAgabXH9Dz_9PJ3MI6hPISzu12wjZ1ew3NBld2bD8w2-AXvsJM5KI/exec";
+const VISION_API_PROXY_URL = "https://script.google.com/macros/s/AKfycbxQdnLHRRg5sK3kEmkiGk-YR_nLjxUW0goPyYnNsFo6AUvnBLjuTA606hIKNGT8Bph3/exec";
 const SPREADSHEET_ID = "1I2Cmm2YPUuJw4o4cOgl-iFmqTmfy6S9btFZ-5AIMxh4";
 const SHEET_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
 
@@ -5028,39 +5028,69 @@ const LabModal = ({ patient, onClose, onSave }) => {
     // Load labs from Google Drive on mount (non-blocking, filter deleted)
     useEffect(() => {
         const loadLabsFromDrive = async () => {
+            const debugId = `loadLabs_${patient.id}_${Date.now()}`;
+            console.log(`[${debugId}] Starting lab load for patient:`, {
+                id: patient.id,
+                name: patient.name,
+                cacheAvailable: !!labsCache.current[patient.id]
+            });
+
             // Check cache first for faster loading
             if (labsCache.current[patient.id]) {
+                console.log(`[${debugId}] Loading from cache - ${labsCache.current[patient.id].length} labs`);
                 addDebugLog('info', `Loading labs from cache for ${patient.name}...`);
                 setLabImages(labsCache.current[patient.id]);
                 return;
             }
 
             addDebugLog('info', `Loading labs from Google Drive for ${patient.name}...`);
+            console.log(`[${debugId}] No cache found, fetching from Drive using URL:`, VISION_API_PROXY_URL);
 
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), 5000); // 5s timeout
 
+                const payload = {
+                    action: 'loadLabs',
+                    patientId: patient.id,
+                    patientName: patient.name
+                };
+                console.log(`[${debugId}] Sending payload:`, payload);
+
+                const startTime = Date.now();
                 const response = await fetch(VISION_API_PROXY_URL, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-                    body: JSON.stringify({
-                        action: 'loadLabs',
-                        patientId: patient.id,
-                        patientName: patient.name
-                    }),
+                    body: JSON.stringify(payload),
                     signal: controller.signal
                 });
 
                 clearTimeout(timeoutId);
-                const result = await response.json();
+                const fetchTime = Date.now() - startTime;
+                console.log(`[${debugId}] Response received in ${fetchTime}ms - Status: ${response.status}`);
+
+                const responseText = await response.text();
+                console.log(`[${debugId}] Response text (first 500 chars):`, responseText.substring(0, 500));
+
+                const result = JSON.parse(responseText);
+                console.log(`[${debugId}] Parsed result:`, {
+                    success: result.success,
+                    error: result.error,
+                    labDataLength: result.labData?.length,
+                    hasLabData: !!result.labData,
+                    count: result.count
+                });
 
                 if (result.error) {
+                    console.error(`[${debugId}] API returned error:`, result.error);
                     addDebugLog('warn', `Drive load: ${result.error}`);
                 } else if (result.labData && result.labData.length > 0) {
+                    console.log(`[${debugId}] Processing ${result.labData.length} labs from Drive`);
+
                     // Filter out deleted items
                     const nonDeletedLabs = result.labData.filter(lab => !lab.deleted);
-                    
+                    console.log(`[${debugId}] After filtering: ${nonDeletedLabs.length} non-deleted labs`);
+
                     const labs = nonDeletedLabs.map(lab => ({
                         id: lab.id,
                         image: null,
@@ -5075,19 +5105,33 @@ const LabModal = ({ patient, onClose, onSave }) => {
                             labType: lab.labType || 'AUTO'
                         }
                     }));
+                    console.log(`[${debugId}] Mapped labs:`, labs);
+
                     setLabImages(labs);
                     labsCache.current[patient.id] = labs; // Cache the labs
+                    console.log(`[${debugId}] Labs set and cached successfully`);
                     addDebugLog('success', `Loaded ${labs.length} labs from Drive (filtered ${result.labData.length - nonDeletedLabs.length} deleted, cached)`);
                 } else {
+                    console.log(`[${debugId}] No labs found in Drive response`);
                     addDebugLog('info', 'No labs found in Drive');
                 }
             } catch (err) {
+                console.error(`[${debugId}] Error loading labs:`, {
+                    name: err.name,
+                    message: err.message,
+                    stack: err.stack?.split('\n').slice(0, 3).join('\n')
+                });
+
                 if (err.name === 'AbortError') {
+                    console.warn(`[${debugId}] Request timed out after 5s`);
                     addDebugLog('warn', 'Drive load timeout (5s) - using cached data if available');
                 } else {
+                    console.error(`[${debugId}] Failed to load from Drive:`, err);
                     addDebugLog('error', `Failed to load from Drive: ${err.message}`);
+
                     // Fall back to Firebase data if available
                     if (patient.labData && patient.labData.length > 0) {
+                        console.log(`[${debugId}] Falling back to patient.labData - ${patient.labData.length} labs`);
                         const labs = patient.labData.map(lab => ({
                             id: lab.id,
                             image: null,
@@ -5098,6 +5142,9 @@ const LabModal = ({ patient, onClose, onSave }) => {
                         }));
                         setLabImages(labs);
                         labsCache.current[patient.id] = labs; // Cache fallback data too
+                        console.log(`[${debugId}] Fallback labs loaded successfully`);
+                    } else {
+                        console.warn(`[${debugId}] No fallback data available`);
                     }
                 }
             }

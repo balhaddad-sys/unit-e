@@ -6,7 +6,7 @@
 const CONFIG = {
     // ⚠️ IMPORTANT: This URL must match your deployed Google Apps Script
     // Updated to match v3.7.0 deployment (from your screenshot)
-    apiUrl: 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec',
+    apiUrl: 'https://script.google.com/macros/s/AKfycbxQdnLHRRg5sK3kEmkiGk-YR_nLjxUW0goPyYnNsFo6AUvnBLjuTA606hIKNGT8Bph3/exec',
     
     // Wards
     wards: ["Ward 20", "Ward 21", "Ward 22", "Ward 5", "Ward 27", "Ward 4", "Ward 19", "Ward 10", "ICU", "ER", "Unassigned"],
@@ -44,11 +44,17 @@ const API = {
     
     _fetch: async (payload, retries = CONFIG.maxRetries) => {
         let lastError;
+        const debugId = `${payload.action}_${Date.now()}`;
+        console.log(`[DEBUG ${debugId}] Starting API call with payload:`, JSON.stringify(payload));
+
         for (let i = 0; i < retries; i++) {
             try {
                 const controller = new AbortController();
                 const timeoutId = setTimeout(() => controller.abort(), CONFIG.timeout);
-                
+
+                console.log(`[DEBUG ${debugId}] Attempt ${i + 1}/${retries} - Calling ${CONFIG.apiUrl}`);
+                const startTime = Date.now();
+
                 const response = await fetch(CONFIG.apiUrl, {
                     method: 'POST',
                     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
@@ -56,16 +62,44 @@ const API = {
                     signal: controller.signal
                 });
                 clearTimeout(timeoutId);
-                
+
+                const responseTime = Date.now() - startTime;
+                console.log(`[DEBUG ${debugId}] Response received in ${responseTime}ms - Status: ${response.status}`);
+
                 const text = await response.text();
-                if (!response.ok) throw new Error(`HTTP ${response.status}: ${text.substring(0, 200)}`);
-                return JSON.parse(text);
+                console.log(`[DEBUG ${debugId}] Response text (first 500 chars):`, text.substring(0, 500));
+
+                if (!response.ok) {
+                    const error = `HTTP ${response.status}: ${text.substring(0, 200)}`;
+                    console.error(`[DEBUG ${debugId}] HTTP Error:`, error);
+                    throw new Error(error);
+                }
+
+                const parsed = JSON.parse(text);
+                console.log(`[DEBUG ${debugId}] Parsed response:`, parsed);
+
+                if (parsed.success === false) {
+                    console.error(`[DEBUG ${debugId}] API returned success=false:`, parsed.error);
+                }
+
+                return parsed;
             } catch (error) {
                 lastError = error;
-                console.warn(`Attempt ${i + 1} failed:`, error.message);
-                if (i < retries - 1) await new Promise(r => setTimeout(r, Math.pow(2, i) * 1000));
+                console.error(`[DEBUG ${debugId}] Attempt ${i + 1} failed:`, {
+                    message: error.message,
+                    name: error.name,
+                    stack: error.stack?.split('\n').slice(0, 3).join('\n')
+                });
+
+                if (i < retries - 1) {
+                    const waitTime = Math.pow(2, i) * 1000;
+                    console.log(`[DEBUG ${debugId}] Waiting ${waitTime}ms before retry...`);
+                    await new Promise(r => setTimeout(r, waitTime));
+                }
             }
         }
+
+        console.error(`[DEBUG ${debugId}] All ${retries} attempts failed. Last error:`, lastError);
         throw lastError;
     },
     
@@ -115,9 +149,18 @@ const API = {
     },
     
     loadLabs: async (patientId) => {
+        console.log(`[LAB_DEBUG] loadLabs called for patientId: ${patientId}`);
         const result = await API._fetch({ action: 'loadLabs', patientId });
-        if (!result.success) throw new Error(result.error);
-        return result.labs;
+        console.log(`[LAB_DEBUG] loadLabs result:`, result);
+
+        if (!result.success) {
+            console.error(`[LAB_DEBUG] loadLabs failed:`, result.error);
+            throw new Error(result.error);
+        }
+
+        const labs = result.labs || result.labData || [];
+        console.log(`[LAB_DEBUG] Loaded ${labs.length} labs for patient ${patientId}`);
+        return labs;
     },
     
     loadLabHistory: async (patientId, limit = 10) => {
