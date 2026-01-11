@@ -513,9 +513,9 @@ const AIMedicalConsultant = (function() {
     const AI_CONFIG = {
         // FIXED: Use CONFIG.apiUrl instead of hardcoded URL
         get API_URL() {
-            return (typeof CONFIG !== 'undefined' && CONFIG.apiUrl) 
-                ? CONFIG.apiUrl 
-                : 'https://script.google.com/macros/s/AKfycbw8q0mvXxy_2tpN9CSkFxqvrS77iRHyLjsuLbTyYUJK0hk5jFSw3Ld5b4BuFUZ294Il/exec';
+            return (typeof CONFIG !== 'undefined' && CONFIG.apiUrl)
+                ? CONFIG.apiUrl
+                : 'https://script.google.com/macros/s/AKfycbyLaTUBAG5n4DVuPyLpgdAcAVB_CZE9KFH33u2p7Bl4pQZJ4CzxETto15Jcw67ShaUI/exec';
         },
         USE_AI: true,             // Enable ChatGPT (GPT-4o) for advanced reasoning
         USE_FALLBACK: true,       // Fallback to knowledge base if AI fails
