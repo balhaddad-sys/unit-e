@@ -300,13 +300,37 @@ const LabService = {
   save: function(patientId, labData) {
     const patients = PatientService.getAll();
     if (!patients[patientId]) return { success: false, error: 'Patient not found' };
-    if (!patients[patientId].labData) patients[patientId].labData = [];
-    const entry = { id: Utilities.getUuid(), timestamp: Date.now(), reportType: labData.reportType || 'GENERAL', values: labData.values || [], source: labData.model || 'manual', dates: labData.dates || [] };
-    patients[patientId].labData.unshift(entry);
-    if (patients[patientId].labData.length > 50) patients[patientId].labData = patients[patientId].labData.slice(0, 50);
+
+    // Handle both single lab object and array of labs from frontend
+    const labArray = Array.isArray(labData) ? labData : [labData];
+
+    // Replace entire lab array (frontend sends complete state)
+    patients[patientId].labData = labArray.map(lab => ({
+      id: lab.id || Utilities.getUuid(),
+      timestamp: lab.timestamp || Date.now(),
+      reportType: lab.reportType || lab.labType || 'GENERAL',
+      values: lab.values || [],
+      source: lab.source || 'manual',
+      dates: lab.dates || [],
+      note: lab.note || '',
+      confidence: lab.confidence || 0
+    }));
+
+    // Limit to 50 entries
+    if (patients[patientId].labData.length > 50) {
+      patients[patientId].labData = patients[patientId].labData.slice(0, 50);
+    }
+
     patients[patientId].updatedAt = Date.now();
     DataStore.write('patients.json', patients);
-    return { success: true, labEntry: entry };
+
+    Logger.log('LabService.save: Saved ' + patients[patientId].labData.length + ' labs for ' + patientId);
+
+    return {
+      success: true,
+      labData: patients[patientId].labData,
+      count: patients[patientId].labData.length
+    };
   },
   getHistory: function(patientId, limit) {
     const p = PatientService.getById(patientId);
@@ -315,8 +339,19 @@ const LabService = {
     return { success: true, history: limit ? h.slice(0, limit) : h, count: h.length };
   },
   getLatest: function(patientId) {
-    const r = this.getHistory(patientId, 1);
-    return r.success ? { success: true, labs: r.history[0] || null } : r;
+    // FIXED: Return full lab array, not just the latest entry
+    const p = PatientService.getById(patientId);
+    if (!p) return { success: false, error: 'Patient not found' };
+
+    const labData = p.labData || [];
+    Logger.log('LabService.getLatest: Found ' + labData.length + ' labs for ' + patientId);
+
+    return {
+      success: true,
+      labData: labData,
+      count: labData.length,
+      patientId: patientId
+    };
   }
 };
 
