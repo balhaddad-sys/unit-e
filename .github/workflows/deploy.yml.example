@@ -1,0 +1,46 @@
+name: Deploy to Google Apps Script
+
+# This workflow automatically deploys backend changes to Google Apps Script
+# whenever you push .gs files to the main branch
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - '**.gs'          # Any .gs file changes
+      - '.clasp.json'    # Configuration changes
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '18'
+
+      - name: Install clasp
+        run: npm install -g @google/clasp
+
+      - name: Create clasp credentials
+        run: echo '${{ secrets.CLASP_TOKEN }}' > ~/.clasprc.json
+
+      - name: Push to Google Apps Script
+        run: clasp push
+
+      - name: Deployment success
+        run: echo "✅ Successfully deployed to Google Apps Script!"
+
+# Setup instructions:
+# 1. Run: clasp login --creds creds.json
+# 2. Copy content from ~/.clasprc.json
+# 3. GitHub → Settings → Secrets → Actions → New repository secret
+# 4. Name: CLASP_TOKEN
+# 5. Value: Paste the JSON content
+# 6. Save
+#
+# Now whenever you push .gs files, they'll auto-deploy to Apps Script!
