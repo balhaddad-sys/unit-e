@@ -4574,9 +4574,33 @@ const AIConsultModal = ({ patient, onClose }) => {
             }
         } catch (error) {
             console.error('AI Consultation Error:', error);
+            console.error('Error details:', {
+                message: error.message,
+                stack: error.stack,
+                name: error.name
+            });
+
+            // Show specific error message to help with debugging
+            let errorMessage = '⚠️ An error occurred while processing your query.';
+
+            if (error.message) {
+                errorMessage += '\n\nError details: ' + error.message;
+            }
+
+            // Add helpful troubleshooting info
+            if (error.message?.includes('fetch') || error.message?.includes('network')) {
+                errorMessage += '\n\nPossible cause: Network connection issue. Please check your internet connection.';
+            } else if (error.message?.includes('timeout')) {
+                errorMessage += '\n\nPossible cause: Request timed out. The server is taking too long to respond.';
+            } else if (error.message?.includes('JSON')) {
+                errorMessage += '\n\nPossible cause: Invalid response from server. The backend may need redeployment.';
+            } else {
+                errorMessage += '\n\nPlease check the browser console for more details or contact support.';
+            }
+
             setConversation(prev => [...prev, {
                 role: 'assistant',
-                content: '⚠️ An error occurred while processing your query. Please try again or contact support.',
+                content: errorMessage,
                 timestamp: Date.now()
             }]);
         } finally {
