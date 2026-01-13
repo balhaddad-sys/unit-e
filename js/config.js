@@ -221,6 +221,10 @@ const API = {
         return await API._fetch({ action: 'pushToSheet' });
     },
 
+    fullSync: async () => {
+        return await API._fetch({ action: 'fullSync' });
+    },
+
     syncSheetsToDrive: async () => {
         return await API._fetch({ action: 'pullFromSheet' });
     },
