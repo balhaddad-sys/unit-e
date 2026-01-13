@@ -6391,24 +6391,26 @@ const App = () => {
         };
         loadPatientsData();
 
-        // Initial sync: Drive → Sheets
+        // Initial sync: Drive → Sheets (v4.2: automatic push on changes)
         const initialSyncTimer = setTimeout(() => {
             syncDriveToSheets();
             console.log('[Init] Initial Drive → Sheets sync triggered');
         }, 2000);
 
         // Periodic check for manual edits in Google Sheets every 15 seconds
+        // Note: Web app changes now automatically push to sheet (v4.2)
+        // This interval only pulls manual sheet edits back to the app
         const syncInterval = setInterval(async () => {
-            // 1. Sync Sheets → Drive (pick up manual edits in Sheets)
+            // 1. Pull Sheets → Drive (pick up manual edits made directly in Google Sheets)
             const needsReload = await syncSheetsToDrive();
 
-            // 2. If there were changes from Sheets, reload patients
+            // 2. If there were changes from Sheets, reload patients in UI
             if (needsReload) {
                 console.log('[Sync] Reloading patients after Sheets → Drive sync');
                 await loadPatientsData();
             }
 
-            // 3. Also reload notice
+            // 3. Also reload notice board
             API.loadNotice()
                 .then(notice => setNotice(notice))
                 .catch(e => console.error('[Poll Notice] Failed:', e));

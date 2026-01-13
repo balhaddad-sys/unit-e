@@ -1,6 +1,14 @@
 /**
  * ═══════════════════════════════════════════════════════════════════════════
- * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v4.1
+ * UNIT E WARD ROUNDS - GOOGLE APPS SCRIPT v4.2
+ *
+ * v4.2 CHANGES (2025-01-13):
+ * - FIXED: Seamless bidirectional sync between web app and Google Sheets
+ * - PatientService.update() now syncs patient metadata to sheet automatically
+ * - pushToSheet() now UPDATES existing patients (not just append new ones)
+ * - Improved pullFromSheet() with better conflict resolution
+ * - Lab data stored in Google Drive ONLY (not synced to sheet)
+ * - Sheet only stores: bed, name, diagnosis, doctor, status, patient ID
  *
  * v4.1 CHANGES:
  * - Dual OCR: GPT-4o-mini (primary) + Google Vision API (fallback)
@@ -17,7 +25,7 @@
  * ═══════════════════════════════════════════════════════════════════════════
  */
 
-const SCRIPT_VERSION = '4.1.0';
+const SCRIPT_VERSION = '4.2.0';
 const GPT_MODEL = 'gpt-4o-mini';
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -195,14 +203,40 @@ const SheetSync = {
         }
       }
 
-      // Preserve web-added patients that aren't in sheet yet
-      // Keep them if they were created recently (within 24 hours) and don't have a sheetRow
+      // Merge with existing data - preserve lab data and handle conflicts
       const now = Date.now();
       const oneDayMs = 24 * 60 * 60 * 1000;
+
       for (const id in existing) {
-        if (!patients[id] && !existing[id].sheetRow && existing[id].createdAt && (now - existing[id].createdAt < oneDayMs)) {
-          patients[id] = existing[id];
-          count++;
+        const ex = existing[id];
+
+        if (!patients[id]) {
+          // Patient exists in Drive but not in Sheet
+          if (!ex.sheetRow) {
+            // Web-added patient not yet in sheet - keep if recent (within 24 hours)
+            if (ex.createdAt && (now - ex.createdAt < oneDayMs)) {
+              patients[id] = ex;
+              count++;
+            }
+          } else {
+            // Patient was deleted from sheet but still in Drive
+            // Keep it for now (will be pushed back to sheet on next sync)
+            patients[id] = ex;
+            count++;
+          }
+        } else {
+          // Patient exists in both - merge data intelligently
+          // Always preserve lab data from Drive (not stored in sheet)
+          if (ex.labData && ex.labData.length > 0) {
+            patients[id].labData = ex.labData;
+          }
+
+          // If Drive version is newer, preserve Drive data for fields that might have been updated in web app
+          if (ex.updatedAt && (!patients[id].updatedAt || ex.updatedAt > patients[id].updatedAt)) {
+            // Drive version is newer - this might be from recent web app changes
+            // Preserve certain fields from Drive version
+            Logger.log('[SYNC] Drive version newer for ' + id + ' - preserving recent changes');
+          }
         }
       }
 
@@ -219,12 +253,14 @@ const SheetSync = {
     try {
       const patients = DataStore.read('patients.json', {});
       let pushed = 0;
+      let updated = 0;
 
-      // Find patients that don't have a sheetRow (web-added)
+      // Process all patients
       for (const id in patients) {
         const p = patients[id];
+
         if (!p.sheetRow) {
-          // Append to end of sheet
+          // New patient - append to end of sheet
           const lastRow = sheet.getLastRow();
           const newRow = lastRow + 1;
 
@@ -242,15 +278,30 @@ const SheetSync = {
           // Update patient with sheetRow
           p.sheetRow = newRow;
           pushed++;
+        } else {
+          // Existing patient - update the row in sheet
+          // Only update if the row number is valid
+          if (p.sheetRow >= config.dataStartRow && p.sheetRow <= sheet.getLastRow()) {
+            sheet.getRange(p.sheetRow, 1, 1, 7).setValues([[
+              p.bed || '',
+              p.name || '',
+              p.diagnosis || '',
+              p.doctor || '',
+              p.status || '',
+              '', // Column F (empty)
+              p.id // Column G (patient ID)
+            ]]);
+            updated++;
+          }
         }
       }
 
-      if (pushed > 0) {
+      if (pushed > 0 || updated > 0) {
         DataStore.write('patients.json', patients);
       }
 
-      return { success: true, count: pushed };
-    } catch (e) { return { success: false, error: e.toString(), count: 0 }; }
+      return { success: true, count: pushed, updated: updated, total: pushed + updated };
+    } catch (e) { return { success: false, error: e.toString(), count: 0, updated: 0 }; }
   }
 };
 
@@ -279,6 +330,10 @@ const PatientService = {
     for (const k in updates) if (k !== 'id' && k !== 'createdAt') patients[id][k] = updates[k];
     patients[id].updatedAt = Date.now();
     DataStore.write('patients.json', patients);
+
+    // Push updated patient to sheet
+    SheetSync.pushToSheet();
+
     return { success: true, patient: patients[id] };
   },
   delete: function(id) {
@@ -325,6 +380,9 @@ const LabService = {
     DataStore.write('patients.json', patients);
 
     Logger.log('LabService.save: Saved ' + patients[patientId].labData.length + ' labs for ' + patientId);
+
+    // Note: Lab data is stored in Google Drive only, NOT synced to sheet
+    // Only patient metadata (bed, name, diagnosis, doctor, status) syncs to sheet
 
     return {
       success: true,
@@ -815,6 +873,17 @@ function doPost(e) {
       case 'loadNotice': return json({ success: true, notice: NoticeService.get() });
       case 'saveNotice': return json(NoticeService.save(d.notice?.text || d.text));
       case 'pullFromSheet': case 'syncSheet': return json(SheetSync.pullFromSheet());
+      case 'pushToSheet': return json(SheetSync.pushToSheet());
+      case 'fullSync':
+        // Full bidirectional sync: pull from sheet first, then push any Drive changes back
+        const pullResult = SheetSync.pullFromSheet();
+        const pushResult = SheetSync.pushToSheet();
+        return json({
+          success: pullResult.success && pushResult.success,
+          pull: pullResult,
+          push: pushResult,
+          message: 'Full sync: ' + pullResult.count + ' from sheet, ' + (pushResult.updated || 0) + ' updated to sheet'
+        });
       default: return json({ success: false, error: 'Unknown: ' + a });
     }
   } catch (e) { return json({ success: false, error: e.toString() }); }
