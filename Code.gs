@@ -821,6 +821,11 @@ function doGet(e) {
     case 'sync': return json(SheetSync.pullFromSheet());
     case 'debug': return json(debugInfo());
     case 'test': case 'diagnostic': return testAIPage();
+    // AI Debugging endpoints
+    case 'aiDebug': case 'aiDebugFull': return json(aiDebugFull());
+    case 'aiDebugQuick': return json(aiDebugQuick());
+    case 'aiDebugLogs': return json(aiDebugGetLogs(e?.parameter?.limit ? parseInt(e.parameter.limit) : 50));
+    case 'aiDebugClearLogs': return json(aiDebugClearLogs());
     default: return htmlPage();
   }
 }
@@ -884,6 +889,13 @@ function doPost(e) {
           push: pushResult,
           message: 'Full sync: ' + pullResult.count + ' from sheet, ' + (pushResult.updated || 0) + ' updated to sheet'
         });
+
+      // AI Debugging POST endpoints
+      case 'aiDebugOCR':
+        return json(aiDebugOCR(d.image));
+      case 'aiDebugConsult':
+        return json(aiDebugConsult(d.query));
+
       default: return json({ success: false, error: 'Unknown: ' + a });
     }
   } catch (e) { return json({ success: false, error: e.toString() }); }
