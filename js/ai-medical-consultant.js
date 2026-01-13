@@ -660,6 +660,11 @@ Status: ${patient.status || 'Not specified'}`;
         },
 
         async askQuestion(patientId, query, patient, options = {}) {
+            console.log('[AI Consultant] === askQuestion called ===');
+            console.log('[AI Consultant] Patient ID:', patientId);
+            console.log('[AI Consultant] Query:', query);
+            console.log('[AI Consultant] Options:', options);
+
             if (!conversations.has(patientId)) {
                 conversations.set(patientId, []);
             }
@@ -678,6 +683,13 @@ Status: ${patient.status || 'Not specified'}`;
                 const labValues = options.labValues || [];
                 const trends = options.trends || [];
                 const aiResult = await askAI(query, patient, labValues, trends);
+
+                console.log('[AI Consultant] AI Result:', {
+                    success: aiResult.success,
+                    error: aiResult.error,
+                    hasText: !!aiResult.text,
+                    textLength: aiResult.text?.length
+                });
 
                 if (aiResult.success) {
                     responseText = aiResult.text;

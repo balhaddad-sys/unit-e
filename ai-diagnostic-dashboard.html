@@ -312,6 +312,199 @@
             margin-top: 10px;
             font-size: 14px;
         }
+
+        /* ============================================ */
+        /* MOBILE OPTIMIZATIONS */
+        /* ============================================ */
+        @media (max-width: 768px) {
+            body {
+                padding: 10px;
+            }
+
+            .header {
+                padding: 20px;
+            }
+
+            .header h1 {
+                font-size: 24px;
+            }
+
+            .header p {
+                font-size: 14px;
+            }
+
+            .grid {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+
+            .card {
+                padding: 20px;
+            }
+
+            .card h2 {
+                font-size: 18px;
+            }
+
+            .btn {
+                padding: 14px 20px;
+                font-size: 15px;
+                /* Larger touch targets for mobile */
+                min-height: 48px;
+            }
+
+            .info-grid {
+                grid-template-columns: 1fr;
+                gap: 8px;
+            }
+
+            .info-label {
+                font-weight: 700;
+                color: #667eea;
+                margin-top: 10px;
+            }
+
+            .info-value {
+                margin-bottom: 5px;
+                word-break: break-word;
+            }
+
+            .log-container {
+                font-size: 12px;
+                padding: 15px;
+                max-height: 400px;
+            }
+
+            .log-entry {
+                margin-bottom: 12px;
+            }
+
+            .metric {
+                padding: 12px 0;
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 5px;
+            }
+
+            .metric-value {
+                font-size: 20px;
+            }
+
+            .recommendation {
+                padding: 12px;
+            }
+
+            .recommendation h4 {
+                font-size: 15px;
+            }
+
+            .recommendation p {
+                font-size: 13px;
+            }
+
+            .test-input {
+                font-size: 16px; /* Prevents zoom on iOS */
+            }
+
+            textarea.test-input {
+                min-height: 120px;
+            }
+
+            pre {
+                font-size: 11px;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+
+            .status {
+                font-size: 12px;
+                padding: 6px 12px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            body {
+                padding: 8px;
+            }
+
+            .header {
+                padding: 15px;
+            }
+
+            .header h1 {
+                font-size: 20px;
+            }
+
+            .header p {
+                font-size: 13px;
+            }
+
+            .card {
+                padding: 15px;
+            }
+
+            .card h2 {
+                font-size: 16px;
+            }
+
+            .btn {
+                font-size: 14px;
+                padding: 12px 16px;
+            }
+
+            .log-container {
+                font-size: 11px;
+                padding: 10px;
+                max-height: 300px;
+            }
+
+            .recommendation h4 {
+                font-size: 14px;
+            }
+
+            .recommendation p {
+                font-size: 12px;
+            }
+
+            .metric-label {
+                font-size: 14px;
+            }
+
+            .metric-value {
+                font-size: 18px;
+            }
+        }
+
+        /* Improve touch scrolling on mobile */
+        .log-container,
+        pre {
+            -webkit-overflow-scrolling: touch;
+        }
+
+        /* Prevent text selection issues on mobile */
+        button {
+            -webkit-tap-highlight-color: rgba(102, 126, 234, 0.3);
+            user-select: none;
+        }
+
+        /* Button group improvements for mobile */
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+
+        @media (max-width: 768px) {
+            .btn-group {
+                flex-direction: column;
+                gap: 10px;
+            }
+
+            .btn-group .btn {
+                width: 100%;
+                margin-top: 0;
+            }
+        }
     </style>
 </head>
 <body>
@@ -320,6 +513,7 @@
         <div class="header">
             <h1>🔬 AI Diagnostic Dashboard</h1>
             <p>Comprehensive debugging and monitoring for Unit E AI features</p>
+            <p style="margin-top: 8px; font-size: 12px; color: #999;">📱 Mobile optimized • Tap any button to test</p>
         </div>
 
         <!-- Quick Status -->
@@ -379,8 +573,10 @@
         <!-- Debug Logs -->
         <div class="card full-width">
             <h2>📝 Debug Logs</h2>
-            <button class="btn btn-secondary" onclick="loadLogs()" style="width: auto; display: inline-block; margin-right: 10px;">Refresh Logs</button>
-            <button class="btn btn-danger" onclick="clearLogs()" style="width: auto; display: inline-block;">Clear Logs</button>
+            <div class="btn-group">
+                <button class="btn btn-secondary" onclick="loadLogs()">Refresh Logs</button>
+                <button class="btn btn-danger" onclick="clearLogs()">Clear Logs</button>
+            </div>
             <div id="debugLogs" class="log-container" style="margin-top: 15px;">
                 <div class="loading">
                     <div class="spinner"></div>
@@ -391,8 +587,8 @@
     </div>
 
     <script>
-        // Configuration - Update this with your API URL
-        const API_URL = 'https://script.google.com/macros/s/AKfycbw8fAH8RSOnRMX5CRvbREVrD_lO-a-YDri9tYjCVR5JV0JURSSH9exkQ7WRy6q_RwiN/exec';
+        // Configuration - Production API URL (must match config.js)
+        const API_URL = 'https://script.google.com/macros/s/AKfycbyoPcc2U3wGzA2GPJszh68MX3YoM_vjdrCOl6fRbRAewqHQ8k1_mgf5ub_mC9s7Sg6h/exec';
 
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', () => {
