@@ -1,0 +1,8 @@
+{
+  "scriptId": "YOUR_SCRIPT_ID_HERE",
+  "rootDir": ".",
+  "filePushOrder": [
+    "Code.gs",
+    "AIDebugger.gs"
+  ]
+}

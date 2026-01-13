@@ -4533,9 +4533,9 @@ const AIConsultModal = ({ patient, onClose }) => {
             let labValues = [];
             let trends = [];
 
-            if (labImages && labImages.length > 0) {
+            if (patient.labImages && patient.labImages.length > 0) {
                 // Get the most recent lab with values
-                const latestLab = labImages
+                const latestLab = patient.labImages
                     .filter(l => l.ocr && l.ocr.values && l.ocr.values.length > 0)
                     .sort((a, b) => (b.timestamp || 0) - (a.timestamp || 0))[0];
 
