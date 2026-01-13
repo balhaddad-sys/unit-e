@@ -826,6 +826,7 @@ function doGet(e) {
     case 'aiDebugQuick': return json(aiDebugQuick());
     case 'aiDebugLogs': return json(aiDebugGetLogs(e?.parameter?.limit ? parseInt(e.parameter.limit) : 50));
     case 'aiDebugClearLogs': return json(aiDebugClearLogs());
+    case 'aiDashboard': case 'dashboard': return aiDiagnosticDashboard();
     default: return htmlPage();
   }
 }
@@ -1104,6 +1105,124 @@ ${!hasGPT ? '<div class="card" style="border-left:4px solid #ef4444"><h3>⚠️ 
 <a class="btn y" href="?action=debug">🔍 Debug</a>
 </div>
 </body></html>`);
+}
+
+/**
+ * AI Diagnostic Dashboard
+ * Mobile-friendly debugging interface
+ */
+function aiDiagnosticDashboard() {
+  // Get current script URL dynamically
+  const scriptUrl = ScriptApp.getService().getUrl();
+
+  return HtmlService.createHtmlOutput(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Diagnostic Dashboard</title>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box}
+        body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);min-height:100vh;padding:20px}
+        .container{max-width:1400px;margin:0 auto}
+        .header{background:#fff;border-radius:12px;padding:30px;margin-bottom:20px;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+        .header h1{color:#667eea;font-size:32px;margin-bottom:10px}
+        .header p{color:#666;font-size:16px}
+        .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:20px;margin-bottom:20px}
+        .card{background:#fff;border-radius:12px;padding:25px;box-shadow:0 10px 30px rgba(0,0,0,0.2)}
+        .card h2{color:#333;font-size:20px;margin-bottom:15px}
+        .btn{background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;border:none;padding:12px 24px;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;transition:transform .2s;width:100%;margin-top:10px}
+        .btn:active{transform:scale(0.95)}
+        .btn-danger{background:linear-gradient(135deg,#f093fb 0%,#f5576c 100%)}
+        .btn-secondary{background:linear-gradient(135deg,#4facfe 0%,#00f2fe 100%)}
+        .status{padding:8px 16px;border-radius:20px;font-size:13px;font-weight:600;display:inline-block;margin-bottom:15px}
+        .status.healthy{background:#d4edda;color:#155724}
+        .status.degraded{background:#fff3cd;color:#856404}
+        .status.error{background:#f8d7da;color:#721c24}
+        .status.unknown{background:#e2e3e5;color:#383d41}
+        .info-grid{display:grid;grid-template-columns:auto 1fr;gap:10px;margin-top:15px}
+        .info-label{font-weight:600;color:#666}
+        .info-value{color:#333;word-break:break-all}
+        .loading{text-align:center;padding:20px;color:#666}
+        .spinner{border:3px solid #f3f3f3;border-top:3px solid #667eea;border-radius:50%;width:40px;height:40px;animation:spin 1s linear infinite;margin:20px auto}
+        @keyframes spin{0%{transform:rotate(0deg)}100%{transform:rotate(360deg)}}
+        .log-container{background:#1e1e1e;color:#d4d4d4;border-radius:8px;padding:20px;max-height:500px;overflow-y:auto;font-family:'Courier New',monospace;font-size:13px}
+        .log-entry{margin-bottom:10px;padding:8px;border-left:3px solid #666;padding-left:12px}
+        .log-entry.info{border-color:#4facfe}
+        .log-entry.success{border-color:#52c41a}
+        .log-entry.warning{border-color:#faad14}
+        .log-entry.error{border-color:#f5576c}
+        .log-timestamp{color:#888;font-size:11px}
+        .log-message{color:#d4d4d4;margin-top:4px}
+        .recommendation{background:#fff3cd;border-left:4px solid #ffc107;padding:15px;margin:10px 0;border-radius:4px}
+        .recommendation.critical{background:#f8d7da;border-color:#dc3545}
+        .recommendation.info{background:#d1ecf1;border-color:#17a2b8}
+        .recommendation h4{margin-bottom:8px;color:#333}
+        .recommendation p{color:#666;font-size:14px}
+        .full-width{grid-column:1/-1}
+        .metric{display:flex;justify-content:space-between;padding:10px 0;border-bottom:1px solid #eee}
+        .metric:last-child{border-bottom:none}
+        .metric-label{font-weight:600;color:#666}
+        .metric-value{font-size:18px;font-weight:700;color:#667eea}
+        .error-message{background:#f8d7da;color:#721c24;padding:12px;border-radius:6px;margin-top:10px}
+        .success-message{background:#d4edda;color:#155724;padding:12px;border-radius:6px;margin-top:10px}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 AI Diagnostic Dashboard</h1>
+            <p>Mobile debugging for Unit E AI features</p>
+        </div>
+        <div class="grid">
+            <div class="card">
+                <h2>⚡ Status</h2>
+                <div id="quickStatus" class="loading"><div class="spinner"></div><p>Loading...</p></div>
+                <button class="btn btn-secondary" onclick="loadQuickStatus()">Refresh</button>
+            </div>
+            <div class="card">
+                <h2>🎯 Actions</h2>
+                <button class="btn" onclick="runFullDiagnostics()">Full Diagnostics</button>
+                <button class="btn btn-secondary" onclick="testConsult()">Test Consultation</button>
+                <button class="btn btn-danger" onclick="clearLogs()">Clear Logs</button>
+            </div>
+            <div class="card">
+                <h2>📊 Config</h2>
+                <div id="apiConfig" class="loading"><div class="spinner"></div><p>Loading...</p></div>
+            </div>
+        </div>
+        <div class="card full-width" id="diagnosticsSection" style="display:none">
+            <h2>📋 Report</h2>
+            <div id="diagnosticsReport"></div>
+        </div>
+        <div class="card full-width" id="recommendationsSection" style="display:none">
+            <h2>💡 Recommendations</h2>
+            <div id="recommendations"></div>
+        </div>
+        <div class="card full-width" id="consultTestSection" style="display:none">
+            <h2>💬 Consultation Test</h2>
+            <div id="consultTestResults"></div>
+        </div>
+        <div class="card full-width">
+            <h2>📝 Debug Logs</h2>
+            <button class="btn btn-secondary" onclick="loadLogs()" style="width:auto;display:inline-block;margin-right:10px">Refresh</button>
+            <button class="btn btn-danger" onclick="clearLogs()" style="width:auto;display:inline-block">Clear</button>
+            <div id="debugLogs" class="log-container" style="margin-top:15px"><div class="loading"><div class="spinner"></div><p>Loading...</p></div></div>
+        </div>
+    </div>
+    <script>
+        const API_URL='${scriptUrl}';
+        document.addEventListener('DOMContentLoaded',()=>{loadQuickStatus();loadLogs()});
+        async function loadQuickStatus(){try{const r=await fetch(API_URL+'?action=aiDebugQuick');const d=await r.json();document.getElementById('quickStatus').innerHTML='<div class="status '+d.status+'">'+(d.status||'unknown').toUpperCase()+'</div><div class="info-grid"><span class="info-label">OpenAI:</span><span class="info-value">'+(d.openai?.configured?'✅ Yes':'❌ No')+'</span><span class="info-label">Key:</span><span class="info-value">'+(d.openai?.keyPreview||'N/A')+'</span><span class="info-label">Model:</span><span class="info-value">'+(d.model||'N/A')+'</span></div>';document.getElementById('apiConfig').innerHTML='<div class="metric"><span class="metric-label">Status</span><span class="metric-value">'+(d.status||'unknown')+'</span></div><div class="metric"><span class="metric-label">Model</span><span class="metric-value">'+(d.model||'N/A')+'</span></div>'}catch(e){document.getElementById('quickStatus').innerHTML='<div class="error-message">❌ '+e.message+'</div>'}}
+        async function runFullDiagnostics(){const s=document.getElementById('diagnosticsSection');const r=document.getElementById('diagnosticsReport');const rs=document.getElementById('recommendationsSection');const rd=document.getElementById('recommendations');s.style.display='block';rs.style.display='block';r.innerHTML='<div class="loading"><div class="spinner"></div><p>Running...</p></div>';rd.innerHTML='<div class="loading"><div class="spinner"></div><p>Analyzing...</p></div>';try{const res=await fetch(API_URL+'?action=aiDebugFull');const d=await res.json();let h='<h3>Checks:</h3>';Object.keys(d.checks||{}).forEach(n=>{const c=d.checks[n];const p=c.passed!==false;h+='<div class="recommendation '+(p?'info':'warning')+'"><h4>'+(p?'✅':'⚠️')+' '+n+'</h4><p><strong>Passed:</strong> '+(p?'Yes':'No')+'</p>'+(c.duration?'<p><strong>Duration:</strong> '+c.duration+'ms</p>':'')+(c.error?'<p><strong>Error:</strong> '+c.error+'</p>':'')+'</div>'});r.innerHTML=h;const recs=d.recommendations||[];if(recs.length===0){rd.innerHTML='<div class="success-message">✅ All systems operational</div>'}else{let rh='';recs.forEach(rc=>{rh+='<div class="recommendation '+(rc.severity||'info')+'"><h4>'+(rc.severity==='critical'?'🔴':'ℹ️')+' '+rc.message+'</h4>'+(rc.fix?'<p><strong>Fix:</strong> '+rc.fix+'</p>':'')+'</div>'});rd.innerHTML=rh}}catch(e){r.innerHTML='<div class="error-message">❌ '+e.message+'</div>'}}
+        async function testConsult(){const s=document.getElementById('consultTestSection');const r=document.getElementById('consultTestResults');s.style.display='block';r.innerHTML='<div class="loading"><div class="spinner"></div><p>Testing...</p></div>';try{const res=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action:'aiDebugConsult'})});const d=await res.json();r.innerHTML='<div class="'+(d.passed?'success-message':'error-message')+'">'+(d.passed?'✅ Passed':'❌ Failed')+'</div><div class="info-grid" style="margin-top:15px"><span class="info-label">Duration:</span><span class="info-value">'+(d.duration||0)+'ms</span><span class="info-label">Error:</span><span class="info-value">'+(d.error||'None')+'</span></div>'}catch(e){r.innerHTML='<div class="error-message">❌ '+e.message+'</div>'}}
+        async function loadLogs(){const l=document.getElementById('debugLogs');l.innerHTML='<div class="loading"><div class="spinner"></div><p>Loading...</p></div>';try{const r=await fetch(API_URL+'?action=aiDebugLogs&limit=50');const d=await r.json();if(!d.logs||d.logs.length===0){l.innerHTML='<p style="color:#888;text-align:center">No logs</p>';return}let h='';d.logs.forEach(lg=>{h+='<div class="log-entry '+lg.type+'"><div class="log-timestamp">'+new Date(lg.timestamp).toLocaleString()+'</div><div class="log-message"><strong>['+lg.type.toUpperCase()+']</strong> '+lg.message+'</div></div>'});l.innerHTML=h}catch(e){l.innerHTML='<div class="error-message">❌ '+e.message+'</div>'}}
+        async function clearLogs(){if(!confirm('Clear all logs?'))return;try{const r=await fetch(API_URL+'?action=aiDebugClearLogs');const d=await r.json();if(d.success){alert('✅ Cleared');loadLogs()}else{alert('❌ Failed')}}catch(e){alert('❌ '+e.message)}}
+    </script>
+</body>
+</html>
+  `).setTitle('AI Diagnostics');
 }
 
 // Legacy compatibility
