@@ -4,11 +4,11 @@
  *
  * v4.2 CHANGES (2025-01-13):
  * - FIXED: Seamless bidirectional sync between web app and Google Sheets
- * - PatientService.update() now syncs changes to sheet automatically
- * - LabService.save() now syncs patient records to sheet
+ * - PatientService.update() now syncs patient metadata to sheet automatically
  * - pushToSheet() now UPDATES existing patients (not just append new ones)
  * - Improved pullFromSheet() with better conflict resolution
- * - Lab data always preserved from Drive during sheet sync
+ * - Lab data stored in Google Drive ONLY (not synced to sheet)
+ * - Sheet only stores: bed, name, diagnosis, doctor, status, patient ID
  *
  * v4.1 CHANGES:
  * - Dual OCR: GPT-4o-mini (primary) + Google Vision API (fallback)
@@ -381,8 +381,8 @@ const LabService = {
 
     Logger.log('LabService.save: Saved ' + patients[patientId].labData.length + ' labs for ' + patientId);
 
-    // Sync patient record to sheet (in case metadata changed)
-    SheetSync.pushToSheet();
+    // Note: Lab data is stored in Google Drive only, NOT synced to sheet
+    // Only patient metadata (bed, name, diagnosis, doctor, status) syncs to sheet
 
     return {
       success: true,
