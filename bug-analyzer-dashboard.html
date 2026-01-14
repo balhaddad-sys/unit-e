@@ -1,0 +1,1113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Post Hoc Bug Analyzer - Unit E</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 20px;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+    }
+
+    .header {
+      background: white;
+      padding: 30px;
+      border-radius: 15px;
+      box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
+      margin-bottom: 30px;
+    }
+
+    .header h1 {
+      color: #2d3748;
+      font-size: 32px;
+      margin-bottom: 10px;
+    }
+
+    .header p {
+      color: #718096;
+      font-size: 16px;
+    }
+
+    .controls {
+      background: white;
+      padding: 20px;
+      border-radius: 15px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+      margin-bottom: 20px;
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+
+    .controls select,
+    .controls input {
+      padding: 10px 15px;
+      border: 2px solid #e2e8f0;
+      border-radius: 8px;
+      font-size: 14px;
+      transition: all 0.3s;
+    }
+
+    .controls select:focus,
+    .controls input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.3s;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+    }
+
+    .btn-secondary {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+
+    .btn-secondary:hover {
+      background: #cbd5e0;
+    }
+
+    .btn-danger {
+      background: #fc8181;
+      color: white;
+    }
+
+    .btn-danger:hover {
+      background: #f56565;
+    }
+
+    .tabs {
+      background: white;
+      border-radius: 15px;
+      box-shadow: 0 5px 20px rgba(0, 0, 0, 0.1);
+      overflow: hidden;
+    }
+
+    .tab-buttons {
+      display: flex;
+      border-bottom: 2px solid #e2e8f0;
+      padding: 0 20px;
+    }
+
+    .tab-button {
+      padding: 15px 25px;
+      border: none;
+      background: none;
+      cursor: pointer;
+      font-size: 15px;
+      font-weight: 600;
+      color: #718096;
+      border-bottom: 3px solid transparent;
+      transition: all 0.3s;
+    }
+
+    .tab-button.active {
+      color: #667eea;
+      border-bottom-color: #667eea;
+    }
+
+    .tab-content {
+      display: none;
+      padding: 30px;
+    }
+
+    .tab-content.active {
+      display: block;
+    }
+
+    .stats-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 20px;
+      margin-bottom: 30px;
+    }
+
+    .stat-card {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+    }
+
+    .stat-card h3 {
+      font-size: 14px;
+      opacity: 0.9;
+      margin-bottom: 8px;
+    }
+
+    .stat-card .value {
+      font-size: 32px;
+      font-weight: 700;
+    }
+
+    .bug-list {
+      display: flex;
+      flex-direction: column;
+      gap: 15px;
+    }
+
+    .bug-item {
+      background: #f7fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      transition: all 0.3s;
+      cursor: pointer;
+    }
+
+    .bug-item:hover {
+      border-color: #667eea;
+      transform: translateX(5px);
+    }
+
+    .bug-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: start;
+      margin-bottom: 12px;
+    }
+
+    .bug-title {
+      font-size: 16px;
+      font-weight: 600;
+      color: #2d3748;
+      margin-bottom: 8px;
+    }
+
+    .bug-meta {
+      display: flex;
+      gap: 15px;
+      flex-wrap: wrap;
+    }
+
+    .badge {
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .badge-critical {
+      background: #fc8181;
+      color: white;
+    }
+
+    .badge-high {
+      background: #f6ad55;
+      color: white;
+    }
+
+    .badge-medium {
+      background: #f6e05e;
+      color: #744210;
+    }
+
+    .badge-low {
+      background: #68d391;
+      color: white;
+    }
+
+    .badge-info {
+      background: #63b3ed;
+      color: white;
+    }
+
+    .badge-category {
+      background: #e2e8f0;
+      color: #2d3748;
+    }
+
+    .badge-occurrences {
+      background: #667eea;
+      color: white;
+    }
+
+    .pattern-card {
+      background: #f7fafc;
+      border-left: 4px solid #667eea;
+      padding: 20px;
+      border-radius: 8px;
+      margin-bottom: 15px;
+    }
+
+    .pattern-card h3 {
+      color: #2d3748;
+      margin-bottom: 10px;
+    }
+
+    .pattern-card p {
+      color: #4a5568;
+      margin-bottom: 8px;
+    }
+
+    .recommendation-card {
+      background: #f7fafc;
+      border: 2px solid #e2e8f0;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 15px;
+    }
+
+    .recommendation-card.priority-critical {
+      border-left: 5px solid #fc8181;
+    }
+
+    .recommendation-card.priority-high {
+      border-left: 5px solid #f6ad55;
+    }
+
+    .recommendation-card.priority-medium {
+      border-left: 5px solid #f6e05e;
+    }
+
+    .recommendation-card h3 {
+      color: #2d3748;
+      margin-bottom: 10px;
+      font-size: 18px;
+    }
+
+    .recommendation-card p {
+      color: #4a5568;
+      margin-bottom: 8px;
+    }
+
+    .chart-container {
+      background: #f7fafc;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+
+    .chart-bar {
+      display: flex;
+      align-items: center;
+      margin-bottom: 15px;
+    }
+
+    .chart-label {
+      width: 120px;
+      font-size: 14px;
+      color: #2d3748;
+      font-weight: 600;
+    }
+
+    .chart-bar-fill {
+      flex: 1;
+      height: 30px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      border-radius: 5px;
+      display: flex;
+      align-items: center;
+      padding: 0 10px;
+      color: white;
+      font-size: 12px;
+      font-weight: 600;
+      transition: all 0.3s;
+    }
+
+    .loading {
+      text-align: center;
+      padding: 50px;
+      color: #718096;
+    }
+
+    .spinner {
+      border: 4px solid #e2e8f0;
+      border-top: 4px solid #667eea;
+      border-radius: 50%;
+      width: 50px;
+      height: 50px;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 20px;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    .empty-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: #718096;
+    }
+
+    .empty-state-icon {
+      font-size: 64px;
+      margin-bottom: 20px;
+      opacity: 0.5;
+    }
+
+    .trend-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      font-size: 14px;
+      font-weight: 600;
+      padding: 4px 10px;
+      border-radius: 20px;
+    }
+
+    .trend-increasing {
+      background: #fc8181;
+      color: white;
+    }
+
+    .trend-decreasing {
+      background: #68d391;
+      color: white;
+    }
+
+    .trend-stable {
+      background: #63b3ed;
+      color: white;
+    }
+
+    .bug-details-modal {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.5);
+      z-index: 1000;
+      padding: 20px;
+      overflow-y: auto;
+    }
+
+    .modal-content {
+      background: white;
+      max-width: 800px;
+      margin: 50px auto;
+      border-radius: 15px;
+      padding: 30px;
+      position: relative;
+    }
+
+    .modal-close {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: none;
+      border: none;
+      font-size: 24px;
+      cursor: pointer;
+      color: #718096;
+    }
+
+    .modal-close:hover {
+      color: #2d3748;
+    }
+
+    .detail-section {
+      margin-bottom: 25px;
+    }
+
+    .detail-section h3 {
+      color: #2d3748;
+      margin-bottom: 12px;
+      font-size: 18px;
+    }
+
+    .detail-row {
+      display: flex;
+      margin-bottom: 10px;
+    }
+
+    .detail-label {
+      width: 150px;
+      font-weight: 600;
+      color: #4a5568;
+    }
+
+    .detail-value {
+      flex: 1;
+      color: #2d3748;
+    }
+
+    .code-block {
+      background: #2d3748;
+      color: #e2e8f0;
+      padding: 15px;
+      border-radius: 8px;
+      overflow-x: auto;
+      font-family: 'Courier New', monospace;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 768px) {
+      .controls {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .stats-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .bug-header {
+        flex-direction: column;
+      }
+
+      .chart-bar {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .chart-label {
+        width: 100%;
+        margin-bottom: 5px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Post Hoc Bug Analyzer</h1>
+      <p>Analyze bugs, identify patterns, and get actionable insights</p>
+    </div>
+
+    <div class="controls">
+      <select id="timeRange">
+        <option value="1">Last 24 hours</option>
+        <option value="7" selected>Last 7 days</option>
+        <option value="30">Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+
+      <select id="severityFilter">
+        <option value="">All Severities</option>
+        <option value="critical">Critical</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+        <option value="info">Info</option>
+      </select>
+
+      <select id="categoryFilter">
+        <option value="">All Categories</option>
+        <option value="authentication">Authentication</option>
+        <option value="api">API</option>
+        <option value="database">Database</option>
+        <option value="ui">UI</option>
+        <option value="performance">Performance</option>
+        <option value="security">Security</option>
+        <option value="integration">Integration</option>
+        <option value="configuration">Configuration</option>
+      </select>
+
+      <input type="text" id="searchInput" placeholder="Search bugs...">
+
+      <button class="btn btn-primary" onclick="loadAnalysis()">
+        🔄 Refresh
+      </button>
+
+      <button class="btn btn-secondary" onclick="exportData()">
+        📥 Export
+      </button>
+
+      <button class="btn btn-danger" onclick="cleanupOldBugs()">
+        🧹 Cleanup
+      </button>
+    </div>
+
+    <div class="tabs">
+      <div class="tab-buttons">
+        <button class="tab-button active" onclick="switchTab('overview')">Overview</button>
+        <button class="tab-button" onclick="switchTab('bugs')">Bug List</button>
+        <button class="tab-button" onclick="switchTab('patterns')">Patterns</button>
+        <button class="tab-button" onclick="switchTab('recommendations')">Recommendations</button>
+        <button class="tab-button" onclick="switchTab('trends')">Trends</button>
+      </div>
+
+      <div id="overview" class="tab-content active">
+        <div id="stats" class="stats-grid">
+          <!-- Stats will be loaded here -->
+        </div>
+
+        <div class="chart-container">
+          <h2 style="margin-bottom: 20px; color: #2d3748;">Category Breakdown</h2>
+          <div id="categoryChart"></div>
+        </div>
+
+        <div class="chart-container">
+          <h2 style="margin-bottom: 20px; color: #2d3748;">Severity Breakdown</h2>
+          <div id="severityChart"></div>
+        </div>
+      </div>
+
+      <div id="bugs" class="tab-content">
+        <h2 style="margin-bottom: 20px; color: #2d3748;">Bug List</h2>
+        <div id="bugList" class="bug-list">
+          <!-- Bugs will be loaded here -->
+        </div>
+      </div>
+
+      <div id="patterns" class="tab-content">
+        <h2 style="margin-bottom: 20px; color: #2d3748;">Detected Patterns</h2>
+        <div id="patternsList">
+          <!-- Patterns will be loaded here -->
+        </div>
+      </div>
+
+      <div id="recommendations" class="tab-content">
+        <h2 style="margin-bottom: 20px; color: #2d3748;">Actionable Recommendations</h2>
+        <div id="recommendationsList">
+          <!-- Recommendations will be loaded here -->
+        </div>
+      </div>
+
+      <div id="trends" class="tab-content">
+        <h2 style="margin-bottom: 20px; color: #2d3748;">Trend Analysis</h2>
+        <div id="trendsContent">
+          <!-- Trends will be loaded here -->
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="bugDetailsModal" class="bug-details-modal">
+    <div class="modal-content">
+      <button class="modal-close" onclick="closeModal()">×</button>
+      <div id="modalContent"></div>
+    </div>
+  </div>
+
+  <script>
+    // Configuration
+    const API_URL = 'YOUR_APPS_SCRIPT_URL_HERE';
+    let currentAnalysis = null;
+
+    // Load analysis on page load
+    window.addEventListener('DOMContentLoaded', () => {
+      loadAnalysis();
+    });
+
+    // Switch tabs
+    function switchTab(tabName) {
+      document.querySelectorAll('.tab-button').forEach(btn => {
+        btn.classList.remove('active');
+      });
+      document.querySelectorAll('.tab-content').forEach(content => {
+        content.classList.remove('active');
+      });
+
+      event.target.classList.add('active');
+      document.getElementById(tabName).classList.add('active');
+    }
+
+    // Load analysis
+    async function loadAnalysis() {
+      showLoading();
+
+      try {
+        const timeRange = document.getElementById('timeRange').value;
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'analyzeBugs',
+            timeRange: parseInt(timeRange)
+          })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to load analysis');
+        }
+
+        currentAnalysis = result.analysis;
+        renderAnalysis(currentAnalysis);
+      } catch (error) {
+        console.error('Error loading analysis:', error);
+        showError('Failed to load analysis: ' + error.message);
+      }
+    }
+
+    // Render analysis
+    function renderAnalysis(analysis) {
+      renderStats(analysis.summary);
+      renderCategoryChart(analysis.categoryBreakdown);
+      renderSeverityChart(analysis.severityBreakdown);
+      renderBugList(analysis.topIssues);
+      renderPatterns(analysis.patterns);
+      renderRecommendations(analysis.recommendations);
+      renderTrends(analysis.trends);
+    }
+
+    // Render stats
+    function renderStats(summary) {
+      const statsHTML = `
+        <div class="stat-card">
+          <h3>Total Bugs</h3>
+          <div class="value">${summary.totalBugs}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Unresolved</h3>
+          <div class="value">${summary.unresolvedBugs}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Critical</h3>
+          <div class="value">${summary.criticalBugs}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Total Occurrences</h3>
+          <div class="value">${summary.totalOccurrences}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Avg Occurrences</h3>
+          <div class="value">${summary.averageOccurrences}</div>
+        </div>
+        <div class="stat-card">
+          <h3>Resolution Rate</h3>
+          <div class="value">${summary.resolutionRate}</div>
+        </div>
+      `;
+
+      document.getElementById('stats').innerHTML = statsHTML;
+    }
+
+    // Render category chart
+    function renderCategoryChart(categories) {
+      if (!categories || categories.length === 0) {
+        document.getElementById('categoryChart').innerHTML = '<p>No data available</p>';
+        return;
+      }
+
+      const maxCount = Math.max(...categories.map(c => c.count));
+      const chartHTML = categories.map(cat => `
+        <div class="chart-bar">
+          <div class="chart-label">${cat.category}</div>
+          <div class="chart-bar-fill" style="width: ${(cat.count / maxCount * 100)}%">
+            ${cat.count} (${cat.percentage})
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('categoryChart').innerHTML = chartHTML;
+    }
+
+    // Render severity chart
+    function renderSeverityChart(severities) {
+      if (!severities || severities.length === 0) {
+        document.getElementById('severityChart').innerHTML = '<p>No data available</p>';
+        return;
+      }
+
+      const maxCount = Math.max(...severities.map(s => s.count));
+      const chartHTML = severities.map(sev => `
+        <div class="chart-bar">
+          <div class="chart-label">${sev.severity}</div>
+          <div class="chart-bar-fill" style="width: ${maxCount > 0 ? (sev.count / maxCount * 100) : 0}%">
+            ${sev.count} (${sev.percentage})
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('severityChart').innerHTML = chartHTML;
+    }
+
+    // Render bug list
+    function renderBugList(bugs) {
+      if (!bugs || bugs.length === 0) {
+        document.getElementById('bugList').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🎉</div>
+            <h2>No bugs found!</h2>
+            <p>Everything is running smoothly.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const bugsHTML = bugs.map(bug => `
+        <div class="bug-item" onclick="showBugDetails('${bug.id}')">
+          <div class="bug-header">
+            <div>
+              <div class="bug-title">${escapeHtml(bug.message)}</div>
+              <div class="bug-meta">
+                <span class="badge badge-${bug.severity}">${bug.severity}</span>
+                <span class="badge badge-category">${bug.category}</span>
+                <span class="badge badge-occurrences">${bug.occurrences}x</span>
+                <span class="badge badge-${bug.impact}">${bug.impact} impact</span>
+              </div>
+            </div>
+          </div>
+          <div style="margin-top: 10px; font-size: 13px; color: #718096;">
+            First seen: ${formatDate(bug.firstSeen)} | Last seen: ${formatDate(bug.lastSeen)}
+          </div>
+        </div>
+      `).join('');
+
+      document.getElementById('bugList').innerHTML = bugsHTML;
+    }
+
+    // Render patterns
+    function renderPatterns(patterns) {
+      if (!patterns || patterns.length === 0) {
+        document.getElementById('patternsList').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">🔍</div>
+            <h2>No patterns detected</h2>
+            <p>Not enough data to identify patterns.</p>
+          </div>
+        `;
+        return;
+      }
+
+      const patternsHTML = patterns.map(pattern => `
+        <div class="pattern-card">
+          <h3>${pattern.type} Pattern</h3>
+          <p><strong>Description:</strong> ${pattern.description}</p>
+          <p><strong>Confidence:</strong> ${(pattern.confidence * 100).toFixed(1)}%</p>
+          <p><strong>Recommendation:</strong> ${pattern.recommendation}</p>
+        </div>
+      `).join('');
+
+      document.getElementById('patternsList').innerHTML = patternsHTML;
+    }
+
+    // Render recommendations
+    function renderRecommendations(recommendations) {
+      if (!recommendations || recommendations.length === 0) {
+        document.getElementById('recommendationsList').innerHTML = `
+          <div class="empty-state">
+            <div class="empty-state-icon">✅</div>
+            <h2>No recommendations</h2>
+            <p>Everything looks good!</p>
+          </div>
+        `;
+        return;
+      }
+
+      const recommendationsHTML = recommendations.map(rec => `
+        <div class="recommendation-card priority-${rec.priority}">
+          <h3>${rec.title}</h3>
+          <p><strong>Priority:</strong> <span class="badge badge-${rec.priority}">${rec.priority}</span></p>
+          <p><strong>Description:</strong> ${rec.description}</p>
+          <p><strong>Action:</strong> ${rec.action}</p>
+        </div>
+      `).join('');
+
+      document.getElementById('recommendationsList').innerHTML = recommendationsHTML;
+    }
+
+    // Render trends
+    function renderTrends(trends) {
+      if (!trends) {
+        document.getElementById('trendsContent').innerHTML = '<p>No trend data available</p>';
+        return;
+      }
+
+      const trendClass = trends.trendDirection === 'increasing' ? 'trend-increasing' :
+                          trends.trendDirection === 'decreasing' ? 'trend-decreasing' : 'trend-stable';
+      const trendIcon = trends.trendDirection === 'increasing' ? '📈' :
+                        trends.trendDirection === 'decreasing' ? '📉' : '➡️';
+
+      const trendsHTML = `
+        <div style="margin-bottom: 20px;">
+          <span class="trend-indicator ${trendClass}">
+            ${trendIcon} ${trends.trendDirection}
+          </span>
+          <p style="margin-top: 15px; color: #4a5568;">${trends.interpretation}</p>
+        </div>
+
+        <div class="chart-container">
+          <h3 style="margin-bottom: 15px; color: #2d3748;">Daily Bug Count</h3>
+          <div>
+            ${trends.dailyData.map(data => `
+              <div style="display: flex; justify-content: space-between; padding: 8px; border-bottom: 1px solid #e2e8f0;">
+                <span>${data.date}</span>
+                <span style="font-weight: 600;">${data.count} bugs</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+
+      document.getElementById('trendsContent').innerHTML = trendsHTML;
+    }
+
+    // Show bug details
+    async function showBugDetails(bugId) {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'getBugDetails',
+            bugId: bugId
+          })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to load bug details');
+        }
+
+        const bug = result.bug;
+        const similarBugs = result.similarBugs || [];
+
+        const modalHTML = `
+          <h2 style="color: #2d3748; margin-bottom: 20px;">Bug Details</h2>
+
+          <div class="detail-section">
+            <div class="detail-row">
+              <div class="detail-label">ID:</div>
+              <div class="detail-value">${bug.id}</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Severity:</div>
+              <div class="detail-value"><span class="badge badge-${bug.severity}">${bug.severity}</span></div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Category:</div>
+              <div class="detail-value"><span class="badge badge-category">${bug.category}</span></div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Occurrences:</div>
+              <div class="detail-value">${bug.occurrences}</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Status:</div>
+              <div class="detail-value">${bug.resolved ? '✅ Resolved' : '❌ Unresolved'}</div>
+            </div>
+          </div>
+
+          <div class="detail-section">
+            <h3>Error Message</h3>
+            <div class="code-block">${escapeHtml(bug.message)}</div>
+          </div>
+
+          ${bug.stack ? `
+            <div class="detail-section">
+              <h3>Stack Trace</h3>
+              <div class="code-block">${escapeHtml(bug.stack)}</div>
+            </div>
+          ` : ''}
+
+          <div class="detail-section">
+            <h3>Timeline</h3>
+            <div class="detail-row">
+              <div class="detail-label">First Occurrence:</div>
+              <div class="detail-value">${formatDate(bug.firstOccurrence)}</div>
+            </div>
+            <div class="detail-row">
+              <div class="detail-label">Last Occurrence:</div>
+              <div class="detail-value">${formatDate(bug.lastOccurrence)}</div>
+            </div>
+          </div>
+
+          ${similarBugs.length > 0 ? `
+            <div class="detail-section">
+              <h3>Similar Bugs</h3>
+              ${similarBugs.map(similar => `
+                <div style="padding: 10px; background: #f7fafc; border-radius: 8px; margin-bottom: 10px;">
+                  <div>${escapeHtml(similar.message)}</div>
+                  <div style="font-size: 12px; color: #718096; margin-top: 5px;">
+                    Similarity: ${similar.similarity}
+                  </div>
+                </div>
+              `).join('')}
+            </div>
+          ` : ''}
+
+          <div style="display: flex; gap: 10px; margin-top: 20px;">
+            ${!bug.resolved ? `
+              <button class="btn btn-primary" onclick="resolveBug('${bug.id}')">
+                ✅ Mark as Resolved
+              </button>
+            ` : ''}
+            <button class="btn btn-secondary" onclick="closeModal()">
+              Close
+            </button>
+          </div>
+        `;
+
+        document.getElementById('modalContent').innerHTML = modalHTML;
+        document.getElementById('bugDetailsModal').style.display = 'block';
+      } catch (error) {
+        console.error('Error loading bug details:', error);
+        alert('Failed to load bug details: ' + error.message);
+      }
+    }
+
+    // Resolve bug
+    async function resolveBug(bugId) {
+      if (!confirm('Mark this bug as resolved?')) return;
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'resolveBug',
+            bugId: bugId,
+            resolution: 'Fixed'
+          })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to resolve bug');
+        }
+
+        alert('Bug marked as resolved!');
+        closeModal();
+        loadAnalysis();
+      } catch (error) {
+        console.error('Error resolving bug:', error);
+        alert('Failed to resolve bug: ' + error.message);
+      }
+    }
+
+    // Close modal
+    function closeModal() {
+      document.getElementById('bugDetailsModal').style.display = 'none';
+    }
+
+    // Export data
+    async function exportData() {
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'exportBugs',
+            format: 'csv'
+          })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to export data');
+        }
+
+        // Download CSV
+        const blob = new Blob([result.data], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `bug-analysis-${new Date().toISOString().split('T')[0]}.csv`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+
+        alert('Data exported successfully!');
+      } catch (error) {
+        console.error('Error exporting data:', error);
+        alert('Failed to export data: ' + error.message);
+      }
+    }
+
+    // Cleanup old bugs
+    async function cleanupOldBugs() {
+      if (!confirm('Remove old resolved bugs? This cannot be undone.')) return;
+
+      try {
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify({
+            action: 'cleanupOldBugs'
+          })
+        });
+
+        const result = await response.json();
+
+        if (!result.success) {
+          throw new Error(result.error || 'Failed to cleanup bugs');
+        }
+
+        alert(`Removed ${result.removed} old bugs. ${result.remaining} remaining.`);
+        loadAnalysis();
+      } catch (error) {
+        console.error('Error cleaning up bugs:', error);
+        alert('Failed to cleanup bugs: ' + error.message);
+      }
+    }
+
+    // Utility functions
+    function showLoading() {
+      const loadingHTML = `
+        <div class="loading">
+          <div class="spinner"></div>
+          <p>Loading analysis...</p>
+        </div>
+      `;
+      document.getElementById('stats').innerHTML = loadingHTML;
+    }
+
+    function showError(message) {
+      const errorHTML = `
+        <div class="empty-state">
+          <div class="empty-state-icon">❌</div>
+          <h2>Error</h2>
+          <p>${message}</p>
+        </div>
+      `;
+      document.getElementById('stats').innerHTML = errorHTML;
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    function formatDate(dateString) {
+      const date = new Date(dateString);
+      return date.toLocaleString();
+    }
+
+    // Close modal when clicking outside
+    window.onclick = function(event) {
+      const modal = document.getElementById('bugDetailsModal');
+      if (event.target === modal) {
+        closeModal();
+      }
+    };
+  </script>
+</body>
+</html>

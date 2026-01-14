@@ -897,6 +897,20 @@ function doPost(e) {
       case 'aiDebugConsult':
         return json(aiDebugConsult(d.query));
 
+      // Bug Analyzer endpoints
+      case 'logBug':
+        return json(logBug(d.bugData));
+      case 'analyzeBugs':
+        return json({ success: true, analysis: analyzeBugs({ timeRange: d.timeRange }) });
+      case 'getBugDetails':
+        return json(getBugDetails(d.bugId));
+      case 'resolveBug':
+        return json(resolveBug(d.bugId, d.resolution));
+      case 'exportBugs':
+        return json(exportBugs(d.format));
+      case 'cleanupOldBugs':
+        return json(cleanupOldBugs());
+
       default: return json({ success: false, error: 'Unknown: ' + a });
     }
   } catch (e) { return json({ success: false, error: e.toString() }); }
