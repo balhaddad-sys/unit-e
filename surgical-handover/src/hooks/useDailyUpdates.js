@@ -1,51 +1,42 @@
 import { useState, useEffect } from 'react'
-import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, serverTimestamp, query, orderBy,
-} from 'firebase/firestore'
-import { db } from '../firebase'
 
-function updatesRef(uid, patientId) {
-  return collection(db, 'users', uid, 'patients', patientId, 'dailyUpdates')
+function loadKey(key) {
+  try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? [] }
+  catch { return [] }
+}
+function saveKey(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
 }
 
-export function useDailyUpdates(uid, patientId) {
-  const [updates, setUpdates] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+export function useDailyUpdates(patientId) {
+  const key = `ue:updates:${patientId}`
+  const [updates, setUpdates] = useState(() => patientId ? loadKey(key) : [])
 
   useEffect(() => {
-    if (!uid || !patientId) return
-    const q = query(updatesRef(uid, patientId), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setUpdates(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-        setLoading(false)
-      },
-      (err) => {
-        console.error('useDailyUpdates error:', err)
-        setError(err.message)
-        setLoading(false)
-      },
-    )
-    return unsub
-  }, [uid, patientId])
+    if (!patientId) { setUpdates([]); return }
+    setUpdates(loadKey(key))
+  }, [patientId])
 
-  async function addUpdate(data) {
-    return addDoc(updatesRef(uid, patientId), {
+  function persist(list) { saveKey(key, list); setUpdates(list) }
+
+  function addUpdate(data) {
+    const u = {
       ...data,
-      createdAt: serverTimestamp(),
-    })
+      id: crypto.randomUUID(),
+      createdAt: new Date().toISOString(),
+    }
+    const next = [u, ...updates]
+    persist(next)
+    return u
   }
 
-  async function updateUpdate(updateId, data) {
-    return updateDoc(doc(db, 'users', uid, 'patients', patientId, 'dailyUpdates', updateId), data)
+  function updateUpdate(updateId, data) {
+    persist(updates.map(u => u.id === updateId ? { ...u, ...data } : u))
   }
 
-  async function deleteUpdate(updateId) {
-    return deleteDoc(doc(db, 'users', uid, 'patients', patientId, 'dailyUpdates', updateId))
+  function deleteUpdate(updateId) {
+    persist(updates.filter(u => u.id !== updateId))
   }
 
-  return { updates, loading, error, addUpdate, updateUpdate, deleteUpdate }
+  return { updates, loading: false, error: null, addUpdate, updateUpdate, deleteUpdate }
 }

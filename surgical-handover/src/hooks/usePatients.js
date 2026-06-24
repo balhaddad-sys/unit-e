@@ -1,63 +1,40 @@
-import { useState, useEffect } from 'react'
-import {
-  collection, onSnapshot, addDoc, updateDoc, deleteDoc,
-  doc, serverTimestamp, query, orderBy,
-} from 'firebase/firestore'
-import { db } from '../firebase'
+import { useState } from 'react'
 
-function patientsRef(uid) {
-  return collection(db, 'users', uid, 'patients')
+function load(key, fallback) {
+  try { return JSON.parse(localStorage.getItem(key) ?? 'null') ?? fallback }
+  catch { return fallback }
+}
+function save(key, val) {
+  try { localStorage.setItem(key, JSON.stringify(val)) } catch {}
 }
 
-export function usePatients(uid) {
-  const [patients, setPatients] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
+export function usePatients() {
+  const [patients, setPatients] = useState(() => load('ue:patients', []))
 
-  useEffect(() => {
-    if (!uid) return
-    const q = query(patientsRef(uid), orderBy('createdAt', 'desc'))
-    const unsub = onSnapshot(
-      q,
-      (snap) => {
-        setPatients(snap.docs.map(d => ({ id: d.id, ...d.data() })))
-        setLoading(false)
-      },
-      (err) => {
-        console.error('usePatients error:', err)
-        setError(err.message)
-        setLoading(false)
-      },
-    )
-    return unsub
-  }, [uid])
+  function persist(list) { save('ue:patients', list); setPatients(list) }
 
-  async function addPatient(data) {
-    return addDoc(patientsRef(uid), {
+  function addPatient(data) {
+    const p = {
       ...data,
+      id: crypto.randomUUID(),
       status: 'active',
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    })
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    }
+    persist([p, ...patients])
+    return p
   }
 
-  async function updatePatient(patientId, data) {
-    return updateDoc(doc(db, 'users', uid, 'patients', patientId), {
-      ...data,
-      updatedAt: serverTimestamp(),
-    })
+  function updatePatient(id, data) {
+    persist(patients.map(p => p.id === id ? { ...p, ...data, updatedAt: new Date().toISOString() } : p))
   }
 
-  async function deletePatient(patientId) {
-    return deleteDoc(doc(db, 'users', uid, 'patients', patientId))
+  function deletePatient(id) {
+    persist(patients.filter(p => p.id !== id))
+    localStorage.removeItem(`ue:updates:${id}`)
   }
 
-  async function setPatientStatus(patientId, status) {
-    return updateDoc(doc(db, 'users', uid, 'patients', patientId), {
-      status,
-      updatedAt: serverTimestamp(),
-    })
-  }
+  function setPatientStatus(id, status) { updatePatient(id, { status }) }
 
-  return { patients, loading, error, addPatient, updatePatient, deletePatient, setPatientStatus }
+  return { patients, loading: false, error: null, addPatient, updatePatient, deletePatient, setPatientStatus }
 }

@@ -1,5 +1,7 @@
 import { useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { buildFullPrompt } from '../utils/noteBuilder'
+import { formatNote, getApiKey } from '../utils/deepseekClient'
 
 export default function NoteGenerator({ patient, initialUpdate, onSaveNote }) {
   const [roughNote, setRoughNote] = useState('')
@@ -8,6 +10,7 @@ export default function NoteGenerator({ patient, initialUpdate, onSaveNote }) {
   const [error, setError] = useState('')
   const [copied, setCopied] = useState(false)
   const outputRef = useRef(null)
+  const hasKey = Boolean(getApiKey())
 
   async function generateNote() {
     const input = roughNote.trim()
@@ -16,14 +19,8 @@ export default function NoteGenerator({ patient, initialUpdate, onSaveNote }) {
     setLoading(true)
     try {
       const patientContext = patient ? buildFullPrompt(patient, null) : ''
-      const res = await fetch('/api/format-note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roughNote: input, patientContext: patientContext || undefined }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to generate note')
-      setGeneratedNote(data.note)
+      const note = await formatNote(input, patientContext || undefined)
+      setGeneratedNote(note)
     } catch (err) {
       setError(err.message)
     } finally {
@@ -60,6 +57,20 @@ export default function NoteGenerator({ patient, initialUpdate, onSaveNote }) {
         </p>
       </div>
 
+      {/* No API key notice */}
+      {!hasKey && (
+        <div className="flex items-start gap-3 p-3 bg-blue-50 border border-blue-200 rounded-xl">
+          <svg className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <p className="text-xs text-blue-800 font-medium">
+            Add your DeepSeek API key in{' '}
+            <Link to="/settings" className="underline">Settings</Link>{' '}
+            to enable AI note formatting.
+          </p>
+        </div>
+      )}
+
       {/* Input area */}
       <div>
         <label className="label text-slate-600">Paste rough note here</label>
@@ -82,7 +93,7 @@ export default function NoteGenerator({ patient, initialUpdate, onSaveNote }) {
       <div className="flex flex-wrap gap-2">
         <button
           onClick={generateNote}
-          disabled={loading || !roughNote.trim()}
+          disabled={loading || !roughNote.trim() || !hasKey}
           className="btn-primary"
         >
           {loading ? (

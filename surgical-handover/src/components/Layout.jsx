@@ -1,11 +1,10 @@
 import { useState } from 'react'
-import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { signOut } from 'firebase/auth'
-import { auth } from '../firebase'
+import { Link, useLocation } from 'react-router-dom'
 
 const NAV_ITEMS = [
   { path: '/', label: 'Patients', icon: IconPatients },
   { path: '/generate', label: 'Quick Note', icon: IconNote },
+  { path: '/settings', label: 'Settings', icon: IconSettings },
 ]
 
 function IconPatients({ className }) {
@@ -24,6 +23,15 @@ function IconNote({ className }) {
   )
 }
 
+function IconSettings({ className }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  )
+}
+
 function IconMenu({ className }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -32,23 +40,9 @@ function IconMenu({ className }) {
   )
 }
 
-function IconLogout({ className }) {
-  return (
-    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.8}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-    </svg>
-  )
-}
-
-export default function Layout({ children, user }) {
+export default function Layout({ children }) {
   const location = useLocation()
-  const navigate = useNavigate()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-
-  async function handleLogout() {
-    await signOut(auth)
-    navigate('/login')
-  }
 
   const isActive = (path) => {
     if (path === '/') return location.pathname === '/'
@@ -90,28 +84,8 @@ export default function Layout({ children, user }) {
           ))}
         </nav>
 
-        {/* User section */}
         <div className="p-3 border-t border-slate-200">
-          {user && (
-            <div className="flex items-center gap-2 mb-2">
-              {user.photoURL ? (
-                <img src={user.photoURL} className="w-7 h-7 rounded-full" alt="" />
-              ) : (
-                <div className="w-7 h-7 rounded-full bg-hospital-100 flex items-center justify-center">
-                  <span className="text-hospital-700 text-xs font-bold">
-                    {user.displayName?.[0] || user.email?.[0] || '?'}
-                  </span>
-                </div>
-              )}
-              <div className="min-w-0">
-                <p className="text-xs font-semibold text-slate-700 truncate">{user.displayName || user.email}</p>
-              </div>
-            </div>
-          )}
-          <button onClick={handleLogout} className="flex items-center gap-2 text-xs text-slate-500 hover:text-red-600 transition-colors w-full px-1">
-            <IconLogout className="w-4 h-4" />
-            Sign out
-          </button>
+          <p className="text-xs text-slate-400 text-center">Data stored locally on this device</p>
         </div>
       </aside>
 
@@ -123,14 +97,9 @@ export default function Layout({ children, user }) {
           </div>
           <span className="text-sm font-bold text-slate-800">Surgical Unit E</span>
         </div>
-        <div className="flex items-center gap-2">
-          {user?.photoURL && (
-            <img src={user.photoURL} className="w-7 h-7 rounded-full" alt="" />
-          )}
-          <button onClick={() => setMobileMenuOpen(o => !o)} className="p-1.5 text-slate-600">
-            <IconMenu className="w-5 h-5" />
-          </button>
-        </div>
+        <button onClick={() => setMobileMenuOpen(o => !o)} className="p-1.5 text-slate-600">
+          <IconMenu className="w-5 h-5" />
+        </button>
       </header>
 
       {/* Mobile drawer */}
@@ -158,12 +127,6 @@ export default function Layout({ children, user }) {
                 </Link>
               ))}
             </nav>
-            <div className="p-3 border-t border-slate-200 mt-auto">
-              <button onClick={handleLogout} className="flex items-center gap-2 text-sm text-red-600 px-3 py-2">
-                <IconLogout className="w-5 h-5" />
-                Sign out
-              </button>
-            </div>
           </div>
         </div>
       )}

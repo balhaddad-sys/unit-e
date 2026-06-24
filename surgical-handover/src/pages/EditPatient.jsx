@@ -2,14 +2,14 @@ import { useNavigate, useParams } from 'react-router-dom'
 import PatientForm from '../components/PatientForm'
 import { usePatients } from '../hooks/usePatients'
 
-export default function EditPatient({ user }) {
+export default function EditPatient() {
   const { patientId } = useParams()
   const navigate = useNavigate()
-  const { patients, updatePatient } = usePatients(user?.uid)
+  const { patients, updatePatient } = usePatients()
   const patient = patients.find(p => p.id === patientId)
 
-  async function handleSubmit(data) {
-    await updatePatient(patientId, data)
+  function handleSubmit(data) {
+    updatePatient(patientId, data)
     navigate(`/patients/${patientId}`)
   }
 

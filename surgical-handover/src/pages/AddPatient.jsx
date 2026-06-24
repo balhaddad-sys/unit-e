@@ -3,14 +3,14 @@ import PatientForm from '../components/PatientForm'
 import { usePatients } from '../hooks/usePatients'
 import { clearAutoSave } from '../hooks/useAutoSave'
 
-export default function AddPatient({ user }) {
+export default function AddPatient() {
   const navigate = useNavigate()
-  const { addPatient } = usePatients(user?.uid)
+  const { addPatient } = usePatients()
 
-  async function handleSubmit(data) {
-    const ref = await addPatient(data)
+  function handleSubmit(data) {
+    const p = addPatient(data)
     clearAutoSave('patient-form')
-    navigate(`/patients/${ref.id}`)
+    navigate(`/patients/${p.id}`)
   }
 
   return (

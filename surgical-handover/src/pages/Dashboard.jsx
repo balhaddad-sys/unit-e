@@ -13,8 +13,8 @@ function SearchIcon({ className }) {
   )
 }
 
-export default function Dashboard({ user }) {
-  const { patients, loading, error, setPatientStatus, deletePatient } = usePatients(user?.uid)
+export default function Dashboard() {
+  const { patients, loading, error, setPatientStatus, deletePatient } = usePatients()
   const [search, setSearch] = useState('')
   const [activeWard, setActiveWard] = useState('All')
   const [showStatus, setShowStatus] = useState('active')

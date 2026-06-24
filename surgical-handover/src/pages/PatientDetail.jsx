@@ -7,6 +7,7 @@ import NoteGenerator from '../components/NoteGenerator'
 import ExportModal from '../components/ExportModal'
 import { calcPOD, podLabel } from '../utils/podCalculator'
 import { buildFullPrompt } from '../utils/noteBuilder'
+import { formatNote } from '../utils/deepseekClient'
 import { clearAutoSave } from '../hooks/useAutoSave'
 
 function ts(firebaseTs) {
@@ -87,11 +88,11 @@ function UpdateCard({ update, onDelete, onCopyNote }) {
   )
 }
 
-export default function PatientDetail({ user }) {
+export default function PatientDetail() {
   const { patientId } = useParams()
   const navigate = useNavigate()
-  const { patients, updatePatient, setPatientStatus } = usePatients(user?.uid)
-  const { updates, addUpdate, deleteUpdate, updateUpdate } = useDailyUpdates(user?.uid, patientId)
+  const { patients, updatePatient, setPatientStatus } = usePatients()
+  const { updates, addUpdate, deleteUpdate, updateUpdate } = useDailyUpdates(patientId)
   const [activeTab, setActiveTab] = useState('overview')
   const [showAddUpdate, setShowAddUpdate] = useState(false)
   const [showExport, setShowExport] = useState(false)
@@ -123,15 +124,8 @@ export default function PatientDetail({ user }) {
     setNoteError('')
     try {
       const prompt = buildFullPrompt(patient, formData)
-      const res = await fetch('/api/format-note', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roughNote: prompt }),
-      })
-      const data = await res.json()
-      if (!res.ok) throw new Error(data.error || 'Failed to generate note')
-
-      await addUpdate({ ...formData, generatedNote: data.note, rawInput: prompt })
+      const note = await formatNote(prompt)
+      addUpdate({ ...formData, generatedNote: note, rawInput: prompt })
       clearAutoSave(saveKey)
       setShowAddUpdate(false)
       setActiveTab('updates')
@@ -142,9 +136,9 @@ export default function PatientDetail({ user }) {
     }
   }
 
-  async function handleSaveNote(note) {
+  function handleSaveNote(note) {
     if (updates.length > 0) {
-      await updateUpdate(updates[0].id, { generatedNote: note })
+      updateUpdate(updates[0].id, { generatedNote: note })
     }
   }
 
