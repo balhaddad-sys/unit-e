@@ -42,6 +42,8 @@ const EMPTY = {
   pod: '',
   subjectiveSymptoms: '', painStatus: '', nauseaVomiting: '',
   dietTolerance: '', bowelMotion: '', flatus: '', ambulation: '',
+  tempC: '', bp: '', hr: '', rr: '', spo2: '',
+  wound: '',
   fever: '', desaturation: '', oxygenRequirement: '',
   hypotension: '', tachycardia: '', icuReview: '', metCall: '',
   newImaging: '', newProcedure: '',
@@ -112,10 +114,23 @@ export default function DailyUpdateForm({ patient, saveKey, onSubmit, onCancel, 
         </div>
       </fieldset>
 
+      {/* Vitals */}
+      <fieldset>
+        <legend className="section-header">Vitals</legend>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+          <TextInput label="Temp (°C)" value={form.tempC} onChange={v => set('tempC', v)} placeholder="e.g. 37.2" />
+          <TextInput label="BP (mmHg)" value={form.bp} onChange={v => set('bp', v)} placeholder="e.g. 120/80" />
+          <TextInput label="HR (bpm)" value={form.hr} onChange={v => set('hr', v)} placeholder="e.g. 78" />
+          <TextInput label="RR (/min)" value={form.rr} onChange={v => set('rr', v)} placeholder="e.g. 16" />
+          <TextInput label="SpO2 (%)" value={form.spo2} onChange={v => set('spo2', v)} placeholder="e.g. 98% RA" />
+        </div>
+      </fieldset>
+
       {/* Objective data */}
       <fieldset>
         <legend className="section-header">Objective</legend>
         <div className="space-y-3">
+          <TextField label="Wound Assessment" value={form.wound} onChange={v => set('wound', v)} placeholder="e.g. Wound clean and dry, no erythema or discharge. Staples intact." rows={2} />
           <TextField label="Labs" value={form.labs} onChange={v => set('labs', v)} placeholder="e.g. WBC 12.4, CRP 45, Hb 108, Cr 68" rows={3} />
           <div className="grid grid-cols-2 gap-3">
             <TextInput label="Drain Output" value={form.drainOutput} onChange={v => set('drainOutput', v)} placeholder="e.g. 40 mL" />
