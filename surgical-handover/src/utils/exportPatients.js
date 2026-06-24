@@ -23,7 +23,7 @@ function formatSinglePatient(patient, updates = []) {
     patient.regularMedications ? `Medications: ${patient.regularMedications}` : '',
     patient.backgroundHistory ? `Background: ${patient.backgroundHistory}` : '',
     '',
-  ].filter(l => l !== null && l !== undefined && (l !== '' || true))
+  ].filter(Boolean)
 
   if (updates.length > 0) {
     lines.push('DAILY UPDATES:')
@@ -44,19 +44,22 @@ function formatSinglePatient(patient, updates = []) {
   return lines.join('\n')
 }
 
+export function buildAllPatientsText(patientsWithUpdates) {
+  const header = `SURGICAL UNIT E — HANDOVER DOCUMENT\n${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n${'═'.repeat(60)}\n\n`
+  const body = patientsWithUpdates
+    .map(({ patient, updates }) => formatSinglePatient(patient, updates))
+    .join('\n\n')
+  return header + body
+}
+
 export function exportSinglePatient(patient, updates = []) {
   const text = formatSinglePatient(patient, updates)
   downloadText(text, `${patient.name || 'patient'}-handover-${today()}.txt`)
 }
 
 export function exportAllActivePatients(patientsWithUpdates) {
-  const header = `SURGICAL UNIT E — HANDOVER DOCUMENT\n${new Date().toLocaleDateString('en-GB', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' })}\n${'═'.repeat(60)}\n\n`
-  const body = patientsWithUpdates
-    .map(({ patient, updates }) => formatSinglePatient(patient, updates))
-    .join('\n\n')
-  const text = header + body
+  const text = buildAllPatientsText(patientsWithUpdates)
   downloadText(text, `unit-e-handover-${today()}.txt`)
-  return text
 }
 
 export function copyToClipboard(text) {

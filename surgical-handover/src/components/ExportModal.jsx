@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { exportSinglePatient, exportAllActivePatients, copyToClipboard } from '../utils/exportPatients'
+import { exportSinglePatient, exportAllActivePatients, buildAllPatientsText, copyToClipboard } from '../utils/exportPatients'
 
 export default function ExportModal({ patient, updates, allActivePatients, onClose }) {
   const [copied, setCopied] = useState(false)
@@ -23,7 +23,7 @@ export default function ExportModal({ patient, updates, allActivePatients, onClo
   async function handleCopyAll() {
     setExporting(true)
     try {
-      const text = exportAllActivePatients(allActivePatients)
+      const text = buildAllPatientsText(allActivePatients)
       await copyToClipboard(text)
       setCopied(true)
       setTimeout(() => { setCopied(false); onClose() }, 1500)
